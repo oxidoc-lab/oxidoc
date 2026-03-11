@@ -1,0 +1,190 @@
+name: Release
+run-name: Release ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-version:
+    name: Validate Version Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate tag against Cargo.toml
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          TAG_VERSION="${TAG#v}"
+
+          # Extract version from root Cargo.toml workspace.package section
+          TOML_VERSION=$(grep -A 10 "^\[workspace.package\]" Cargo.toml | grep "^version" | head -1 | cut -d'"' -f2)
+
+          echo "Tag version: $TAG_VERSION"
+          echo "Cargo.toml version: $TOML_VERSION"
+
+          if [[ ! "$TAG_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-[a-zA-Z]+\.[0-9]+)?$ ]]; then
+            echo "::error::Invalid tag format '$TAG'. Expected: vX.Y.Z or vX.Y.Z-label.N"
+            exit 1
+          fi
+
+          TAG_BASE="${BASH_REMATCH[1]}"
+          TOML_BASE=$(echo "$TOML_VERSION" | grep -oP '^\d+\.\d+\.\d+')
+
+          if [[ "$TAG_BASE" != "$TOML_BASE" ]]; then
+            echo "::error::Base version mismatch! Tag '$TAG_BASE' != Cargo.toml '$TOML_BASE'"
+            exit 1
+          fi
+
+          echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+
+  ci:
+    name: CI Gate
+    needs: validate-version
+    uses: ./.github/workflows/ci.yml
+
+  publish-crates:
+    name: Publish Crates
+    needs: [validate-version, ci]
+    runs-on: ubuntu-latest
+    environment: crates.io
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish oxidoc-island
+        run: |
+          cargo publish -p oxidoc-island --token ${{ secrets.CARGO_TOKEN }}
+          echo "Waiting 30s for crates.io to process oxidoc-island..."
+          sleep 30
+
+      - name: Publish oxidoc-core
+        run: |
+          cargo publish -p oxidoc-core --token ${{ secrets.CARGO_TOKEN }}
+          echo "Waiting 30s for crates.io to process oxidoc-core..."
+          sleep 30
+
+      - name: Publish oxidoc-cli
+        run: |
+          cargo publish -p oxidoc-cli --token ${{ secrets.CARGO_TOKEN }}
+
+  build-binaries:
+    name: Build Binary
+    needs: validate-version
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        include:
+          - runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: oxidoc
+            extension: ""
+          - runs-on: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: oxidoc
+            extension: ""
+          - runs-on: macos-latest
+            target: x86_64-apple-darwin
+            artifact: oxidoc
+            extension: ""
+          - runs-on: macos-latest
+            target: aarch64-apple-darwin
+            artifact: oxidoc
+            extension: ""
+          - runs-on: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: oxidoc.exe
+            extension: .exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build oxidoc binary
+        run: cargo build -p oxidoc-cli --release --target ${{ matrix.target }}
+
+      - name: Prepare binary artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          chmod +x ${{ matrix.artifact }}
+          tar czf oxidoc-${{ needs.validate-version.outputs.version }}-${{ matrix.target }}.tar.gz ${{ matrix.artifact }}
+          ls -lh oxidoc-*.tar.gz
+
+      - name: Prepare binary artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd target/${{ matrix.target }}/release
+          $version = "${{ needs.validate-version.outputs.version }}"
+          $artifact = "${{ matrix.artifact }}"
+          $target = "${{ matrix.target }}"
+          $zipname = "oxidoc-${version}-${target}.zip"
+          Compress-Archive -Path $artifact -DestinationPath $zipname
+          ls -l $zipname
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/oxidoc-*.tar.gz
+            target/${{ matrix.target }}/release/oxidoc-*.zip
+          retention-days: 1
+
+  github-release:
+    name: Create GitHub Release
+    needs: [validate-version, build-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./artifacts
+
+      - name: Create release notes
+        id: release_notes
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          echo "# Oxidoc $VERSION" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### Release Notes" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "Refer to [CHANGELOG.md](./CHANGELOG.md) for details." >> release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.validate-version.outputs.version }}
+          name: Oxidoc ${{ needs.validate-version.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(needs.validate-version.outputs.version, '-') }}
+          files: artifacts/**/*
