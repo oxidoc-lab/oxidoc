@@ -21,6 +21,8 @@ pub struct OxidocConfig {
     pub components: ComponentsConfig,
     #[serde(default)]
     pub footer: FooterConfig,
+    #[serde(default)]
+    pub redirects: RedirectConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -30,6 +32,8 @@ pub struct ProjectConfig {
     pub logo: Option<String>,
     #[serde(default)]
     pub base_url: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,6 +138,18 @@ pub struct FooterConfig {
     pub links: Vec<FooterLink>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct RedirectConfig {
+    #[serde(default)]
+    pub redirects: Vec<RedirectEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RedirectEntry {
+    pub from: String,
+    pub to: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct FooterLink {
     pub label: String,
@@ -190,6 +206,7 @@ name = "My Docs"
 [project]
 name = "My SDK Docs"
 logo = "/assets/logo.svg"
+description = "Complete SDK documentation"
 
 [theme]
 primary = "#ff0000"
@@ -214,9 +231,17 @@ provider = "oxidoc-tantivy"
 
 [components.custom]
 PromoBanner = "assets/js/promo-banner.js"
+
+[[redirects.redirects]]
+from = "/old-page"
+to = "/new-page"
 "##;
         let config = parse_config(toml).unwrap();
         assert_eq!(config.project.logo.as_deref(), Some("/assets/logo.svg"));
+        assert_eq!(
+            config.project.description.as_deref(),
+            Some("Complete SDK documentation")
+        );
         assert_eq!(config.theme.primary, "#ff0000");
         assert_eq!(config.routing.navigation.len(), 2);
         assert_eq!(config.routing.navigation[0].group, "Getting Started");
@@ -231,6 +256,9 @@ PromoBanner = "assets/js/promo-banner.js"
             config.components.custom.get("PromoBanner").unwrap(),
             "assets/js/promo-banner.js"
         );
+        assert_eq!(config.redirects.redirects.len(), 1);
+        assert_eq!(config.redirects.redirects[0].from, "/old-page");
+        assert_eq!(config.redirects.redirects[0].to, "/new-page");
     }
 
     #[test]

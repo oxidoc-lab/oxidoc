@@ -97,6 +97,7 @@ pub fn build_api_pages(
             &sidebar_html,
             &breadcrumb_html,
             &slug,
+            None,
         );
 
         let page_output = output_dir.join(format!("{slug}.html"));

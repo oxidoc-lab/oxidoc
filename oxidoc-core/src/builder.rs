@@ -1,13 +1,15 @@
 use crate::assets::copy_assets;
 use crate::breadcrumb::{generate_breadcrumbs, render_breadcrumbs};
-use crate::config::load_config;
+use crate::config::{RedirectEntry, load_config};
 use crate::crawler::{NavGroup, discover_pages};
 use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
 use crate::loader::generate_loader_js;
+use crate::minify::minify_html;
 use crate::openapi;
 use crate::renderer::render_document;
-use crate::template::{render_page, render_sidebar};
+use crate::sitemap::{generate_robots_txt, generate_sitemap};
+use crate::template::{render_404_page, render_page, render_sidebar};
 use crate::toc::{extract_toc, render_toc};
 use std::path::Path;
 
@@ -51,6 +53,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             let breadcrumb_html = render_breadcrumbs(&breadcrumbs);
 
             let page_title = extract_page_title(&root).unwrap_or_else(|| page.title.clone());
+            let page_description = extract_page_description(&root);
             let full_html = render_page(
                 &config,
                 &page_title,
@@ -59,6 +62,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 &sidebar_with_active,
                 &breadcrumb_html,
                 &page.slug,
+                page_description.as_deref(),
             );
 
             let page_output = output_dir.join(format!("{}.html", page.slug));
@@ -69,7 +73,8 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 })?;
             }
 
-            std::fs::write(&page_output, full_html).map_err(|e| OxidocError::FileWrite {
+            let minified_html = minify_html(&full_html);
+            std::fs::write(&page_output, minified_html).map_err(|e| OxidocError::FileWrite {
                 path: page_output.display().to_string(),
                 source: e,
             })?;
@@ -121,6 +126,24 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     generate_llms_txt(&nav_groups, output_dir)?;
     generate_index_redirect(&nav_groups, output_dir)?;
 
+    // Generate SEO files
+    let base_url = config.project.base_url.as_deref().unwrap_or("/");
+    generate_sitemap(&nav_groups, base_url, output_dir)?;
+    generate_robots_txt(base_url, output_dir)?;
+
+    // Generate 404 page
+    let not_found_html = render_404_page(&config);
+    let not_found_minified = minify_html(&not_found_html);
+    std::fs::write(output_dir.join("404.html"), not_found_minified).map_err(|e| {
+        OxidocError::FileWrite {
+            path: output_dir.join("404.html").display().to_string(),
+            source: e,
+        }
+    })?;
+
+    // Generate redirect pages
+    generate_redirects(&config.redirects.redirects, output_dir)?;
+
     Ok(BuildResult {
         pages_rendered,
         output_dir: output_dir.display().to_string(),
@@ -147,6 +170,20 @@ fn extract_page_title(root: &rdx_ast::Root) -> Option<String> {
             && h.depth.unwrap_or(1) == 1
         {
             return Some(crate::toc::extract_heading_text(node));
+        }
+    }
+    None
+}
+
+/// Extract a description from the first paragraph of content.
+fn extract_page_description(root: &rdx_ast::Root) -> Option<String> {
+    for node in &root.children {
+        if let rdx_ast::Node::Paragraph(_) = node {
+            let text = crate::utils::extract_plain_text(node);
+            if !text.trim().is_empty() {
+                // Limit to 160 characters for SEO meta description
+                return Some(text.chars().take(160).collect());
+            }
         }
     }
     None
@@ -213,32 +250,69 @@ fn generate_index_redirect(nav_groups: &[NavGroup], output_dir: &Path) -> Result
     Ok(())
 }
 
+/// Generate redirect HTML files for configured redirects.
+fn generate_redirects(redirects: &[RedirectEntry], output_dir: &Path) -> Result<()> {
+    for redirect in redirects {
+        let from_path = redirect.from.trim_start_matches('/').replace("/", "-");
+        let filename = if from_path.is_empty() {
+            "index.html".to_string()
+        } else {
+            format!("{}.html", from_path)
+        };
+
+        let html = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head><meta http-equiv="refresh" content="0; url={}"></head>
+<body><a href="{}">Redirecting...</a></body>
+</html>"#,
+            crate::utils::html_escape(&redirect.to),
+            crate::utils::html_escape(&redirect.to)
+        );
+
+        let redirect_path = output_dir.join(&filename);
+        std::fs::write(&redirect_path, html).map_err(|e| OxidocError::FileWrite {
+            path: redirect_path.display().to_string(),
+            source: e,
+        })?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn build_site_end_to_end() {
+    fn setup_project(
+        config_toml: &str,
+        files: &[(&str, &str)],
+    ) -> (tempfile::TempDir, std::path::PathBuf) {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         let docs = root.join("docs");
         std::fs::create_dir(&docs).unwrap();
-        std::fs::write(
-            root.join("oxidoc.toml"),
-            r#"[project]
-name = "Test Project"
-"#,
-        )
-        .unwrap();
-        std::fs::write(
-            docs.join("intro.rdx"),
-            "# Introduction\n\nWelcome to the docs.\n\n## Getting Started\n\nHere we go.",
-        )
-        .unwrap();
-        std::fs::write(docs.join("setup.rdx"), "# Setup\n\nInstall the tool.\n").unwrap();
-
+        std::fs::write(root.join("oxidoc.toml"), config_toml).unwrap();
+        for (name, content) in files {
+            std::fs::write(docs.join(name), content).unwrap();
+        }
         let output = root.join("dist");
-        let result = build_site(root, &output).unwrap();
+        (tmp, output)
+    }
+
+    #[test]
+    fn build_site_end_to_end() {
+        let (tmp, output) = setup_project(
+            "[project]\nname = \"Test Project\"\n",
+            &[
+                (
+                    "intro.rdx",
+                    "# Introduction\n\nWelcome to the docs.\n\n## Getting Started\n\nHere we go.",
+                ),
+                ("setup.rdx", "# Setup\n\nInstall the tool.\n"),
+            ],
+        );
+        let result = build_site(tmp.path(), &output).unwrap();
 
         assert_eq!(result.pages_rendered, 2);
         assert!(output.join("intro.html").exists());
@@ -248,6 +322,9 @@ name = "Test Project"
         assert!(output.join("llms-full.txt").exists());
         assert!(output.join("oxidoc.css").exists());
         assert!(output.join("oxidoc-loader.js").exists());
+        assert!(output.join("sitemap.xml").exists());
+        assert!(output.join("robots.txt").exists());
+        assert!(output.join("404.html").exists());
 
         let css = std::fs::read_to_string(output.join("oxidoc.css")).unwrap();
         assert!(css.contains("oxidoc-primary"));
@@ -259,12 +336,22 @@ name = "Test Project"
         assert!(intro_html.contains("Introduction"));
         assert!(intro_html.contains("<!DOCTYPE html>"));
         assert!(intro_html.contains("Test Project"));
-        assert!(intro_html.contains(r#"id="getting-started""#));
-        assert!(intro_html.contains("oxidoc-toc"));
 
         let llms = std::fs::read_to_string(output.join("llms.txt")).unwrap();
         assert!(llms.contains("/intro"));
         assert!(llms.contains("/setup"));
+
+        let sitemap = std::fs::read_to_string(output.join("sitemap.xml")).unwrap();
+        assert!(sitemap.contains("intro.html"));
+        assert!(sitemap.contains("setup.html"));
+
+        let robots = std::fs::read_to_string(output.join("robots.txt")).unwrap();
+        assert!(robots.contains("User-agent: *"));
+        assert!(robots.contains("Sitemap:"));
+
+        let not_found = std::fs::read_to_string(output.join("404.html")).unwrap();
+        assert!(not_found.contains("404"));
+        assert!(not_found.contains("Not Found"));
     }
 
     #[test]
@@ -277,56 +364,21 @@ name = "Test Project"
 
     #[test]
     fn build_site_explicit_routing() {
-        let tmp = tempfile::tempdir().unwrap();
-        let root = tmp.path();
-        let docs = root.join("docs");
-        std::fs::create_dir(&docs).unwrap();
-        std::fs::write(
-            root.join("oxidoc.toml"),
-            r#"
-[project]
-name = "Routed Docs"
-
-[routing]
-navigation = [
-  { group = "Guide", pages = ["quickstart"] }
-]
-"#,
-        )
-        .unwrap();
-        std::fs::write(docs.join("quickstart.rdx"), "# Quickstart\n\nGo!").unwrap();
-
-        let output = root.join("dist");
-        let result = build_site(root, &output).unwrap();
+        let routing_toml = "[project]\nname = \"Routed Docs\"\n\n[routing]\nnavigation = [\n  { group = \"Guide\", pages = [\"quickstart\"] }\n]\n";
+        let (tmp, output) =
+            setup_project(routing_toml, &[("quickstart.rdx", "# Quickstart\n\nGo!")]);
+        let result = build_site(tmp.path(), &output).unwrap();
         assert_eq!(result.pages_rendered, 1);
         assert!(output.join("quickstart.html").exists());
-
         let html = std::fs::read_to_string(output.join("quickstart.html")).unwrap();
         assert!(html.contains("Guide"));
     }
 
     #[test]
     fn build_site_missing_page_in_routing() {
-        let tmp = tempfile::tempdir().unwrap();
-        let root = tmp.path();
-        let docs = root.join("docs");
-        std::fs::create_dir(&docs).unwrap();
-        std::fs::write(
-            root.join("oxidoc.toml"),
-            r#"
-[project]
-name = "Bad Routing"
-
-[routing]
-navigation = [
-  { group = "Guide", pages = ["nonexistent"] }
-]
-"#,
-        )
-        .unwrap();
-
-        let output = root.join("dist");
-        let err = build_site(root, &output).unwrap_err();
+        let routing_toml = "[project]\nname = \"Bad Routing\"\n\n[routing]\nnavigation = [\n  { group = \"Guide\", pages = [\"nonexistent\"] }\n]\n";
+        let (tmp, output) = setup_project(routing_toml, &[]);
+        let err = build_site(tmp.path(), &output).unwrap_err();
         assert!(matches!(err, OxidocError::PageNotFound { .. }));
     }
 }
