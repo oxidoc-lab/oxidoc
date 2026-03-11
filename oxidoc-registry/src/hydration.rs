@@ -68,6 +68,7 @@ fn mount_island(
         "codeblock" => oxidoc_components::code_block::CodeBlock::mount(target, props_json),
         "tabs" => oxidoc_components::tabs::Tabs::mount(target, props_json),
         "api-playground" => oxidoc_openapi::ApiPlayground::mount(target, props_json),
+        "semantic-search" => oxidoc_search::SemanticSearch::mount(target, props_json),
         _ => {
             web_sys::console::warn_1(&format!("Unknown island type: {island_type}").into());
             Ok(())
