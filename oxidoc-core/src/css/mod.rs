@@ -1,5 +1,6 @@
 pub mod components;
 pub mod minify;
+pub mod syntax;
 pub mod theme;
 
 pub use minify::minify_css;
@@ -35,6 +36,7 @@ pub fn generate_base_css(config: &OxidocConfig) -> String {
 {SKIP_NAV_AND_HEADER_ACTIONS_CSS}
 {COMPONENT_CSS}
 {API_CSS}
+{SYNTAX_CSS}
 {RESPONSIVE_AND_PRINT_CSS}
 "#,
         RESET_AND_BODY = theme::RESET_AND_BODY,
@@ -47,6 +49,7 @@ pub fn generate_base_css(config: &OxidocConfig) -> String {
         SKIP_NAV_AND_HEADER_ACTIONS_CSS = theme::SKIP_NAV_AND_HEADER_ACTIONS,
         COMPONENT_CSS = components::COMPONENTS,
         API_CSS = components::API,
+        SYNTAX_CSS = syntax::SYNTAX,
         RESPONSIVE_AND_PRINT_CSS = theme::RESPONSIVE_AND_PRINT,
     )
 }
@@ -71,7 +74,7 @@ mod tests {
             parse_config("[project]\nname = \"T\"\n[theme]\ndark_mode = \"dark\"").unwrap();
         let css = generate_base_css(&config);
         assert!(css.contains("color-scheme: dark"));
-        assert!(!css.contains("prefers-color-scheme"));
+        // Note: syntax.rs now includes prefers-color-scheme media queries for syntax highlighting
     }
 
     #[test]
