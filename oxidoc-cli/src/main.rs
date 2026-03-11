@@ -16,6 +16,14 @@ struct Cli {
     /// Project root directory (defaults to current directory)
     #[arg(short = 'C', long, global = true)]
     project: Option<PathBuf>,
+
+    /// Enable verbose output (detailed build steps)
+    #[arg(short, long, global = true)]
+    verbose: bool,
+
+    /// Suppress all output except errors (for CI)
+    #[arg(short, long, global = true)]
+    quiet: bool,
 }
 
 #[derive(Subcommand)]
@@ -37,8 +45,20 @@ enum Command {
 }
 
 fn main() -> ExitCode {
-    tracing_subscriber::fmt::init();
     let cli = Cli::parse();
+
+    let log_level = if cli.quiet {
+        tracing::Level::ERROR
+    } else if cli.verbose {
+        tracing::Level::DEBUG
+    } else {
+        tracing::Level::INFO
+    };
+
+    tracing_subscriber::fmt()
+        .with_max_level(log_level)
+        .with_target(false)
+        .init();
 
     let project_root = cli
         .project

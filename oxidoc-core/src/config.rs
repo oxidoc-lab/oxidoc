@@ -19,6 +19,8 @@ pub struct OxidocConfig {
     pub search: SearchConfig,
     #[serde(default)]
     pub components: ComponentsConfig,
+    #[serde(default)]
+    pub footer: FooterConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,6 +124,20 @@ pub struct ComponentsConfig {
     /// Maps custom tag names to JS file paths for Vanilla Web Component escape hatch.
     #[serde(default)]
     pub custom: HashMap<String, String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct FooterConfig {
+    #[serde(default)]
+    pub copyright: Option<String>,
+    #[serde(default)]
+    pub links: Vec<FooterLink>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FooterLink {
+    pub label: String,
+    pub href: String,
 }
 
 /// Load and validate `oxidoc.toml` from a project root.
