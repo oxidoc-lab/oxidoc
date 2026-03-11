@@ -45,7 +45,7 @@ openapiv3 = "2.2.0"
 # Wasm
 leptos = "0.8.17"
 wasm-bindgen = "0.2.114"
-web-sys = { version = "0.3.91", features = ["Element", "Document", "HtmlElement", "NodeList", "Window", "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "CustomEvent", "CustomEventInit"] }
+web-sys = { version = "0.3.91", features = ["Element", "Document", "HtmlElement", "NodeList", "Window", "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "CustomEvent", "CustomEventInit", "MutationObserver", "MutationObserverInit", "MutationRecord", "Navigator", "Clipboard", "Storage"] }
 js-sys = "0.3.91"
 
 # File watching (HMR)
