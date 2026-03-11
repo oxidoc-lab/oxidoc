@@ -6,6 +6,7 @@ pub mod crawler;
 pub mod css;
 pub mod error;
 pub mod loader;
+pub mod openapi;
 pub mod renderer;
 pub mod template;
 pub mod toc;

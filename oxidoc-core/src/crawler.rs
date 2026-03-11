@@ -3,7 +3,7 @@ use crate::error::{OxidocError, Result};
 use std::path::{Path, PathBuf};
 
 /// A resolved page ready for rendering.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PageEntry {
     /// Display title derived from filename or frontmatter.
     pub title: String,
@@ -16,7 +16,7 @@ pub struct PageEntry {
 }
 
 /// A resolved navigation group for sidebar rendering.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NavGroup {
     pub title: String,
     pub pages: Vec<PageEntry>,

@@ -5,6 +5,7 @@ use crate::crawler::{NavGroup, discover_pages};
 use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
 use crate::loader::generate_loader_js;
+use crate::openapi;
 use crate::renderer::render_document;
 use crate::template::{render_page, render_sidebar};
 use crate::toc::{extract_toc, render_toc};
@@ -75,6 +76,24 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
             pages_rendered += 1;
             tracing::info!(page = %page.slug, "Rendered");
+        }
+    }
+
+    // Process OpenAPI specs from navigation groups
+    for nav_group_cfg in &config.routing.navigation {
+        if let Some(ref spec_path) = nav_group_cfg.openapi {
+            let resolved = project_root.join(spec_path);
+            let spec = openapi::load_openapi_spec(&resolved)?;
+            let api_nav = openapi::generate_api_nav_groups(
+                &openapi::extract_endpoints(&spec),
+                &nav_group_cfg.group,
+            );
+            // Merge API nav groups into the full nav for sidebar rendering
+            let mut combined_nav = nav_groups.clone();
+            combined_nav.extend(api_nav);
+
+            let api_count = openapi::build_api_pages(&spec, output_dir, &config, &combined_nav)?;
+            pages_rendered += api_count;
         }
     }
 
