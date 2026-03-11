@@ -9,6 +9,7 @@ pub fn render_page(
     content_html: &str,
     toc_html: &str,
     sidebar_html: &str,
+    breadcrumb_html: &str,
     active_slug: &str,
 ) -> String {
     let project_name = &config.project.name;
@@ -42,6 +43,7 @@ pub fn render_page(
             {sidebar_html}
         </aside>
         <main class="oxidoc-content" role="main">
+            {breadcrumb_html}
             <article>
                 {content_html}
             </article>
@@ -102,7 +104,7 @@ mod tests {
     #[test]
     fn render_page_contains_essentials() {
         let config = test_config();
-        let html = render_page(&config, "Intro", "<p>Hello</p>", "", "", "intro");
+        let html = render_page(&config, "Intro", "<p>Hello</p>", "", "", "", "intro");
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("<title>Intro — Test Docs</title>"));
         assert!(html.contains("--oxidoc-primary: #3b82f6;"));

@@ -1,3 +1,5 @@
+pub mod assets;
+pub mod breadcrumb;
 pub mod builder;
 pub mod config;
 pub mod crawler;

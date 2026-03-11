@@ -1,3 +1,5 @@
+use crate::assets::copy_assets;
+use crate::breadcrumb::{generate_breadcrumbs, render_breadcrumbs};
 use crate::config::load_config;
 use crate::crawler::{NavGroup, discover_pages};
 use crate::error::{OxidocError, Result};
@@ -42,6 +44,8 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             let toc_entries = extract_toc(&root);
             let toc_html = render_toc(&toc_entries);
             let sidebar_with_active = render_sidebar(&nav_groups, &page.slug);
+            let breadcrumbs = generate_breadcrumbs(&page.slug);
+            let breadcrumb_html = render_breadcrumbs(&breadcrumbs);
 
             let page_title = extract_page_title(&root).unwrap_or_else(|| page.title.clone());
             let full_html = render_page(
@@ -50,6 +54,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 &content_html,
                 &toc_html,
                 &sidebar_with_active,
+                &breadcrumb_html,
                 &page.slug,
             );
 
@@ -69,6 +74,11 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             pages_rendered += 1;
             tracing::info!(page = %page.slug, "Rendered");
         }
+    }
+
+    let assets_copied = copy_assets(project_root, output_dir)?;
+    if assets_copied > 0 {
+        tracing::info!(count = assets_copied, "Assets copied");
     }
 
     generate_llms_txt(&nav_groups, output_dir)?;
