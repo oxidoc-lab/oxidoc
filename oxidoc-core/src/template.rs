@@ -1,6 +1,37 @@
 use crate::config::OxidocConfig;
 use crate::template_parts::{render_analytics_script, render_footer};
 
+/// Optional asset paths and SRI hashes for CSS/JS resources.
+#[derive(Debug, Default, Clone)]
+pub struct AssetConfig<'a> {
+    pub css_path: Option<&'a str>,
+    pub js_path: Option<&'a str>,
+    pub css_sri: Option<&'a str>,
+    pub js_sri: Option<&'a str>,
+}
+
+/// Build a `<link rel="stylesheet">` tag with optional SRI integrity hash.
+fn build_stylesheet_link(href: &str, sri: Option<&str>) -> String {
+    if let Some(sri) = sri {
+        format!(
+            r#"    <link rel="stylesheet" href="{href}" integrity="{sri}" crossorigin="anonymous">"#
+        )
+    } else {
+        format!(r#"    <link rel="stylesheet" href="{href}">"#)
+    }
+}
+
+/// Build a `<script>` tag with optional SRI integrity hash.
+fn build_script_tag(src: &str, sri: Option<&str>) -> String {
+    if let Some(sri) = sri {
+        format!(
+            r#"    <script src="{src}" type="module" async integrity="{sri}" crossorigin="anonymous"></script>"#
+        )
+    } else {
+        format!(r#"    <script src="{src}" type="module" async></script>"#)
+    }
+}
+
 const HEADER_ACTIONS_HTML: &str = r#"<div class="oxidoc-header-actions">
             <button data-oxidoc-search class="oxidoc-search-trigger" aria-label="Search documentation" title="Search (Ctrl+K)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/><path d="m10 10 4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -36,8 +67,7 @@ pub fn render_page(
     breadcrumb_html: &str,
     active_slug: &str,
     description: Option<&str>,
-    css_path: Option<&str>,
-    js_path: Option<&str>,
+    assets: &AssetConfig<'_>,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -75,10 +105,12 @@ pub fn render_page(
     let page_description_escaped = crate::utils::html_escape(page_description);
     let page_title_escaped = crate::utils::html_escape(&page_title);
 
-    let css_href = css_path.unwrap_or("/oxidoc.css");
-    let js_src = js_path.unwrap_or("/oxidoc-loader.js");
+    let css_href = assets.css_path.unwrap_or("/oxidoc.css");
+    let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
 
     let analytics_html = render_analytics_script(config);
+    let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
+    let script_tag = build_script_tag(js_src, assets.js_sri);
 
     format!(
         r##"<!DOCTYPE html>
@@ -100,7 +132,7 @@ pub fn render_page(
     <link rel="canonical" href="{base_url}{active_slug}">
     <link rel="preload" href="{css_href}" as="style">
     <link rel="preload" href="{js_src}" as="script">
-    <link rel="stylesheet" href="{css_href}">
+{stylesheet_link}
     {analytics_html}
 </head>
 <body>
@@ -124,7 +156,7 @@ pub fn render_page(
         </aside>
     </div>
     {footer_html}
-    <script src="{js_src}" type="module" async></script>
+{script_tag}
 </body>
 </html>"##,
         lang = config.i18n.default_locale,
@@ -144,24 +176,23 @@ pub fn render_page(
         css_href = css_href,
         js_src = js_src,
         analytics_html = analytics_html,
+        stylesheet_link = stylesheet_link,
+        script_tag = script_tag,
         HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
     )
 }
 
 /// Generate a 404 error page using the site template.
-pub fn render_404_page(
-    config: &OxidocConfig,
-    css_path: Option<&str>,
-    js_path: Option<&str>,
-) -> String {
+pub fn render_404_page(config: &OxidocConfig, assets: &AssetConfig<'_>) -> String {
     let (logo_html, safe_name) = render_logo_html(config);
-
     let footer_html = render_footer(config);
 
-    let css_href = css_path.unwrap_or("/oxidoc.css");
-    let js_src = js_path.unwrap_or("/oxidoc-loader.js");
+    let css_href = assets.css_path.unwrap_or("/oxidoc.css");
+    let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
 
     let analytics_html = render_analytics_script(config);
+    let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
+    let script_tag = build_script_tag(js_src, assets.js_sri);
 
     format!(
         r##"<!DOCTYPE html>
@@ -174,7 +205,7 @@ pub fn render_404_page(
     <meta name="generator" content="oxidoc">
     <link rel="preload" href="{css_href}" as="style">
     <link rel="preload" href="{js_src}" as="script">
-    <link rel="stylesheet" href="{css_href}">
+{stylesheet_link}
     {analytics_html}
 </head>
 <body>
@@ -193,7 +224,7 @@ pub fn render_404_page(
         </main>
     </div>
     {footer_html}
-    <script src="{js_src}" type="module" async></script>
+{script_tag}
 </body>
 </html>"##,
         lang = config.i18n.default_locale,
@@ -203,6 +234,8 @@ pub fn render_404_page(
         css_href = css_href,
         js_src = js_src,
         analytics_html = analytics_html,
+        stylesheet_link = stylesheet_link,
+        script_tag = script_tag,
         HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
     )
 }
@@ -220,8 +253,12 @@ name = "Test Docs""#,
         .unwrap()
     }
 
+    fn default_assets() -> AssetConfig<'static> {
+        AssetConfig::default()
+    }
+
     #[test]
-    fn render_page_contains_essentials() {
+    fn render_page_structure_and_accessibility() {
         let config = test_config();
         let html = render_page(
             &config,
@@ -232,21 +269,16 @@ name = "Test Docs""#,
             "",
             "intro",
             None,
-            None,
-            None,
+            &default_assets(),
         );
+        // Essential structure
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("<title>Intro - Test Docs</title>"));
         assert!(html.contains(r#"href="/oxidoc.css""#));
         assert!(html.contains("<p>Hello</p>"));
         assert!(html.contains("oxidoc-loader.js"));
         assert!(html.contains(r#"lang="en""#));
-    }
-
-    #[test]
-    fn render_page_has_accessibility_and_preload() {
-        let config = test_config();
-        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
+        // Accessibility and preload
         assert!(html.contains("oxidoc-skip-nav"));
         assert!(html.contains(r##"href="#oxidoc-main""##));
         assert!(html.contains(r##"id="oxidoc-main""##));
@@ -254,30 +286,17 @@ name = "Test Docs""#,
         assert!(html.contains(r#"rel="preload" href="/oxidoc-loader.js" as="script""#));
         assert!(html.contains("oxidoc-search-trigger"));
         assert!(html.contains("oxidoc-theme-toggle"));
-    }
-
-    #[test]
-    fn render_page_with_logo() {
-        let config = parse_config(
-            r#"[project]
-name = "Test"
-logo = "/logo.svg""#,
-        )
-        .unwrap();
-        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
-        assert!(html.contains(r#"src="/logo.svg""#));
-        assert!(html.contains("oxidoc-logo-img"));
-    }
-
-    #[test]
-    fn render_page_no_footer_if_empty() {
-        let config = test_config();
-        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
+        // No footer when unconfigured
         assert!(!html.contains("oxidoc-footer"));
+
+        // Logo rendering
+        let logo_cfg = parse_config("[project]\nname = \"T\"\nlogo = \"/logo.svg\"").unwrap();
+        let html = render_page(&logo_cfg, "", "", "", "", "", "", None, &default_assets());
+        assert!(html.contains(r#"src="/logo.svg""#) && html.contains("oxidoc-logo-img"));
     }
 
     #[test]
-    fn render_page_includes_seo_meta_tags() {
+    fn render_page_seo_and_description() {
         let config = test_config();
         let html = render_page(
             &config,
@@ -288,8 +307,7 @@ logo = "/logo.svg""#,
             "",
             "test",
             Some("A test page"),
-            None,
-            None,
+            &default_assets(),
         );
         assert!(html.contains(r#"<meta name="description" content="A test page">"#));
         assert!(html.contains(r#"<meta property="og:title""#));
@@ -297,72 +315,67 @@ logo = "/logo.svg""#,
         assert!(html.contains(r#"<meta property="og:description""#));
         assert!(html.contains(r#"<meta name="twitter:card" content="summary""#));
         assert!(html.contains("application/ld+json"));
+
+        // Description fallback from config
+        let cfg = parse_config("[project]\nname = \"T\"\ndescription = \"Fallback desc\"").unwrap();
+        let html = render_page(&cfg, "P", "", "", "", "", "p", None, &default_assets());
+        assert!(html.contains("Fallback desc"));
     }
 
     #[test]
-    fn render_page_uses_config_description_fallback() {
-        let config =
-            parse_config("[project]\nname = \"Test\"\ndescription = \"Default description\"")
-                .unwrap();
-        let html = render_page(&config, "Page", "", "", "", "", "page", None, None, None);
-        assert!(html.contains("Default description"));
-    }
-
-    #[test]
-    fn render_page_with_custom_asset_paths() {
+    fn render_page_with_custom_assets_and_sri() {
         let config = test_config();
-        let html = render_page(
-            &config,
-            "Test",
-            "",
-            "",
-            "",
-            "",
-            "test",
-            None,
-            Some("/oxidoc.a1b2c3d4.css"),
-            Some("/oxidoc-loader.h5i6j7k8.js"),
-        );
+        let assets = AssetConfig {
+            css_path: Some("/oxidoc.a1b2c3d4.css"),
+            js_path: Some("/oxidoc-loader.h5i6j7k8.js"),
+            ..Default::default()
+        };
+        let html = render_page(&config, "Test", "", "", "", "", "test", None, &assets);
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
+
+        let sri_assets = AssetConfig {
+            css_sri: Some("sha384-abc123"),
+            js_sri: Some("sha384-def456"),
+            ..assets
+        };
+        let html = render_page(&config, "Test", "", "", "", "", "test", None, &sri_assets);
+        assert!(html.contains(r#"integrity="sha384-abc123""#));
+        assert!(html.contains(r#"integrity="sha384-def456""#));
+        assert!(html.contains(r#"crossorigin="anonymous""#));
     }
 
     #[test]
-    fn render_page_includes_google_analytics() {
-        let config = parse_config(
-            r##"[project]
-name = "Test"
-
-[analytics]
-google_analytics = "G-XXXXXXXXXX"
-"##,
+    fn render_page_includes_analytics() {
+        let ga_config = parse_config(
+            "[project]\nname = \"Test\"\n\n[analytics]\ngoogle_analytics = \"G-XXXXXXXXXX\"",
         )
         .unwrap();
-        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
-        assert!(html.contains("googletagmanager.com"));
-        assert!(html.contains("G-XXXXXXXXXX"));
-        assert!(html.contains("gtag"));
-    }
+        let html = render_page(&ga_config, "", "", "", "", "", "", None, &default_assets());
+        assert!(html.contains("googletagmanager.com") && html.contains("G-XXXXXXXXXX"));
 
-    #[test]
-    fn render_page_includes_custom_analytics_script() {
-        let config = parse_config(
-            r##"[project]
-name = "Test"
-
-[analytics]
-script = "<script>custom analytics</script>"
-"##,
+        let custom_config = parse_config(
+            "[project]\nname = \"Test\"\n\n[analytics]\nscript = \"<script>custom</script>\"",
         )
         .unwrap();
-        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
-        assert!(html.contains("custom analytics"));
+        let html = render_page(
+            &custom_config,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            None,
+            &default_assets(),
+        );
+        assert!(html.contains("custom"));
     }
 
     #[test]
     fn render_404_page_contains_essentials() {
         let config = test_config();
-        let html = render_404_page(&config, None, None);
+        let html = render_404_page(&config, &default_assets());
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("404"));
         assert!(html.contains("Not Found"));
@@ -370,14 +383,18 @@ script = "<script>custom analytics</script>"
     }
 
     #[test]
-    fn render_404_page_with_custom_asset_paths() {
+    fn render_404_page_with_assets_and_sri() {
         let config = test_config();
-        let html = render_404_page(
-            &config,
-            Some("/oxidoc.a1b2c3d4.css"),
-            Some("/oxidoc-loader.h5i6j7k8.js"),
-        );
+        let assets = AssetConfig {
+            css_path: Some("/oxidoc.a1b2c3d4.css"),
+            js_path: Some("/oxidoc-loader.h5i6j7k8.js"),
+            css_sri: Some("sha384-abc123"),
+            js_sri: Some("sha384-def456"),
+        };
+        let html = render_404_page(&config, &assets);
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
+        assert!(html.contains(r#"integrity="sha384-abc123""#));
+        assert!(html.contains(r#"integrity="sha384-def456""#));
     }
 }

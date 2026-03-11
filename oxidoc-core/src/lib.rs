@@ -14,6 +14,7 @@ pub mod openapi;
 pub mod outputs;
 pub mod renderer;
 pub mod sitemap;
+pub mod sri;
 pub mod suggest;
 pub mod template;
 pub mod template_parts;

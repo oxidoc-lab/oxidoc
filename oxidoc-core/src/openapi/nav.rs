@@ -71,8 +71,7 @@ pub fn build_api_pages(
     output_dir: &Path,
     config: &crate::config::OxidocConfig,
     all_nav_groups: &[NavGroup],
-    css_path: Option<&str>,
-    js_path: Option<&str>,
+    assets: &crate::template::AssetConfig<'_>,
 ) -> Result<usize> {
     let endpoints = super::parser::extract_endpoints(spec);
     let mut count = 0;
@@ -100,8 +99,7 @@ pub fn build_api_pages(
             &breadcrumb_html,
             &slug,
             None,
-            css_path,
-            js_path,
+            assets,
         );
 
         let page_output = output_dir.join(format!("{slug}.html"));
