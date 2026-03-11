@@ -1,4 +1,5 @@
 use crate::error::{OxidocError, Result};
+use crate::suggest::find_suggestion;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -23,6 +24,8 @@ pub struct OxidocConfig {
     pub footer: FooterConfig,
     #[serde(default)]
     pub redirects: RedirectConfig,
+    #[serde(default)]
+    pub analytics: AnalyticsConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,6 +159,16 @@ pub struct FooterLink {
     pub href: String,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct AnalyticsConfig {
+    /// Custom analytics script tag (e.g., Google Tag Manager, Plausible)
+    #[serde(default)]
+    pub script: Option<String>,
+    /// Google Analytics measurement ID (e.g., "G-XXXXXXXXXX")
+    #[serde(default)]
+    pub google_analytics: Option<String>,
+}
+
 /// Load and validate `oxidoc.toml` from a project root.
 pub fn load_config(project_root: &Path) -> Result<OxidocConfig> {
     let config_path = project_root.join("oxidoc.toml");
@@ -178,7 +191,44 @@ pub fn parse_config(content: &str) -> Result<OxidocConfig> {
         return Err(OxidocError::ConfigMissingName);
     }
 
+    // Validate known keys and warn about unknown ones
+    validate_config_keys(content);
+
     Ok(config)
+}
+
+/// Validate config keys and warn about unknown ones.
+fn validate_config_keys(content: &str) {
+    const KNOWN_KEYS: &[&str] = &[
+        "project",
+        "theme",
+        "routing",
+        "versioning",
+        "i18n",
+        "search",
+        "components",
+        "footer",
+        "redirects",
+        "analytics",
+    ];
+
+    if let Ok(value) = toml::from_str::<toml::Table>(content) {
+        for key in value.keys() {
+            if !KNOWN_KEYS.contains(&key.as_str()) {
+                let suggestion = find_suggestion(key, KNOWN_KEYS);
+                if let Some(suggested_key) = suggestion {
+                    tracing::warn!(
+                        unknown_key = key,
+                        suggested_key = suggested_key,
+                        "Unknown config key; did you mean '{}'?",
+                        suggested_key
+                    );
+                } else {
+                    tracing::warn!(unknown_key = key, "Unknown config key in oxidoc.toml");
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -279,5 +329,37 @@ primary = "#ff0000"
 "##;
         let err = parse_config(toml).unwrap_err();
         assert!(matches!(err, OxidocError::ConfigParse { .. }));
+    }
+
+    #[test]
+    fn parse_analytics_config() {
+        let toml = r##"
+[project]
+name = "Test Docs"
+
+[analytics]
+google_analytics = "G-XXXXXXXXXX"
+script = "<script>custom analytics</script>"
+"##;
+        let config = parse_config(toml).unwrap();
+        assert_eq!(
+            config.analytics.google_analytics.as_deref(),
+            Some("G-XXXXXXXXXX")
+        );
+        assert_eq!(
+            config.analytics.script.as_deref(),
+            Some("<script>custom analytics</script>")
+        );
+    }
+
+    #[test]
+    fn parse_analytics_optional() {
+        let toml = r#"
+[project]
+name = "Test Docs"
+"#;
+        let config = parse_config(toml).unwrap();
+        assert_eq!(config.analytics.google_analytics, None);
+        assert_eq!(config.analytics.script, None);
     }
 }

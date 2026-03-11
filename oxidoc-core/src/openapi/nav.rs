@@ -71,6 +71,8 @@ pub fn build_api_pages(
     output_dir: &Path,
     config: &crate::config::OxidocConfig,
     all_nav_groups: &[NavGroup],
+    css_path: Option<&str>,
+    js_path: Option<&str>,
 ) -> Result<usize> {
     let endpoints = super::parser::extract_endpoints(spec);
     let mut count = 0;
@@ -85,7 +87,7 @@ pub fn build_api_pages(
             .unwrap_or_else(|| format!("{} {}", ep.method, ep.path));
 
         let toc_html = super::html::render_api_toc(ep);
-        let sidebar_html = crate::template::render_sidebar(all_nav_groups, &slug);
+        let sidebar_html = crate::template_parts::render_sidebar(all_nav_groups, &slug);
         let breadcrumbs = crate::breadcrumb::generate_breadcrumbs(&slug);
         let breadcrumb_html = crate::breadcrumb::render_breadcrumbs(&breadcrumbs);
 
@@ -98,6 +100,8 @@ pub fn build_api_pages(
             &breadcrumb_html,
             &slug,
             None,
+            css_path,
+            js_path,
         );
 
         let page_output = output_dir.join(format!("{slug}.html"));

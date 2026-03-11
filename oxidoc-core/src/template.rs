@@ -1,6 +1,5 @@
 use crate::config::OxidocConfig;
-use crate::crawler::NavGroup;
-use std::fmt::Write;
+use crate::template_parts::{render_analytics_script, render_footer};
 
 const HEADER_ACTIONS_HTML: &str = r#"<div class="oxidoc-header-actions">
             <button data-oxidoc-search class="oxidoc-search-trigger" aria-label="Search documentation" title="Search (Ctrl+K)">
@@ -37,6 +36,8 @@ pub fn render_page(
     breadcrumb_html: &str,
     active_slug: &str,
     description: Option<&str>,
+    css_path: Option<&str>,
+    js_path: Option<&str>,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -64,7 +65,7 @@ pub fn render_page(
     };
 
     let json_ld = format!(
-        r##"{{"@context":"https://schema.org","@type":"WebPage","name":{},"description":{},"url":{},"site":{{name":{}}}}}"##,
+        r##"{{"@context":"https://schema.org","@type":"WebPage","name":{},"description":{},"url":{},"site":{{"name":{}}}}}"##,
         serde_json::to_string(&page_title).unwrap_or_else(|_| "null".into()),
         serde_json::to_string(&page_description).unwrap_or_else(|_| "null".into()),
         serde_json::to_string(&safe_url).unwrap_or_else(|_| "null".into()),
@@ -73,6 +74,11 @@ pub fn render_page(
 
     let page_description_escaped = crate::utils::html_escape(page_description);
     let page_title_escaped = crate::utils::html_escape(&page_title);
+
+    let css_href = css_path.unwrap_or("/oxidoc.css");
+    let js_src = js_path.unwrap_or("/oxidoc-loader.js");
+
+    let analytics_html = render_analytics_script(config);
 
     format!(
         r##"<!DOCTYPE html>
@@ -92,9 +98,10 @@ pub fn render_page(
     <meta name="twitter:title" content="{page_title_escaped}">
     <script type="application/ld+json">{json_ld}</script>
     <link rel="canonical" href="{base_url}{active_slug}">
-    <link rel="preload" href="/oxidoc.css" as="style">
-    <link rel="preload" href="/oxidoc-loader.js" as="script">
-    <link rel="stylesheet" href="/oxidoc.css">
+    <link rel="preload" href="{css_href}" as="style">
+    <link rel="preload" href="{js_src}" as="script">
+    <link rel="stylesheet" href="{css_href}">
+    {analytics_html}
 </head>
 <body>
     <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
@@ -117,7 +124,7 @@ pub fn render_page(
         </aside>
     </div>
     {footer_html}
-    <script src="/oxidoc-loader.js" type="module" async></script>
+    <script src="{js_src}" type="module" async></script>
 </body>
 </html>"##,
         lang = config.i18n.default_locale,
@@ -134,15 +141,27 @@ pub fn render_page(
         content_html = content_html,
         toc_html = toc_html,
         footer_html = footer_html,
+        css_href = css_href,
+        js_src = js_src,
+        analytics_html = analytics_html,
         HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
     )
 }
 
 /// Generate a 404 error page using the site template.
-pub fn render_404_page(config: &OxidocConfig) -> String {
+pub fn render_404_page(
+    config: &OxidocConfig,
+    css_path: Option<&str>,
+    js_path: Option<&str>,
+) -> String {
     let (logo_html, safe_name) = render_logo_html(config);
 
     let footer_html = render_footer(config);
+
+    let css_href = css_path.unwrap_or("/oxidoc.css");
+    let js_src = js_path.unwrap_or("/oxidoc-loader.js");
+
+    let analytics_html = render_analytics_script(config);
 
     format!(
         r##"<!DOCTYPE html>
@@ -153,9 +172,10 @@ pub fn render_404_page(config: &OxidocConfig) -> String {
     <title>Page Not Found - {project_name}</title>
     <meta name="description" content="The page you are looking for could not be found.">
     <meta name="generator" content="oxidoc">
-    <link rel="preload" href="/oxidoc.css" as="style">
-    <link rel="preload" href="/oxidoc-loader.js" as="script">
-    <link rel="stylesheet" href="/oxidoc.css">
+    <link rel="preload" href="{css_href}" as="style">
+    <link rel="preload" href="{js_src}" as="script">
+    <link rel="stylesheet" href="{css_href}">
+    {analytics_html}
 </head>
 <body>
     <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
@@ -173,90 +193,24 @@ pub fn render_404_page(config: &OxidocConfig) -> String {
         </main>
     </div>
     {footer_html}
-    <script src="/oxidoc-loader.js" type="module" async></script>
+    <script src="{js_src}" type="module" async></script>
 </body>
 </html>"##,
         lang = config.i18n.default_locale,
         project_name = safe_name,
         logo_html = logo_html,
         footer_html = footer_html,
+        css_href = css_href,
+        js_src = js_src,
+        analytics_html = analytics_html,
         HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
     )
-}
-
-/// Render the site footer from config.
-fn render_footer(config: &OxidocConfig) -> String {
-    let has_copyright = config.footer.copyright.is_some();
-    let has_links = !config.footer.links.is_empty();
-
-    if !has_copyright && !has_links {
-        return String::new();
-    }
-
-    let mut html = String::from(r#"<footer class="oxidoc-footer" role="contentinfo">"#);
-
-    if has_links {
-        html.push_str(r#"<nav class="oxidoc-footer-links" aria-label="Footer navigation"><ul>"#);
-        for link in &config.footer.links {
-            let _ = write!(
-                html,
-                r#"<li><a href="{}">{}</a></li>"#,
-                crate::utils::html_escape(&link.href),
-                crate::utils::html_escape(&link.label)
-            );
-        }
-        html.push_str("</ul></nav>");
-    }
-
-    if let Some(ref copyright) = config.footer.copyright {
-        let _ = write!(
-            html,
-            r#"<p class="oxidoc-footer-copyright">{}</p>"#,
-            crate::utils::html_escape(copyright)
-        );
-    }
-
-    html.push_str("</footer>");
-    html
-}
-
-/// Generate sidebar HTML from resolved navigation groups.
-pub fn render_sidebar(groups: &[NavGroup], active_slug: &str) -> String {
-    let mut html = String::with_capacity(1024);
-    for group in groups {
-        if !group.title.is_empty() {
-            let _ = write!(
-                html,
-                r#"<div class="oxidoc-nav-group"><h3 class="oxidoc-nav-title">{}</h3><ul>"#,
-                group.title
-            );
-        } else {
-            html.push_str(r#"<div class="oxidoc-nav-group"><ul>"#);
-        }
-        for page in &group.pages {
-            let active = if page.slug == active_slug {
-                r#" class="active" aria-current="page""#
-            } else {
-                ""
-            };
-            let _ = write!(
-                html,
-                r#"<li><a href="/{slug}"{active}>{title}</a></li>"#,
-                slug = page.slug,
-                title = page.title,
-            );
-        }
-        html.push_str("</ul></div>");
-    }
-    html
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::parse_config;
-    use crate::crawler::PageEntry;
-    use std::path::PathBuf;
 
     fn test_config() -> OxidocConfig {
         parse_config(
@@ -269,7 +223,18 @@ name = "Test Docs""#,
     #[test]
     fn render_page_contains_essentials() {
         let config = test_config();
-        let html = render_page(&config, "Intro", "<p>Hello</p>", "", "", "", "intro", None);
+        let html = render_page(
+            &config,
+            "Intro",
+            "<p>Hello</p>",
+            "",
+            "",
+            "",
+            "intro",
+            None,
+            None,
+            None,
+        );
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("<title>Intro - Test Docs</title>"));
         assert!(html.contains(r#"href="/oxidoc.css""#));
@@ -281,7 +246,7 @@ name = "Test Docs""#,
     #[test]
     fn render_page_has_accessibility_and_preload() {
         let config = test_config();
-        let html = render_page(&config, "", "", "", "", "", "", None);
+        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
         assert!(html.contains("oxidoc-skip-nav"));
         assert!(html.contains(r##"href="#oxidoc-main""##));
         assert!(html.contains(r##"id="oxidoc-main""##));
@@ -299,35 +264,15 @@ name = "Test"
 logo = "/logo.svg""#,
         )
         .unwrap();
-        let html = render_page(&config, "", "", "", "", "", "", None);
+        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
         assert!(html.contains(r#"src="/logo.svg""#));
         assert!(html.contains("oxidoc-logo-img"));
     }
 
     #[test]
-    fn render_page_with_footer() {
-        let config = parse_config(
-            r#"[project]
-name = "T"
-
-[footer]
-copyright = "2024 Acme"
-
-[[footer.links]]
-label = "GitHub"
-href = "https://github.com""#,
-        )
-        .unwrap();
-        let html = render_page(&config, "", "", "", "", "", "", None);
-        assert!(html.contains("2024 Acme"));
-        assert!(html.contains("GitHub"));
-        assert!(html.contains("oxidoc-footer"));
-    }
-
-    #[test]
     fn render_page_no_footer_if_empty() {
         let config = test_config();
-        let html = render_page(&config, "", "", "", "", "", "", None);
+        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
         assert!(!html.contains("oxidoc-footer"));
     }
 
@@ -343,6 +288,8 @@ href = "https://github.com""#,
             "",
             "test",
             Some("A test page"),
+            None,
+            None,
         );
         assert!(html.contains(r#"<meta name="description" content="A test page">"#));
         assert!(html.contains(r#"<meta property="og:title""#));
@@ -357,14 +304,65 @@ href = "https://github.com""#,
         let config =
             parse_config("[project]\nname = \"Test\"\ndescription = \"Default description\"")
                 .unwrap();
-        let html = render_page(&config, "Page", "", "", "", "", "page", None);
+        let html = render_page(&config, "Page", "", "", "", "", "page", None, None, None);
         assert!(html.contains("Default description"));
+    }
+
+    #[test]
+    fn render_page_with_custom_asset_paths() {
+        let config = test_config();
+        let html = render_page(
+            &config,
+            "Test",
+            "",
+            "",
+            "",
+            "",
+            "test",
+            None,
+            Some("/oxidoc.a1b2c3d4.css"),
+            Some("/oxidoc-loader.h5i6j7k8.js"),
+        );
+        assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
+        assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
+    }
+
+    #[test]
+    fn render_page_includes_google_analytics() {
+        let config = parse_config(
+            r##"[project]
+name = "Test"
+
+[analytics]
+google_analytics = "G-XXXXXXXXXX"
+"##,
+        )
+        .unwrap();
+        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
+        assert!(html.contains("googletagmanager.com"));
+        assert!(html.contains("G-XXXXXXXXXX"));
+        assert!(html.contains("gtag"));
+    }
+
+    #[test]
+    fn render_page_includes_custom_analytics_script() {
+        let config = parse_config(
+            r##"[project]
+name = "Test"
+
+[analytics]
+script = "<script>custom analytics</script>"
+"##,
+        )
+        .unwrap();
+        let html = render_page(&config, "", "", "", "", "", "", None, None, None);
+        assert!(html.contains("custom analytics"));
     }
 
     #[test]
     fn render_404_page_contains_essentials() {
         let config = test_config();
-        let html = render_404_page(&config);
+        let html = render_404_page(&config, None, None);
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("404"));
         assert!(html.contains("Not Found"));
@@ -372,28 +370,14 @@ href = "https://github.com""#,
     }
 
     #[test]
-    fn render_sidebar_with_groups() {
-        let groups = vec![NavGroup {
-            title: "Getting Started".into(),
-            pages: vec![
-                PageEntry {
-                    title: "Intro".into(),
-                    slug: "intro".into(),
-                    file_path: PathBuf::new(),
-                    group: None,
-                },
-                PageEntry {
-                    title: "Setup".into(),
-                    slug: "setup".into(),
-                    file_path: PathBuf::new(),
-                    group: None,
-                },
-            ],
-        }];
-        let html = render_sidebar(&groups, "intro");
-        assert!(html.contains("Getting Started"));
-        assert!(html.contains(r#"aria-current="page""#));
-        assert!(html.contains(r#"href="/intro""#));
-        assert!(html.contains(r#"href="/setup""#));
+    fn render_404_page_with_custom_asset_paths() {
+        let config = test_config();
+        let html = render_404_page(
+            &config,
+            Some("/oxidoc.a1b2c3d4.css"),
+            Some("/oxidoc-loader.h5i6j7k8.js"),
+        );
+        assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
+        assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
     }
 }

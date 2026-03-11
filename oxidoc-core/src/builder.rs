@@ -1,16 +1,21 @@
+use crate::asset_hash::hash_content;
 use crate::assets::copy_assets;
 use crate::breadcrumb::{generate_breadcrumbs, render_breadcrumbs};
 use crate::config::{RedirectEntry, load_config};
 use crate::crawler::{NavGroup, discover_pages};
 use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
+use crate::incremental::IncrementalCache;
 use crate::loader::generate_loader_js;
 use crate::minify::minify_html;
 use crate::openapi;
 use crate::renderer::render_document;
 use crate::sitemap::{generate_robots_txt, generate_sitemap};
-use crate::template::{render_404_page, render_page, render_sidebar};
+use crate::template::{render_404_page, render_page};
+use crate::template_parts::render_sidebar;
 use crate::toc::{extract_toc, render_toc};
+use crate::versioning::VersioningState;
+use rayon::prelude::*;
 use std::path::Path;
 
 /// Result of a successful site build.
@@ -32,15 +37,56 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         source: e,
     })?;
 
-    let mut pages_rendered = 0;
+    // Load incremental cache
+    let mut cache = IncrementalCache::load(output_dir)?;
 
-    for group in &nav_groups {
-        for page in &group.pages {
+    // Setup versioning (reserved for future use when implementing per-version builds)
+    let _versioning = VersioningState::from_config(&config.versioning);
+
+    // Generate assets (CSS and JS)
+    let css = generate_base_css(&config);
+    let css = minify_css(&css);
+    let js = generate_loader_js();
+
+    // Hash assets for cache busting
+    let css_hash = hash_content(css.as_bytes());
+    let js_hash = hash_content(js.as_bytes());
+    let css_filename = format!("oxidoc.{}.css", css_hash);
+    let js_filename = format!("oxidoc-loader.{}.js", js_hash);
+    let css_path = format!("/{}", css_filename);
+    let js_path = format!("/{}", js_filename);
+
+    // Write hashed assets
+    std::fs::write(output_dir.join(&css_filename), css.as_bytes()).map_err(|e| {
+        OxidocError::FileWrite {
+            path: output_dir.join(&css_filename).display().to_string(),
+            source: e,
+        }
+    })?;
+
+    std::fs::write(output_dir.join(&js_filename), js.as_bytes()).map_err(|e| {
+        OxidocError::FileWrite {
+            path: output_dir.join(&js_filename).display().to_string(),
+            source: e,
+        }
+    })?;
+
+    // Build pages using rayon parallelization
+    let pages_to_build: Vec<_> = nav_groups.iter().flat_map(|g| g.pages.iter()).collect();
+
+    let results: Result<Vec<_>> = pages_to_build
+        .par_iter()
+        .map(|page| {
             let content =
                 std::fs::read_to_string(&page.file_path).map_err(|e| OxidocError::FileRead {
                     path: page.file_path.display().to_string(),
                     source: e,
                 })?;
+
+            // Check if rebuild is needed
+            if !cache.needs_rebuild(&page.file_path.display().to_string(), content.as_bytes()) {
+                return Ok(false);
+            }
 
             let root = rdx_parser::parse(&content);
             check_parse_errors(&root, &page.file_path.display().to_string())?;
@@ -54,6 +100,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
             let page_title = extract_page_title(&root).unwrap_or_else(|| page.title.clone());
             let page_description = extract_page_description(&root);
+
             let full_html = render_page(
                 &config,
                 &page_title,
@@ -63,6 +110,8 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 &breadcrumb_html,
                 &page.slug,
                 page_description.as_deref(),
+                Some(&css_path),
+                Some(&js_path),
             );
 
             let page_output = output_dir.join(format!("{}.html", page.slug));
@@ -79,9 +128,22 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 source: e,
             })?;
 
-            pages_rendered += 1;
             tracing::info!(page = %page.slug, "Rendered");
-        }
+            Ok(true)
+        })
+        .collect();
+
+    let rendered_flags = results?;
+    let mut pages_rendered = rendered_flags.iter().filter(|&&b| b).count();
+
+    // Update cache with rendered pages
+    for page in &pages_to_build {
+        let content =
+            std::fs::read_to_string(&page.file_path).map_err(|e| OxidocError::FileRead {
+                path: page.file_path.display().to_string(),
+                source: e,
+            })?;
+        cache.record(&page.file_path.display().to_string(), content.as_bytes());
     }
 
     // Process OpenAPI specs from navigation groups
@@ -93,11 +155,17 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 &openapi::extract_endpoints(&spec),
                 &nav_group_cfg.group,
             );
-            // Merge API nav groups into the full nav for sidebar rendering
             let mut combined_nav = nav_groups.clone();
             combined_nav.extend(api_nav);
 
-            let api_count = openapi::build_api_pages(&spec, output_dir, &config, &combined_nav)?;
+            let api_count = openapi::build_api_pages(
+                &spec,
+                output_dir,
+                &config,
+                &combined_nav,
+                Some(&css_path),
+                Some(&js_path),
+            )?;
             pages_rendered += api_count;
         }
     }
@@ -106,22 +174,6 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     if assets_copied > 0 {
         tracing::info!(count = assets_copied, "Assets copied");
     }
-
-    // Generate and write CSS
-    let css = generate_base_css(&config);
-    let css = minify_css(&css);
-    std::fs::write(output_dir.join("oxidoc.css"), css).map_err(|e| OxidocError::FileWrite {
-        path: output_dir.join("oxidoc.css").display().to_string(),
-        source: e,
-    })?;
-
-    // Generate and write JS loader
-    std::fs::write(output_dir.join("oxidoc-loader.js"), generate_loader_js()).map_err(|e| {
-        OxidocError::FileWrite {
-            path: output_dir.join("oxidoc-loader.js").display().to_string(),
-            source: e,
-        }
-    })?;
 
     generate_llms_txt(&nav_groups, output_dir)?;
     generate_index_redirect(&nav_groups, output_dir)?;
@@ -132,7 +184,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     generate_robots_txt(base_url, output_dir)?;
 
     // Generate 404 page
-    let not_found_html = render_404_page(&config);
+    let not_found_html = render_404_page(&config, Some(&css_path), Some(&js_path));
     let not_found_minified = minify_html(&not_found_html);
     std::fs::write(output_dir.join("404.html"), not_found_minified).map_err(|e| {
         OxidocError::FileWrite {
@@ -143,6 +195,9 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
     // Generate redirect pages
     generate_redirects(&config.redirects.redirects, output_dir)?;
+
+    // Save incremental cache
+    cache.save(output_dir)?;
 
     Ok(BuildResult {
         pages_rendered,
@@ -320,16 +375,54 @@ mod tests {
         assert!(output.join("index.html").exists());
         assert!(output.join("llms.txt").exists());
         assert!(output.join("llms-full.txt").exists());
-        assert!(output.join("oxidoc.css").exists());
-        assert!(output.join("oxidoc-loader.js").exists());
         assert!(output.join("sitemap.xml").exists());
         assert!(output.join("robots.txt").exists());
         assert!(output.join("404.html").exists());
+        assert!(output.join(".oxidoc-cache.json").exists());
 
-        let css = std::fs::read_to_string(output.join("oxidoc.css")).unwrap();
+        // Find hashed CSS and JS files
+        let css_file = std::fs::read_dir(&output)
+            .unwrap()
+            .find_map(|entry| {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("oxidoc.")
+                    && path.extension().is_some_and(|ext| ext == "css")
+                {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .expect("Should find hashed CSS file");
+
+        let js_file = std::fs::read_dir(&output)
+            .unwrap()
+            .find_map(|entry| {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("oxidoc-loader.")
+                    && path.extension().is_some_and(|ext| ext == "js")
+                {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .expect("Should find hashed JS file");
+
+        let css = std::fs::read_to_string(css_file).unwrap();
         assert!(css.contains("oxidoc-primary"));
 
-        let js = std::fs::read_to_string(output.join("oxidoc-loader.js")).unwrap();
+        let js = std::fs::read_to_string(js_file).unwrap();
         assert!(js.contains("oxidoc-registry.wasm"));
 
         let intro_html = std::fs::read_to_string(output.join("intro.html")).unwrap();
