@@ -1,6 +1,6 @@
 //! Leptos view for the API Playground component.
 
-use super::ApiPlaygroundProps;
+use super::types::ApiPlaygroundProps;
 use crate::auth::AuthType;
 use crate::codegen::CodegenRequest;
 use crate::request::{ApiResponseData, execute_request};
