@@ -5,66 +5,7 @@
 /// 2. Detects `api-playground` islands and lazy-loads `oxidoc-openapi.wasm`
 /// 3. Detects search interactions and lazy-loads `oxidoc-search.wasm`
 pub fn generate_loader_js() -> &'static str {
-    r#"/* oxidoc-loader.js — Wasm island hydration loader */
-(function(){
-"use strict";
-
-var REGISTRY_WASM = "/oxidoc-registry.wasm";
-var OPENAPI_WASM = "/oxidoc-openapi.wasm";
-var SEARCH_WASM = "/oxidoc-search.wasm";
-
-var loaded = {};
-
-function loadWasm(url) {
-    if (loaded[url]) return loaded[url];
-    loaded[url] = fetch(url)
-        .then(function(r) {
-            if (!r.ok) throw new Error("Failed to load " + url + ": " + r.status);
-            return WebAssembly.instantiateStreaming(r);
-        })
-        .then(function(result) {
-            if (result.instance.exports.__wasm_start) {
-                result.instance.exports.__wasm_start();
-            }
-            return result.instance;
-        })
-        .catch(function(err) {
-            console.warn("[oxidoc] Could not load " + url + ":", err.message);
-            delete loaded[url];
-        });
-    return loaded[url];
-}
-
-function hasIsland(type) {
-    return document.querySelector('oxidoc-island[data-island-type="' + type + '"]') !== null;
-}
-
-function init() {
-    /* Core registry — always load */
-    loadWasm(REGISTRY_WASM);
-
-    /* Conditional: OpenAPI playground */
-    if (hasIsland("api-playground")) {
-        loadWasm(OPENAPI_WASM);
-    }
-
-    /* Conditional: Search — load on first interaction */
-    var searchTrigger = document.querySelector("[data-oxidoc-search]");
-    if (searchTrigger) {
-        searchTrigger.addEventListener("click", function handler() {
-            loadWasm(SEARCH_WASM);
-            searchTrigger.removeEventListener("click", handler);
-        }, { once: true });
-    }
-}
-
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-} else {
-    init();
-}
-})();
-"#
+    r#"(function(){var L="/oxidoc-registry.wasm",O="/oxidoc-openapi.wasm",S="/oxidoc-search.wasm",l={},d=0;function w(u){if(l[u])return l[u];l[u]=fetch(u,{cache:"default"}).then(r=>r.ok?WebAssembly.instantiateStreaming(r):Promise.reject(""+r.status)).then(i=>{i.instance.exports.__wasm_start&&i.instance.exports.__wasm_start();return i}).catch(e=>{d=1;let n=document.querySelector("[data-oxidoc-banner]");if(!n){n=document.createElement("div");n.setAttribute("data-oxidoc-banner","");n.style.cssText="position:fixed;top:0;left:0;right:0;background:#fee2e2;border:1px solid #fca5a5;padding:.75rem 1rem;font-size:.875rem;color:#991b1b;z-index:999;text:center";n.textContent="Interactive features unavailable.";document.body.insertBefore(n,document.body.firstChild)}delete l[u]});return l[u]}var c=document.querySelectorAll("oxidoc-island");for(let i=0;i<c.length;i++)c[i].classList.add("oxidoc-loading");w(L);document.querySelector('oxidoc-island[data-island-type="api-playground"]')&&w(O);let t=document.querySelector("[data-oxidoc-search]");t&&t.addEventListener("click",()=>{w(S)},{once:1})})();"#
 }
 
 #[cfg(test)]
@@ -93,5 +34,26 @@ mod tests {
             "Loader should be <2KB, got {} bytes",
             js.len()
         );
+    }
+
+    #[test]
+    fn loader_has_error_recovery() {
+        let js = generate_loader_js();
+        assert!(js.contains("data-oxidoc-banner"));
+        assert!(js.contains("Interactive features"));
+    }
+
+    #[test]
+    fn loader_has_loading_states() {
+        let js = generate_loader_js();
+        assert!(js.contains("oxidoc-island"));
+        assert!(js.contains("oxidoc-loading"));
+        assert!(js.contains("classList.add"));
+    }
+
+    #[test]
+    fn loader_has_cache_hint() {
+        let js = generate_loader_js();
+        assert!(js.contains(r#"cache:"default""#));
     }
 }

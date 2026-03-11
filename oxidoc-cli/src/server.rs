@@ -119,11 +119,27 @@ fn spawn_watcher(
     let config_path = project_root.join("oxidoc.toml");
 
     let root_clone = project_root.clone();
+    let last_rebuild = std::sync::Arc::new(std::sync::Mutex::new(std::time::Instant::now()));
+
     let mut watcher =
         notify::recommended_watcher(move |res: std::result::Result<Event, notify::Error>| {
             let Ok(event) = res else { return };
 
-            // Only rebuild on file modifications/creates in docs/ or oxidoc.toml
+            // Filter: ignore hidden files and directories
+            let has_hidden = event.paths.iter().any(|p| {
+                p.components().any(|c| {
+                    if let std::path::Component::Normal(n) = c {
+                        n.to_string_lossy().starts_with('.')
+                    } else {
+                        false
+                    }
+                })
+            });
+            if has_hidden {
+                return;
+            }
+
+            // Only rebuild on file modifications/creates/deletes in docs/ or oxidoc.toml
             let dominated = event
                 .paths
                 .iter()
@@ -142,7 +158,24 @@ fn spawn_watcher(
                 return;
             }
 
-            tracing::info!("File changed, rebuilding...");
+            // Debounce: only rebuild if 100ms have passed since last rebuild
+            let now = std::time::Instant::now();
+            let mut last = last_rebuild.lock().unwrap_or_else(|e| {
+                tracing::warn!("Rebuild mutex was poisoned, resetting");
+                e.into_inner()
+            });
+            if now.duration_since(*last).as_millis() < 100 {
+                return;
+            }
+            *last = now;
+
+            let triggered_file = event
+                .paths
+                .first()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "(unknown)".to_string());
+
+            tracing::info!(file = %triggered_file, "File changed, rebuilding...");
             match do_build(&root_clone, &output_dir, "Rebuild complete") {
                 Ok(_) => {
                     let _ = reload_tx.send(());

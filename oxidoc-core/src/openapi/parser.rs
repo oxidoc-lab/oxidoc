@@ -218,4 +218,125 @@ mod tests {
         assert!(create_pet.request_body.is_some());
         assert!(create_pet.request_body.as_ref().unwrap().required);
     }
+
+    #[test]
+    fn parse_empty_spec() {
+        let yaml = r#"
+openapi: "3.0.0"
+info:
+  title: Empty API
+  version: "1.0.0"
+paths: {}
+"#;
+        let spec: openapiv3::OpenAPI = serde_saphyr::from_str(yaml).unwrap();
+        let endpoints = extract_endpoints(&spec);
+        assert_eq!(endpoints.len(), 0);
+    }
+
+    #[test]
+    fn parse_spec_with_references() {
+        let yaml = r##"
+openapi: "3.0.0"
+info:
+  title: API with Refs
+  version: "1.0.0"
+paths:
+  /users:
+    get:
+      operationId: listUsers
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Users
+"##;
+        let spec: openapiv3::OpenAPI = serde_saphyr::from_str(yaml).unwrap();
+        let endpoints = extract_endpoints(&spec);
+        assert_eq!(endpoints.len(), 1);
+        let endpoint = &endpoints[0];
+        // $ref parameters should be filtered out
+        assert_eq!(endpoint.parameters.len(), 1);
+        assert_eq!(endpoint.parameters[0].name, "limit");
+    }
+
+    #[test]
+    fn deprecated_endpoint_flag() {
+        let yaml = r#"
+openapi: "3.0.0"
+info:
+  title: API with Deprecated
+  version: "1.0.0"
+paths:
+  /old-endpoint:
+    get:
+      operationId: oldOp
+      deprecated: true
+      responses:
+        '200':
+          description: Response
+"#;
+        let spec: openapiv3::OpenAPI = serde_saphyr::from_str(yaml).unwrap();
+        let endpoints = extract_endpoints(&spec);
+        assert_eq!(endpoints.len(), 1);
+        assert!(endpoints[0].deprecated);
+    }
+
+    #[test]
+    fn endpoint_without_tags() {
+        let yaml = r#"
+openapi: "3.0.0"
+info:
+  title: API
+  version: "1.0.0"
+paths:
+  /items:
+    get:
+      operationId: getItems
+      responses:
+        '200':
+          description: Items
+"#;
+        let spec: openapiv3::OpenAPI = serde_saphyr::from_str(yaml).unwrap();
+        let endpoints = extract_endpoints(&spec);
+        assert_eq!(endpoints.len(), 1);
+        assert!(endpoints[0].tags.is_empty());
+    }
+
+    #[test]
+    fn multiple_response_codes() {
+        let yaml = r#"
+openapi: "3.0.0"
+info:
+  title: API
+  version: "1.0.0"
+paths:
+  /resource:
+    post:
+      operationId: createResource
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Bad request
+        '500':
+          description: Server error
+"#;
+        let spec: openapiv3::OpenAPI = serde_saphyr::from_str(yaml).unwrap();
+        let endpoints = extract_endpoints(&spec);
+        assert_eq!(endpoints.len(), 1);
+        assert_eq!(endpoints[0].responses.len(), 3);
+        let statuses: Vec<_> = endpoints[0]
+            .responses
+            .iter()
+            .map(|r| r.status.as_str())
+            .collect();
+        assert!(statuses.contains(&"201"));
+        assert!(statuses.contains(&"400"));
+        assert!(statuses.contains(&"500"));
+    }
 }
