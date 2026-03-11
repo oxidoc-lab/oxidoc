@@ -2,6 +2,15 @@ use rdx_ast::Node;
 
 /// Escape text for safe HTML insertion.
 pub fn html_escape(text: &str) -> String {
+    escape_text(text, false)
+}
+
+/// Escape text for safe XML insertion (includes single quote escaping).
+pub fn xml_escape(text: &str) -> String {
+    escape_text(text, true)
+}
+
+fn escape_text(text: &str, escape_single_quotes: bool) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
         match ch {
@@ -9,6 +18,7 @@ pub fn html_escape(text: &str) -> String {
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
+            '\'' if escape_single_quotes => out.push_str("&apos;"),
             _ => out.push(ch),
         }
     }
@@ -46,6 +56,25 @@ pub fn extract_plain_text(node: &Node) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn html_escape_special_chars() {
+        assert_eq!(html_escape("A & B"), "A &amp; B");
+        assert_eq!(html_escape("<tag>"), "&lt;tag&gt;");
+        assert_eq!(html_escape(r#"a "b""#), "a &quot;b&quot;");
+        assert_eq!(html_escape("Hello World"), "Hello World");
+    }
+
+    #[test]
+    fn xml_escape_includes_single_quotes() {
+        assert_eq!(xml_escape("A & B"), "A &amp; B");
+        assert_eq!(xml_escape("<tag>"), "&lt;tag&gt;");
+        assert_eq!(
+            xml_escape(r#"Quote "text" and 'single'"#),
+            r#"Quote &quot;text&quot; and &apos;single&apos;"#
+        );
+        assert_eq!(xml_escape("Hello World"), "Hello World");
+    }
 
     #[test]
     fn heading_anchor_basic() {

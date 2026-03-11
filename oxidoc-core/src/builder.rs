@@ -1,14 +1,16 @@
 use crate::asset_hash::hash_content;
 use crate::assets::copy_assets;
 use crate::breadcrumb::{generate_breadcrumbs, render_breadcrumbs};
-use crate::config::{RedirectEntry, load_config};
-use crate::crawler::{NavGroup, discover_pages};
+use crate::config::load_config;
+use crate::crawler::discover_pages;
 use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
+use crate::feed::generate_feed;
 use crate::incremental::IncrementalCache;
 use crate::loader::generate_loader_js;
 use crate::minify::minify_html;
 use crate::openapi;
+use crate::outputs::{generate_index_redirect, generate_llms_txt, generate_redirects};
 use crate::renderer::render_document;
 use crate::sitemap::{generate_robots_txt, generate_sitemap};
 use crate::template::{render_404_page, render_page};
@@ -182,6 +184,18 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     let base_url = config.project.base_url.as_deref().unwrap_or("/");
     generate_sitemap(&nav_groups, base_url, output_dir)?;
     generate_robots_txt(base_url, output_dir)?;
+    let description = config
+        .project
+        .description
+        .as_deref()
+        .unwrap_or("Documentation");
+    generate_feed(
+        &nav_groups,
+        &config.project.name,
+        base_url,
+        description,
+        output_dir,
+    )?;
 
     // Generate 404 page
     let not_found_html = render_404_page(&config, Some(&css_path), Some(&js_path));
@@ -244,97 +258,6 @@ fn extract_page_description(root: &rdx_ast::Root) -> Option<String> {
     None
 }
 
-/// Generate `llms.txt` and `llms-full.txt` for AI/RAG consumption.
-fn generate_llms_txt(nav_groups: &[NavGroup], output_dir: &Path) -> Result<()> {
-    let mut summary = String::new();
-    let mut full = String::new();
-
-    for group in nav_groups {
-        for page in &group.pages {
-            let content =
-                std::fs::read_to_string(&page.file_path).map_err(|e| OxidocError::FileRead {
-                    path: page.file_path.display().to_string(),
-                    source: e,
-                })?;
-
-            summary.push_str(&format!("- /{}: {}\n", page.slug, page.title));
-            full.push_str(&format!(
-                "\n---\n# {} ({})\n\n{}\n",
-                page.title, page.slug, content
-            ));
-        }
-    }
-
-    std::fs::write(output_dir.join("llms.txt"), summary).map_err(|e| OxidocError::FileWrite {
-        path: output_dir.join("llms.txt").display().to_string(),
-        source: e,
-    })?;
-
-    std::fs::write(output_dir.join("llms-full.txt"), full).map_err(|e| OxidocError::FileWrite {
-        path: output_dir.join("llms-full.txt").display().to_string(),
-        source: e,
-    })?;
-
-    Ok(())
-}
-
-/// Generate an index.html that redirects to the first page.
-fn generate_index_redirect(nav_groups: &[NavGroup], output_dir: &Path) -> Result<()> {
-    let first_slug = nav_groups
-        .iter()
-        .flat_map(|g| g.pages.first())
-        .map(|p| p.slug.as_str())
-        .next();
-
-    if let Some(slug) = first_slug {
-        let html = format!(
-            r#"<!DOCTYPE html>
-<html>
-<head><meta http-equiv="refresh" content="0; url=/{slug}.html"></head>
-<body><a href="/{slug}.html">Redirecting...</a></body>
-</html>"#
-        );
-        std::fs::write(output_dir.join("index.html"), html).map_err(|e| {
-            OxidocError::FileWrite {
-                path: output_dir.join("index.html").display().to_string(),
-                source: e,
-            }
-        })?;
-    }
-
-    Ok(())
-}
-
-/// Generate redirect HTML files for configured redirects.
-fn generate_redirects(redirects: &[RedirectEntry], output_dir: &Path) -> Result<()> {
-    for redirect in redirects {
-        let from_path = redirect.from.trim_start_matches('/').replace("/", "-");
-        let filename = if from_path.is_empty() {
-            "index.html".to_string()
-        } else {
-            format!("{}.html", from_path)
-        };
-
-        let html = format!(
-            r#"<!DOCTYPE html>
-<html>
-<head><meta http-equiv="refresh" content="0; url={}"></head>
-<body><a href="{}">Redirecting...</a></body>
-</html>"#,
-            crate::utils::html_escape(&redirect.to),
-            crate::utils::html_escape(&redirect.to)
-        );
-
-        let redirect_path = output_dir.join(&filename);
-        std::fs::write(&redirect_path, html).map_err(|e| OxidocError::FileWrite {
-            path: redirect_path.display().to_string(),
-            source: e,
-        })?;
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -355,6 +278,17 @@ mod tests {
         (tmp, output)
     }
 
+    fn find_hashed_file(dir: &Path, prefix: &str, ext: &str) -> std::path::PathBuf {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .find_map(|e| {
+                let p = e.unwrap().path();
+                let name = p.file_name().unwrap().to_string_lossy().to_string();
+                (name.starts_with(prefix) && name.ends_with(ext)).then_some(p)
+            })
+            .unwrap_or_else(|| panic!("No {prefix}*{ext} found"))
+    }
+
     #[test]
     fn build_site_end_to_end() {
         let (tmp, output) = setup_project(
@@ -370,59 +304,25 @@ mod tests {
         let result = build_site(tmp.path(), &output).unwrap();
 
         assert_eq!(result.pages_rendered, 2);
-        assert!(output.join("intro.html").exists());
-        assert!(output.join("setup.html").exists());
-        assert!(output.join("index.html").exists());
-        assert!(output.join("llms.txt").exists());
-        assert!(output.join("llms-full.txt").exists());
-        assert!(output.join("sitemap.xml").exists());
-        assert!(output.join("robots.txt").exists());
-        assert!(output.join("404.html").exists());
-        assert!(output.join(".oxidoc-cache.json").exists());
+        for f in [
+            "intro.html",
+            "setup.html",
+            "index.html",
+            "llms.txt",
+            "llms-full.txt",
+            "sitemap.xml",
+            "robots.txt",
+            "404.html",
+            ".oxidoc-cache.json",
+        ] {
+            assert!(output.join(f).exists(), "{f} should exist");
+        }
 
-        // Find hashed CSS and JS files
-        let css_file = std::fs::read_dir(&output)
-            .unwrap()
-            .find_map(|entry| {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                if path
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .starts_with("oxidoc.")
-                    && path.extension().is_some_and(|ext| ext == "css")
-                {
-                    Some(path)
-                } else {
-                    None
-                }
-            })
-            .expect("Should find hashed CSS file");
-
-        let js_file = std::fs::read_dir(&output)
-            .unwrap()
-            .find_map(|entry| {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                if path
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .starts_with("oxidoc-loader.")
-                    && path.extension().is_some_and(|ext| ext == "js")
-                {
-                    Some(path)
-                } else {
-                    None
-                }
-            })
-            .expect("Should find hashed JS file");
-
-        let css = std::fs::read_to_string(css_file).unwrap();
+        let css = std::fs::read_to_string(find_hashed_file(&output, "oxidoc.", ".css")).unwrap();
         assert!(css.contains("oxidoc-primary"));
 
-        let js = std::fs::read_to_string(js_file).unwrap();
+        let js =
+            std::fs::read_to_string(find_hashed_file(&output, "oxidoc-loader.", ".js")).unwrap();
         assert!(js.contains("oxidoc-registry.wasm"));
 
         let intro_html = std::fs::read_to_string(output.join("intro.html")).unwrap();
@@ -431,20 +331,16 @@ mod tests {
         assert!(intro_html.contains("Test Project"));
 
         let llms = std::fs::read_to_string(output.join("llms.txt")).unwrap();
-        assert!(llms.contains("/intro"));
-        assert!(llms.contains("/setup"));
+        assert!(llms.contains("/intro") && llms.contains("/setup"));
 
         let sitemap = std::fs::read_to_string(output.join("sitemap.xml")).unwrap();
-        assert!(sitemap.contains("intro.html"));
-        assert!(sitemap.contains("setup.html"));
+        assert!(sitemap.contains("intro.html") && sitemap.contains("setup.html"));
 
         let robots = std::fs::read_to_string(output.join("robots.txt")).unwrap();
-        assert!(robots.contains("User-agent: *"));
-        assert!(robots.contains("Sitemap:"));
+        assert!(robots.contains("User-agent: *") && robots.contains("Sitemap:"));
 
         let not_found = std::fs::read_to_string(output.join("404.html")).unwrap();
-        assert!(not_found.contains("404"));
-        assert!(not_found.contains("Not Found"));
+        assert!(not_found.contains("404") && not_found.contains("Not Found"));
     }
 
     #[test]
@@ -473,5 +369,25 @@ mod tests {
         let (tmp, output) = setup_project(routing_toml, &[]);
         let err = build_site(tmp.path(), &output).unwrap_err();
         assert!(matches!(err, OxidocError::PageNotFound { .. }));
+    }
+
+    #[test]
+    fn llms_txt_generation() {
+        let (tmp, output) = setup_project(
+            "[project]\nname = \"Test\"\n",
+            &[(
+                "guide.rdx",
+                "# User Guide\n\nThis is a comprehensive guide.",
+            )],
+        );
+        let _ = build_site(tmp.path(), &output).unwrap();
+
+        let llms = std::fs::read_to_string(output.join("llms.txt")).unwrap();
+        assert!(llms.contains("- /guide:"));
+
+        let full = std::fs::read_to_string(output.join("llms-full.txt")).unwrap();
+        assert!(full.contains("User Guide"));
+        assert!(full.contains("(guide)"));
+        assert!(full.contains("comprehensive guide"));
     }
 }
