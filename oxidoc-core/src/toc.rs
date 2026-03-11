@@ -52,7 +52,8 @@ pub fn render_toc(entries: &[TocEntry]) -> String {
         let indent_class = format!("toc-level-{}", entry.level);
         html.push_str(&format!(
             r##"<li class="{indent_class}"><a href="#{}">{}</a></li>"##,
-            entry.anchor, entry.text,
+            crate::utils::html_escape(&entry.anchor),
+            crate::utils::html_escape(&entry.text),
         ));
     }
     html.push_str("</ul></nav>");
