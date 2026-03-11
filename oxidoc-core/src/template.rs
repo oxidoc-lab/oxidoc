@@ -13,7 +13,6 @@ pub fn render_page(
     active_slug: &str,
 ) -> String {
     let project_name = &config.project.name;
-    let primary_color = &config.theme.primary;
     let page_title = if title.is_empty() {
         project_name.clone()
     } else {
@@ -31,7 +30,6 @@ pub fn render_page(
     <title>{page_title}</title>
     <meta name="generator" content="oxidoc">
     <link rel="canonical" href="{base_url}{active_slug}">
-    <style>:root {{ --oxidoc-primary: {primary_color}; }}</style>
     <link rel="stylesheet" href="/oxidoc.css">
 </head>
 <body>
@@ -107,7 +105,7 @@ mod tests {
         let html = render_page(&config, "Intro", "<p>Hello</p>", "", "", "", "intro");
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("<title>Intro — Test Docs</title>"));
-        assert!(html.contains("--oxidoc-primary: #3b82f6;"));
+        assert!(html.contains(r#"href="/oxidoc.css""#));
         assert!(html.contains("<p>Hello</p>"));
         assert!(html.contains("oxidoc-loader.js"));
         assert!(html.contains(r#"lang="en""#));

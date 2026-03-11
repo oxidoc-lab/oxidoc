@@ -17,6 +17,7 @@ openapiv3.workspace = true
 miette.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+lightningcss.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

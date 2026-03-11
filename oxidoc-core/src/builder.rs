@@ -2,7 +2,9 @@ use crate::assets::copy_assets;
 use crate::breadcrumb::{generate_breadcrumbs, render_breadcrumbs};
 use crate::config::load_config;
 use crate::crawler::{NavGroup, discover_pages};
+use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
+use crate::loader::generate_loader_js;
 use crate::renderer::render_document;
 use crate::template::{render_page, render_sidebar};
 use crate::toc::{extract_toc, render_toc};
@@ -80,6 +82,22 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     if assets_copied > 0 {
         tracing::info!(count = assets_copied, "Assets copied");
     }
+
+    // Generate and write CSS
+    let css = generate_base_css(&config);
+    let css = minify_css(&css);
+    std::fs::write(output_dir.join("oxidoc.css"), css).map_err(|e| OxidocError::FileWrite {
+        path: output_dir.join("oxidoc.css").display().to_string(),
+        source: e,
+    })?;
+
+    // Generate and write JS loader
+    std::fs::write(output_dir.join("oxidoc-loader.js"), generate_loader_js()).map_err(|e| {
+        OxidocError::FileWrite {
+            path: output_dir.join("oxidoc-loader.js").display().to_string(),
+            source: e,
+        }
+    })?;
 
     generate_llms_txt(&nav_groups, output_dir)?;
     generate_index_redirect(&nav_groups, output_dir)?;
@@ -209,6 +227,14 @@ name = "Test Project"
         assert!(output.join("index.html").exists());
         assert!(output.join("llms.txt").exists());
         assert!(output.join("llms-full.txt").exists());
+        assert!(output.join("oxidoc.css").exists());
+        assert!(output.join("oxidoc-loader.js").exists());
+
+        let css = std::fs::read_to_string(output.join("oxidoc.css")).unwrap();
+        assert!(css.contains("oxidoc-primary"));
+
+        let js = std::fs::read_to_string(output.join("oxidoc-loader.js")).unwrap();
+        assert!(js.contains("oxidoc-registry.wasm"));
 
         let intro_html = std::fs::read_to_string(output.join("intro.html")).unwrap();
         assert!(intro_html.contains("Introduction"));
