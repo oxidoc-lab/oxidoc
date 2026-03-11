@@ -191,11 +191,12 @@ fn render_island_component(
 ) {
     let props = attributes_to_map(attributes);
     let props_json = serde_json::to_string(&props).unwrap_or_else(|_| "{}".into());
+    let escaped_props = crate::utils::html_escape(&props_json);
     let _ = write!(
         out,
-        r#"<oxidoc-island data-island-type="{}" data-props='{}'>"#,
-        name.to_lowercase(),
-        props_json,
+        r#"<oxidoc-island data-island-type="{}" data-props="{}">"#,
+        crate::utils::html_escape(&name.to_lowercase()),
+        escaped_props,
     );
     // Render children as fallback content (visible before Wasm hydration)
     render_children(children, out, custom);
@@ -336,6 +337,16 @@ mod tests {
         let html = render_document(&root, &HashMap::new());
         assert!(html.contains(r#"data-island-type="callout""#));
         assert!(html.contains("data-props="));
+    }
+
+    #[test]
+    fn render_island_escapes_props() {
+        let root = rdx_parser::parse(r#"<Callout message="it's &quot;here&quot;">Hi</Callout>"#);
+        let html = render_document(&root, &HashMap::new());
+        // Props attribute must not contain unescaped quotes that break HTML
+        assert!(!html.contains(r#"data-props='{"#));
+        assert!(html.contains("data-props=\""));
+        assert!(!html.contains(r#"onclick"#));
     }
 
     #[test]
