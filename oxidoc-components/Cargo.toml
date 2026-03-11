@@ -8,7 +8,7 @@ description = "Built-in Oxidoc island components — Callout, Tabs, CodeBlock, A
 
 [dependencies]
 oxidoc-island.workspace = true
-leptos.workspace = true
+leptos = { workspace = true, features = ["csr"] }
 serde.workspace = true
 serde_json.workspace = true
 wasm-bindgen.workspace = true
