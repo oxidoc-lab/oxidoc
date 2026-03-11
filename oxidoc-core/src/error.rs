@@ -1,3 +1,4 @@
+// False positive from thiserror's derive macro on struct variant fields.
 #![allow(unused_assignments)]
 
 use miette::Diagnostic;
@@ -76,6 +77,18 @@ pub enum OxidocError {
         #[source]
         source: std::io::Error,
     },
+}
+
+impl OxidocError {
+    /// Whether this is a configuration-related error (for exit code classification).
+    pub fn is_config_error(&self) -> bool {
+        matches!(
+            self,
+            OxidocError::ConfigRead { .. }
+                | OxidocError::ConfigParse { .. }
+                | OxidocError::ConfigMissingName
+        )
+    }
 }
 
 pub type Result<T> = std::result::Result<T, OxidocError>;

@@ -1,5 +1,8 @@
+mod server;
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 #[derive(Parser)]
 #[command(
@@ -33,7 +36,7 @@ enum Command {
     Init,
 }
 
-fn main() -> miette::Result<()> {
+fn main() -> ExitCode {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
@@ -41,31 +44,45 @@ fn main() -> miette::Result<()> {
         .project
         .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
 
-    match cli.command {
-        Command::Build { output } => {
-            let output_dir = project_root.join(&output);
-            tracing::info!("Building site to {}/", output_dir.display());
+    let result = match cli.command {
+        Command::Build { output } => run_build(&project_root, &output),
+        Command::Dev { port } => run_dev(&project_root, port),
+        Command::Init => run_init(&project_root),
+    };
 
-            let result = oxidoc_core::builder::build_site(&project_root, &output_dir)?;
-            tracing::info!(
-                pages = result.pages_rendered,
-                output = %result.output_dir,
-                "Build complete"
-            );
-        }
-        Command::Dev { port } => {
-            tracing::info!("Starting dev server on port {port}");
-            // TODO: spin up axum dev server with HMR via notify
-        }
-        Command::Init => {
-            init_project(&project_root)?;
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            let code = e
+                .downcast_ref::<oxidoc_core::error::OxidocError>()
+                .is_some_and(|oe| oe.is_config_error());
+            eprintln!("{e:?}");
+            ExitCode::from(if code { 2 } else { 1 })
         }
     }
+}
 
+fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()> {
+    let output_dir = project_root.join(output);
+    tracing::info!("Building site to {}/", output_dir.display());
+
+    let start = std::time::Instant::now();
+    let result = oxidoc_core::builder::build_site(project_root, &output_dir)?;
+    tracing::info!(
+        pages = result.pages_rendered,
+        elapsed_ms = start.elapsed().as_millis() as u64,
+        "Build complete"
+    );
     Ok(())
 }
 
-fn init_project(project_root: &std::path::Path) -> miette::Result<()> {
+fn run_dev(project_root: &std::path::Path, port: u16) -> miette::Result<()> {
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| miette::miette!("Failed to create async runtime: {e}"))?;
+    rt.block_on(server::run_dev_server(project_root.to_path_buf(), port))
+}
+
+fn run_init(project_root: &std::path::Path) -> miette::Result<()> {
     let config_path = project_root.join("oxidoc.toml");
     if config_path.exists() {
         miette::bail!("oxidoc.toml already exists in this directory");
