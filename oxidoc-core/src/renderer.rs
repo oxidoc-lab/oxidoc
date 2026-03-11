@@ -54,7 +54,7 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
             let lang_attr = c
                 .lang
                 .as_deref()
-                .map(|l| format!(r#" class="language-{l}""#))
+                .map(|l| format!(r#" class="language-{}""#, crate::utils::html_escape(l)))
                 .unwrap_or_default();
             let _ = write!(out, "<pre><code{lang_attr}>");
             push_escaped(&c.value, out);
@@ -347,6 +347,14 @@ mod tests {
         assert!(html.contains("<PromoBanner"));
         assert!(html.contains(r#"src="assets/js/promo.js""#));
         assert!(!html.contains("oxidoc-island"));
+    }
+
+    #[test]
+    fn code_block_language_is_escaped() {
+        let root = rdx_parser::parse("```rust\" onclick=\"alert(1)\ncode\n```");
+        let html = render_document(&root, &HashMap::new());
+        assert!(!html.contains(r#"onclick="alert"#));
+        assert!(html.contains("&quot;"));
     }
 
     #[test]
