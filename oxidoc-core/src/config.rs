@@ -57,7 +57,7 @@ impl Default for ThemeConfig {
 }
 
 fn default_primary() -> String {
-    "#3b82f6".into()
+    "#2563eb".into()
 }
 
 fn default_dark_mode() -> String {
@@ -243,7 +243,7 @@ name = "My Docs"
 "#;
         let config = parse_config(toml).unwrap();
         assert_eq!(config.project.name, "My Docs");
-        assert_eq!(config.theme.primary, "#3b82f6");
+        assert_eq!(config.theme.primary, "#2563eb");
         assert_eq!(config.theme.dark_mode, "system");
         assert_eq!(config.search.provider, "oxidoc-boostr");
         assert!(config.routing.navigation.is_empty());

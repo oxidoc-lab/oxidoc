@@ -63,7 +63,7 @@ mod tests {
     fn generates_base_css() {
         let config = parse_config("[project]\nname = \"Test\"").unwrap();
         let css = generate_base_css(&config);
-        assert!(css.contains("--oxidoc-primary: #3b82f6"));
+        assert!(css.contains("--oxidoc-primary: #2563eb"));
         assert!(css.contains(".oxidoc-layout"));
         assert!(css.contains("prefers-color-scheme: dark"));
     }
