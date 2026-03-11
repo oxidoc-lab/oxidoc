@@ -73,3 +73,6 @@ base64 = "0.22"
 
 # Time/Date handling
 chrono = { version = "0.4", features = ["serde"] }
+
+# Benchmarking
+fluxbench = "0.1"
