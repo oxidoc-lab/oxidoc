@@ -1,3 +1,10 @@
+pub mod focus_trap;
+pub mod keyboard;
+pub mod shadow;
+
+// Re-export commonly used types
+pub use keyboard::KeyAction;
+
 use wasm_bindgen::JsValue;
 
 /// Error type for island mount failures.
