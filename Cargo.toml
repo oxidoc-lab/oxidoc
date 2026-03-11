@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "oxidoc-cli",
+    "oxidoc-core",
+    "oxidoc-island",
+    "oxidoc-components",
+    "oxidoc-registry",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/oxidoc/oxidoc"
+
+[workspace.dependencies]
+# Internal crates
+oxidoc-core = { version = "0.1.0", path = "oxidoc-core" }
+oxidoc-island = { version = "0.1.0", path = "oxidoc-island" }
+oxidoc-components = { version = "0.1.0", path = "oxidoc-components" }
+oxidoc-registry = { version = "0.1.0", path = "oxidoc-registry" }
+
+# RDX (published crate references — local override via .cargo/config.toml)
+rdx-parser = "0.1.0"
+rdx-ast = "0.1.0"
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1"
+toml = "1.0.6"
+
+# CLI
+clap = { version = "4.5.60", features = ["derive"] }
+miette = { version = "7.6.0", features = ["fancy"] }
+
+# Web framework (dev server)
+axum = "0.8.8"
+tokio = { version = "1.50.0", features = ["full"] }
+tower-http = { version = "0.6.8", features = ["fs", "cors"] }
+
+# OpenAPI
+openapiv3 = "2.2.0"
+
+# Wasm
+leptos = "0.8.17"
+wasm-bindgen = "0.2.114"
+web-sys = { version = "0.3.91", features = ["Element", "Document", "HtmlElement", "NodeList", "Window", "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "CustomEvent", "CustomEventInit"] }
+js-sys = "0.3.91"
+
+# File watching (HMR)
+notify = "8"
+
+# Observability
+tracing = "0.1.44"
+tracing-subscriber = "0.3"
+
+# Error handling
+thiserror = "2.0.18"

@@ -1,0 +1,48 @@
+# Build artifacts
+/target
+/dist
+
+# Dependencies
+Cargo.lock
+
+# Local development overrides (path patches to rdx-lang)
+.cargo/
+
+# Local reference materials
+resource/
+CLAUDE.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+
+# Debug
+*.pdb
+
+# Wasm build artifacts
+pkg/
+*.wasm
+*.d.ts
+
+# Tailwind (if used externally)
+node_modules/
+
+# Coverage
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html
+
+# Logs
+*.log

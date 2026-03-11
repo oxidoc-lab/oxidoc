@@ -1,0 +1,13 @@
+[package]
+name = "oxidoc-island"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The OxidocIsland trait — implement this to build custom Wasm island plugins"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+web-sys.workspace = true
