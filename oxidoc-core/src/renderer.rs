@@ -88,23 +88,27 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
             let title_attr = link
                 .title
                 .as_deref()
-                .map(|t| format!(r#" title="{t}""#))
+                .map(|t| format!(r#" title="{}""#, crate::utils::html_escape(t)))
                 .unwrap_or_default();
-            let _ = write!(out, r#"<a href="{}"{title_attr}>"#, link.url);
+            let _ = write!(
+                out,
+                r#"<a href="{}"{title_attr}>"#,
+                crate::utils::html_escape(&link.url)
+            );
             render_children(&link.children, out, custom);
             out.push_str("</a>");
         }
         Node::Image(img) => {
-            let alt = img.alt.as_deref().unwrap_or("");
+            let alt = crate::utils::html_escape(img.alt.as_deref().unwrap_or(""));
             let title_attr = img
                 .title
                 .as_deref()
-                .map(|t| format!(r#" title="{t}""#))
+                .map(|t| format!(r#" title="{}""#, crate::utils::html_escape(t)))
                 .unwrap_or_default();
             let _ = write!(
                 out,
                 r#"<img src="{}" alt="{alt}"{title_attr} loading="lazy">"#,
-                img.url
+                crate::utils::html_escape(&img.url)
             );
         }
         Node::Table(t) => {
@@ -207,12 +211,13 @@ fn render_web_component(
 ) {
     let _ = write!(out, "<{tag}");
     for attr in attributes {
-        let val = attribute_value_to_string(&attr.value);
+        let val = crate::utils::html_escape(&attribute_value_to_string(&attr.value));
         let _ = write!(out, r#" {}="{val}""#, attr.name);
     }
     let _ = write!(
         out,
-        "></{tag}><script src=\"{js_src}\" type=\"module\" async></script>"
+        r#"></{tag}><script src="{}" type="module" async></script>"#,
+        crate::utils::html_escape(js_src)
     );
 }
 
