@@ -1,22 +1,21 @@
 [package]
-name = "oxidoc-registry"
+name = "oxidoc-openapi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The Oxidoc frontend Wasm entry point — scans DOM for <oxidoc-island> tags and hydrates components"
+description = "Interactive API playground island for Oxidoc documentation sites"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 oxidoc-island.workspace = true
-oxidoc-components.workspace = true
-oxidoc-openapi.workspace = true
-leptos = { workspace = true, features = ["csr"] }
+leptos.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
 web-sys.workspace = true
 js-sys.workspace = true
 
