@@ -1,0 +1,31 @@
+<div class="oxidoc-search-overlay" id="oxidoc-search-overlay" hidden>
+  <div class="oxidoc-search-dialog" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="oxidoc-search-header">
+      <iconify-icon icon="material-symbols:search-rounded" width="20" height="20" class="oxidoc-search-icon"></iconify-icon>
+      <input
+        type="text"
+        class="oxidoc-search-input"
+        id="oxidoc-search-input"
+        placeholder="Search docs"
+        autocomplete="off"
+        spellcheck="false"
+      >
+      <button class="oxidoc-search-clear" id="oxidoc-search-clear" hidden aria-label="Clear query">Clear</button>
+      <button class="oxidoc-search-close" id="oxidoc-search-close" aria-label="Close">
+        <iconify-icon icon="material-symbols:close-rounded" width="18" height="18"></iconify-icon>
+      </button>
+    </div>
+    <div class="oxidoc-search-body" id="oxidoc-search-body">
+      <div class="oxidoc-search-empty" id="oxidoc-search-empty">Type to search documentation</div>
+      <div class="oxidoc-search-results" id="oxidoc-search-results"></div>
+      <div class="oxidoc-search-no-results" id="oxidoc-search-no-results">No results found</div>
+    </div>
+    <div class="oxidoc-search-footer">
+      <div class="oxidoc-search-keys">
+        <span><kbd>&darr;</kbd> <kbd>&uarr;</kbd> Navigate</span>
+        <span><kbd>&crarr;</kbd> Select</span>
+        <span><kbd>Esc</kbd> Close</span>
+      </div>
+    </div>
+  </div>
+</div>

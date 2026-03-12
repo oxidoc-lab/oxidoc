@@ -1,6 +1,7 @@
 pub mod components;
 pub mod generator;
 pub mod minify;
+pub mod search;
 pub mod syntax;
 pub mod theme;
 

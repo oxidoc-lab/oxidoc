@@ -59,15 +59,25 @@ fn build_preload_links(
     (css_preload, js_preload)
 }
 
-const HEADER_ACTIONS_HTML: &str = r#"<div class="oxidoc-header-actions">
-            <button data-oxidoc-search class="oxidoc-search-trigger" aria-label="Search documentation" title="Search (Ctrl+K)">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/><path d="m10 10 4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                <span>Search</span>
-            </button>
-            <button class="oxidoc-theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2m0 10v2M1 8h2m10 0h2m-2.05-4.95L11.5 4.5m-7 7L3.05 12.95m9.9 0L11.5 11.5m-7-7L3.05 3.05" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            </button>
-        </div>"#;
+const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
+const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
+const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
+const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
+const HEADER_ACTIONS_HTML: &str = include_str!("templates/header_actions.html");
+const ERROR_404_HTML: &str = include_str!("templates/error_404.html");
+
+use crate::config::SocialConfig;
+
+/// Build the header actions HTML with social links injected before the static buttons.
+fn build_header_actions(social: &SocialConfig) -> String {
+    let social_html = social.render_header_icons();
+    // Insert social links before the theme toggle (first element in HEADER_ACTIONS_HTML)
+    HEADER_ACTIONS_HTML.replacen(
+        r#"<div class="oxidoc-header-actions">"#,
+        &format!(r#"<div class="oxidoc-header-actions">{social_html}"#),
+        1,
+    )
+}
 
 /// Generate the logo HTML for the header.
 fn render_logo_html(config: &OxidocConfig) -> (String, String) {
@@ -159,7 +169,7 @@ pub fn render_page(
     let current_path = format!("/{}", active_slug);
     let locale_switcher_html = i18n_state.render_locale_switcher(locale, &current_path);
 
-    format!(
+    let html = format!(
         r##"<!DOCTYPE html>
 <html lang="{lang}" data-locale="{locale}">
 <head>
@@ -177,6 +187,7 @@ pub fn render_page(
     <meta name="twitter:title" content="{page_title_escaped}">
     <script type="application/ld+json">{json_ld}</script>
     <link rel="canonical" href="{base_url}{active_slug}">
+    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
 {css_preload}
 {js_preload}
 {stylesheet_link}
@@ -188,7 +199,7 @@ pub fn render_page(
     <header class="oxidoc-header" role="banner">
         {logo_html}
         {locale_switcher_html}
-        {HEADER_ACTIONS_HTML}
+        {header_actions_html}
     </header>
     <div class="oxidoc-layout">
         <aside class="oxidoc-sidebar" role="navigation" aria-label="Documentation navigation">
@@ -208,6 +219,7 @@ pub fn render_page(
     {footer_html}
 {script_tag}
     {search_scripts}
+
 </body>
 </html>"##,
         lang = locale,
@@ -234,7 +246,15 @@ pub fn render_page(
         script_tag = script_tag,
         search_head_tags = search_head_tags,
         search_scripts = search_scripts,
-        HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
+        header_actions_html = build_header_actions(&config.social),
+    );
+    // Inject search dialog + scripts (contain curly braces, can't go in format!)
+    html.replace(
+        "</body>",
+        &format!(
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS
+        ),
     )
 }
 
@@ -272,6 +292,7 @@ pub fn render_404_page(
     <title>Page Not Found - {project_name}</title>
     <meta name="description" content="The page you are looking for could not be found.">
     <meta name="generator" content="oxidoc">
+    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
 {css_preload}
 {js_preload}
 {stylesheet_link}
@@ -283,14 +304,12 @@ pub fn render_404_page(
     <header class="oxidoc-header" role="banner">
         {logo_html}
         {locale_switcher_html}
-        {HEADER_ACTIONS_HTML}
+        {header_actions_html}
     </header>
     <div class="oxidoc-layout">
         <main id="oxidoc-main" class="oxidoc-content" role="main">
             <article>
-                <h1>404 - Page Not Found</h1>
-                <p>The page you are looking for could not be found. Please check the URL or use the search function above.</p>
-                <p><a href="/">Return to home</a></p>
+                {ERROR_404_HTML}
             </article>
         </main>
     </div>
@@ -312,7 +331,8 @@ pub fn render_404_page(
         script_tag = script_tag,
         search_head_tags = search_head_tags,
         search_scripts = search_scripts,
-        HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
+        header_actions_html = build_header_actions(&config.social),
+        ERROR_404_HTML = ERROR_404_HTML,
     )
 }
 

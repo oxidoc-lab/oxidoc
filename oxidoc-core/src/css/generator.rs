@@ -1,6 +1,6 @@
 use crate::theme::ResolvedTheme;
 
-use super::{components, syntax, theme};
+use super::{components, search, syntax, theme};
 
 /// Generate the base CSS for an Oxidoc site.
 pub fn generate_base_css(
@@ -24,6 +24,7 @@ pub fn generate_base_css(
 {COMPONENT_CSS}
 {API_CSS}
 {SYNTAX_CSS}
+{SEARCH_DIALOG_CSS}
 {RESPONSIVE_AND_PRINT_CSS}
 "#,
         RESET_AND_BODY = theme::RESET_AND_BODY,
@@ -37,6 +38,7 @@ pub fn generate_base_css(
         COMPONENT_CSS = components::COMPONENTS,
         API_CSS = components::API,
         SYNTAX_CSS = syntax::SYNTAX,
+        SEARCH_DIALOG_CSS = search::SEARCH_DIALOG,
         RESPONSIVE_AND_PRINT_CSS = theme::RESPONSIVE_AND_PRINT,
     );
 
