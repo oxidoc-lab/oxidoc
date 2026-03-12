@@ -1,5 +1,7 @@
 use crate::crawler::NavGroup;
 use crate::error::Result;
+use crate::page_extract::extract_page_title;
+use crate::utils::heading_anchor;
 
 use super::types::{HeadingPos, PageContent};
 
@@ -45,7 +47,7 @@ fn extract_text_with_headings(root: &rdx_ast::Root) -> (String, Vec<HeadingPos>)
             let depth = h.depth.unwrap_or(1);
             if depth >= 2 {
                 let heading_title = crate::utils::extract_plain_text(node);
-                let anchor = heading_to_anchor(&heading_title);
+                let anchor = heading_anchor(&heading_title);
                 headings.push(HeadingPos {
                     title: heading_title,
                     anchor,
@@ -58,31 +60,6 @@ fn extract_text_with_headings(root: &rdx_ast::Root) -> (String, Vec<HeadingPos>)
     }
 
     (text, headings)
-}
-
-/// Convert a heading text to a URL-safe anchor slug.
-fn heading_to_anchor(heading: &str) -> String {
-    heading
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
-}
-
-/// Extract the page title from the first h1 heading.
-fn extract_page_title(root: &rdx_ast::Root) -> Option<String> {
-    for node in &root.children {
-        if let rdx_ast::Node::Heading(h) = node
-            && h.depth.unwrap_or(1) == 1
-        {
-            return Some(crate::utils::extract_plain_text(node));
-        }
-    }
-    None
 }
 
 /// Recursively append searchable content from a node, filtering out code blocks.
@@ -147,9 +124,9 @@ mod tests {
     }
 
     #[test]
-    fn test_heading_to_anchor() {
-        assert_eq!(heading_to_anchor("Getting Started"), "getting-started");
-        assert_eq!(heading_to_anchor("Hello, World!"), "hello-world");
+    fn test_heading_anchor() {
+        assert_eq!(heading_anchor("Getting Started"), "getting-started");
+        assert_eq!(heading_anchor("Hello, World!"), "hello-world");
     }
 
     #[test]
