@@ -229,6 +229,62 @@ pub const SKIP_NAV_AND_HEADER_ACTIONS: &str = r#"/* Skip navigation */
     margin-right: 0.5rem;
 }
 
+/* Page Meta (edit link, last updated, prev/next nav) */
+.oxidoc-page-meta {
+    margin-top: 3rem;
+    border-top: 1px solid var(--oxidoc-border);
+    padding-top: 1.5rem;
+}
+.oxidoc-page-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8125rem;
+    margin-bottom: 1.5rem;
+}
+.oxidoc-edit-link {
+    color: var(--oxidoc-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+.oxidoc-edit-link:hover { text-decoration: underline; }
+.oxidoc-last-updated {
+    color: var(--oxidoc-text-secondary);
+}
+.oxidoc-page-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+.oxidoc-page-nav a {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--oxidoc-border);
+    border-radius: 0.5rem;
+    text-decoration: none;
+    color: var(--oxidoc-text);
+    transition: border-color 0.15s;
+}
+.oxidoc-page-nav a:hover {
+    border-color: var(--oxidoc-primary);
+}
+.oxidoc-page-nav-next {
+    text-align: right;
+    grid-column: 2;
+}
+.oxidoc-page-nav-label {
+    font-size: 0.75rem;
+    color: var(--oxidoc-text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+.oxidoc-page-nav-title {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--oxidoc-primary);
+}
+
 /* Footer */
 .oxidoc-footer {
     border-top: 1px solid var(--oxidoc-border);

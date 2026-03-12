@@ -104,6 +104,7 @@ pub fn build_api_pages(
             &breadcrumb_html,
             &slug,
             None,
+            "",
             assets,
             &config.i18n.default_locale,
             &i18n_state,

@@ -157,6 +157,31 @@ pub fn wrap_lines_with_highlights(html: &str, highlight_lines: &[usize]) -> Stri
         .join("")
 }
 
+/// Get git last-modified date and author for a file.
+/// Returns (formatted_date, author_name) or None if git info unavailable.
+pub fn git_file_meta(file_path: &std::path::Path) -> Option<(String, String)> {
+    let dir = file_path.parent()?;
+    let output = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%aI\t%aN", "--"])
+        .arg(file_path)
+        .current_dir(dir)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stdout.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let (date_str, author) = line.split_once('\t')?;
+    // Parse ISO date and format nicely
+    let date = chrono::DateTime::parse_from_rfc3339(date_str).ok()?;
+    let formatted = date.format("%b %-d, %Y").to_string();
+    Some((formatted, author.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
