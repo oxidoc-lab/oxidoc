@@ -1,5 +1,5 @@
 use axum::Router;
-use axum::response::Html;
+use axum::response::{Html, IntoResponse};
 use notify::{Event, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,6 +24,9 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
 
     // Axum server
     let reload_tx_sse = reload_tx.clone();
+
+    let html_redirect = axum::middleware::from_fn(redirect_html_to_clean_url);
+
     let app = Router::new()
         .route(
             "/__oxidoc_reload",
@@ -35,7 +38,39 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
                 }
             }),
         )
-        .fallback_service(ServeDir::new(&output_dir));
+        .fallback_service(ServeDir::new(&output_dir).fallback(axum::routing::get({
+            let output_dir_clone = output_dir.clone();
+            move |uri: axum::http::Uri| {
+                let output_dir = output_dir_clone.clone();
+                async move {
+                    let path = uri.path().trim_start_matches('/');
+
+                    // Clean URLs: /intro → intro.html
+                    let html_path = output_dir.join(format!("{path}.html"));
+                    if html_path.is_file()
+                        && let Ok(content) = tokio::fs::read_to_string(&html_path).await
+                    {
+                        return Html(content).into_response();
+                    }
+
+                    // Try path/index.html
+                    let index_path = output_dir.join(path).join("index.html");
+                    if index_path.is_file()
+                        && let Ok(content) = tokio::fs::read_to_string(&index_path).await
+                    {
+                        return Html(content).into_response();
+                    }
+
+                    // 404
+                    let not_found = output_dir.join("404.html");
+                    let body = tokio::fs::read_to_string(&not_found)
+                        .await
+                        .unwrap_or_else(|_| "404 Not Found".to_string());
+                    (axum::http::StatusCode::NOT_FOUND, Html(body)).into_response()
+                }
+            }
+        })))
+        .layer(html_redirect);
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("Dev server running at http://localhost:{port}");
@@ -49,6 +84,25 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
         .map_err(|e| miette::miette!("Server error: {e}"))?;
 
     Ok(())
+}
+
+/// Redirect `*.html` URLs to clean URLs (e.g. `/intro.html` → `/intro`).
+async fn redirect_html_to_clean_url(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> impl IntoResponse {
+    let path = req.uri().path();
+    if path.ends_with(".html") && path != "/404.html" {
+        let clean = path.trim_end_matches(".html");
+        let clean = if clean.ends_with("/index") {
+            clean.trim_end_matches("/index")
+        } else {
+            clean
+        };
+        let clean = if clean.is_empty() { "/" } else { clean };
+        return axum::response::Redirect::permanent(clean).into_response();
+    }
+    next.run(req).await.into_response()
 }
 
 fn do_build(project_root: &Path, output_dir: &Path, label: &str) -> miette::Result<()> {

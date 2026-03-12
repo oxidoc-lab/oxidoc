@@ -11,6 +11,17 @@ pub fn copy_assets(project_root: &Path, output_dir: &Path) -> Result<usize> {
         count += copy_dir_recursive(&public_dir, output_dir)?;
     }
 
+    // Copy assets/ directory (logo, images, etc.)
+    let assets_dir = project_root.join("assets");
+    if assets_dir.is_dir() {
+        let dst = output_dir.join("assets");
+        std::fs::create_dir_all(&dst).map_err(|e| OxidocError::DirCreate {
+            path: dst.display().to_string(),
+            source: e,
+        })?;
+        count += copy_dir_recursive(&assets_dir, &dst)?;
+    }
+
     // Copy non-.rdx files from docs/ (images, etc.)
     let docs_dir = project_root.join("docs");
     if docs_dir.is_dir() {
