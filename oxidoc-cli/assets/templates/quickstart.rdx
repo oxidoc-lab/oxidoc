@@ -1,0 +1,133 @@
+# Quickstart
+
+## Writing Content
+
+Create `.rdx` files in the `docs/` directory. RDX is Markdown with embedded components:
+
+```rdx
+<Callout kind="warning" title="Heads up">
+  Components are embedded directly in your Markdown content.
+</Callout>
+```
+
+<Callout kind="warning" title="Heads up">
+Components are embedded directly in your Markdown content.
+</Callout>
+
+## Available Components
+
+### Callout
+
+Display info, warnings, errors, or tips:
+
+```rdx
+<Callout kind="info" title="Note">
+  Your message here.
+</Callout>
+```
+
+<Callout kind="info" title="Note">
+Your message here.
+</Callout>
+
+Variants: `info`, `warning`, `error`, `tip`
+
+### Tabs
+
+Group content into switchable tabs:
+
+```rdx
+<Tabs>
+  <Tab title="npm">
+    npm install oxidoc
+  </Tab>
+  <Tab title="yarn">
+    yarn add oxidoc
+  </Tab>
+  <Tab title="pnpm">
+    pnpm add oxidoc
+  </Tab>
+</Tabs>
+```
+
+<Tabs>
+<Tab title="npm">
+npm install oxidoc
+</Tab>
+<Tab title="yarn">
+yarn add oxidoc
+</Tab>
+<Tab title="pnpm">
+pnpm add oxidoc
+</Tab>
+</Tabs>
+
+### CodeBlock
+
+Code with syntax highlighting, filename header, and copy button:
+
+```rdx
+<CodeBlock language="rust" filename="main.rs" highlight="2">
+  fn main() {
+      println!("Hello, Oxidoc!");
+  }
+</CodeBlock>
+```
+
+<CodeBlock language="rust" filename="main.rs" highlight="2">
+fn main() {
+    println!("Hello, Oxidoc!");
+}
+</CodeBlock>
+
+### Accordion
+
+Collapsible content sections:
+
+```rdx
+<Accordion title="Click to expand">
+  Hidden content goes here.
+</Accordion>
+```
+
+<Accordion title="Click to expand">
+Hidden content goes here.
+</Accordion>
+
+### CardGrid
+
+Responsive grid of linked cards:
+
+```rdx
+<CardGrid>
+  <Card title="First" href="/page-1">
+    Description here.
+  </Card>
+  <Card title="Second" href="/page-2">
+    Another card.
+  </Card>
+</CardGrid>
+```
+
+<CardGrid>
+<Card title="First">Description here.</Card>
+<Card title="Second">Another card.</Card>
+</CardGrid>
+
+## Development Server
+
+Run `oxidoc dev` to start a local server with hot reload:
+
+```bash
+oxidoc dev
+```
+
+Edit any `.rdx` file and the browser refreshes automatically.
+
+## Building for Production
+
+```bash
+oxidoc build
+```
+
+Your site is generated in `dist/` — deploy it anywhere.
