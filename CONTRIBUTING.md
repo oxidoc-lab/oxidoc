@@ -40,13 +40,13 @@ cargo bench -p oxidoc-core --no-run
 
 ## Workspace Architecture
 
-| Crate | Type | Responsibility |
-|:---|:---|:---|
-| `oxidoc-cli` | Binary | CLI commands, dev server, HMR integration |
-| `oxidoc-core` | Library | Config parsing, RDX→HTML rendering, build engine |
-| `oxidoc-island` | Library | Island component trait definition |
+| Crate               | Type    | Responsibility                                   |
+| :------------------ | :------ | :----------------------------------------------- |
+| `oxidoc-cli`        | Binary  | CLI commands, dev server, HMR integration        |
+| `oxidoc-core`       | Library | Config parsing, RDX→HTML rendering, build engine |
+| `oxidoc-island`     | Library | Island component trait definition                |
 | `oxidoc-components` | Library | Built-in Leptos components (Callout, Tabs, etc.) |
-| `oxidoc-registry` | cdylib | Wasm hydration entry point (browser runtime) |
+| `oxidoc-registry`   | cdylib  | Wasm hydration entry point (browser runtime)     |
 
 ## Code Conventions
 
@@ -83,11 +83,11 @@ No traits, types, impl blocks, or logic in mod.rs files.
 
 ### File Size Limits
 
-| Type | Soft Limit | Hard Limit | Action |
-|:---|:---|:---|:---|
-| Type definitions | 100 lines | 200 lines | Split by domain |
-| Component implementations | 200 lines | 400 lines | Split by concern |
-| Config/parsing logic | 200 lines | 400 lines | Split by section |
+| Type                      | Soft Limit | Hard Limit | Action           |
+| :------------------------ | :--------- | :--------- | :--------------- |
+| Type definitions          | 150 lines  | 300 lines  | Split by domain  |
+| Component implementations | 300 lines  | 500 lines  | Split by concern |
+| Config/parsing logic      | 300 lines  | 500 lines  | Split by section |
 
 ### Environment Separation
 
@@ -152,7 +152,7 @@ Benefits: Test public API only, loose coupling, high-level scenarios.
 - [ ] Host crates have zero `web-sys` / `wasm-bindgen` imports
 - [ ] Client crates have zero `tokio` / `axum` imports
 - [ ] All mod.rs files contain ONLY `pub mod` + `pub use`
-- [ ] No file exceeds 400 lines
+- [ ] No file exceeds 500 lines
 - [ ] No `.unwrap()` in library code
 - [ ] `cargo test --workspace` passes
 - [ ] `cargo clippy --all-targets -- -D warnings` passes
