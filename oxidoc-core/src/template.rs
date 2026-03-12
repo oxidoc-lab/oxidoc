@@ -2,6 +2,7 @@ use crate::config::OxidocConfig;
 use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
 use crate::template_parts::{render_analytics_script, render_footer};
+use crate::theme::ResolvedTheme;
 
 /// Optional asset paths and SRI hashes for CSS/JS resources.
 #[derive(Debug, Default, Clone)]
@@ -73,6 +74,7 @@ pub fn render_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
+    theme: &ResolvedTheme,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -84,7 +86,7 @@ pub fn render_page(
     let base_url = config.project.base_url.as_deref().unwrap_or("/");
     let (logo_html, safe_name) = render_logo_html(config);
 
-    let footer_html = render_footer(config);
+    let footer_html = render_footer(config, theme);
 
     // Determine page description for SEO
     let default_description = format!("{} documentation", project_name);
@@ -209,9 +211,10 @@ pub fn render_404_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
+    theme: &ResolvedTheme,
 ) -> String {
     let (logo_html, safe_name) = render_logo_html(config);
-    let footer_html = render_footer(config);
+    let footer_html = render_footer(config, theme);
 
     let css_href = assets.css_path.unwrap_or("/oxidoc.css");
     let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
@@ -303,6 +306,10 @@ name = "Test Docs""#,
         SearchProvider::Oxidoc { model_path: None }
     }
 
+    fn test_theme() -> crate::theme::ResolvedTheme {
+        crate::theme::builtin_theme("oxidoc").unwrap()
+    }
+
     #[test]
     fn render_page_structure_and_accessibility() {
         let config = test_config();
@@ -321,6 +328,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         // Essential structure
         assert!(html.contains("<!DOCTYPE html>"));
@@ -337,8 +345,8 @@ name = "Test Docs""#,
         assert!(html.contains(r#"rel="preload" href="/oxidoc-loader.js" as="script""#));
         assert!(html.contains("oxidoc-search-trigger"));
         assert!(html.contains("oxidoc-theme-toggle"));
-        // No footer when unconfigured
-        assert!(!html.contains("oxidoc-footer"));
+        // Footer present by default (attribution enabled)
+        assert!(html.contains("oxidoc-footer"));
 
         // Logo rendering
         let logo_cfg = parse_config("[project]\nname = \"T\"\nlogo = \"/logo.svg\"").unwrap();
@@ -357,6 +365,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         assert!(html.contains(r#"src="/logo.svg""#) && html.contains("oxidoc-logo-img"));
     }
@@ -379,6 +388,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         assert!(html.contains(r#"<meta name="description" content="A test page">"#));
         assert!(html.contains(r#"<meta property="og:title""#));
@@ -404,6 +414,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         assert!(html.contains("Fallback desc"));
     }
@@ -419,7 +430,19 @@ name = "Test Docs""#,
             ..Default::default()
         };
         let html = render_page(
-            &config, "Test", "", "", "", "", "test", None, &assets, "en", &i18n, &provider,
+            &config,
+            "Test",
+            "",
+            "",
+            "",
+            "",
+            "test",
+            None,
+            &assets,
+            "en",
+            &i18n,
+            &provider,
+            &test_theme(),
         );
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
@@ -442,6 +465,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         assert!(html.contains(r#"integrity="sha384-abc123""#));
         assert!(html.contains(r#"integrity="sha384-def456""#));
@@ -469,6 +493,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         assert!(html.contains("googletagmanager.com") && html.contains("G-XXXXXXXXXX"));
 
@@ -491,6 +516,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            &test_theme(),
         );
         assert!(html.contains("custom"));
     }
@@ -500,7 +526,14 @@ name = "Test Docs""#,
         let config = test_config();
         let i18n = default_i18n_state();
         let provider = default_search_provider();
-        let html = render_404_page(&config, &default_assets(), "en", &i18n, &provider);
+        let html = render_404_page(
+            &config,
+            &default_assets(),
+            "en",
+            &i18n,
+            &provider,
+            &test_theme(),
+        );
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("404"));
         assert!(html.contains("Not Found"));
@@ -518,7 +551,7 @@ name = "Test Docs""#,
             css_sri: Some("sha384-abc123"),
             js_sri: Some("sha384-def456"),
         };
-        let html = render_404_page(&config, &assets, "en", &i18n, &provider);
+        let html = render_404_page(&config, &assets, "en", &i18n, &provider, &test_theme());
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
         assert!(html.contains(r#"integrity="sha384-abc123""#));

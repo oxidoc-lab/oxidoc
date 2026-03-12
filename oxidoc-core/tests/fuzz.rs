@@ -244,7 +244,7 @@ fn fuzz_parse_config_nested_colors() {
     let result = parse_config(toml);
     assert!(result.is_ok());
     let config = result.unwrap();
-    assert_eq!(config.theme.primary, "#ff0000");
+    assert_eq!(config.theme.primary.as_deref(), Some("#ff0000"));
 }
 
 #[test]

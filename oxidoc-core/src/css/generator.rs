@@ -1,25 +1,17 @@
-use crate::config::OxidocConfig;
+use crate::theme::ResolvedTheme;
 
 use super::{components, syntax, theme};
 
 /// Generate the base CSS for an Oxidoc site.
-pub fn generate_base_css(config: &OxidocConfig) -> String {
-    let primary = &config.theme.primary;
-    let dark_scheme_rule = theme::dark_scheme_css(&config.theme.dark_mode);
+pub fn generate_base_css(
+    resolved_theme: &ResolvedTheme,
+    dark_mode: &str,
+    custom_css: Option<&str>,
+) -> String {
+    let theme_vars = crate::theme::render_css_variables(resolved_theme, dark_mode);
 
-    format!(
-        r#"/* Oxidoc Base Stylesheet — generated */
-:root {{
-    --oxidoc-primary: {primary};
-    --oxidoc-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --oxidoc-font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", Menlo, Consolas, monospace;
-    --oxidoc-content-max: 48rem;
-    --oxidoc-sidebar-width: 16rem;
-    --oxidoc-toc-width: 14rem;
-    --oxidoc-header-height: 3.5rem;
-}}
-
-{dark_scheme_rule}
+    let mut css = format!(
+        r#"{theme_vars}
 
 {RESET_AND_BODY}
 {HEADER_CSS}
@@ -46,18 +38,24 @@ pub fn generate_base_css(config: &OxidocConfig) -> String {
         API_CSS = components::API,
         SYNTAX_CSS = syntax::SYNTAX,
         RESPONSIVE_AND_PRINT_CSS = theme::RESPONSIVE_AND_PRINT,
-    )
+    );
+
+    if let Some(custom) = custom_css {
+        css.push('\n');
+        css.push_str(custom);
+    }
+
+    css
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::parse_config;
 
     #[test]
     fn generates_base_css() {
-        let config = parse_config("[project]\nname = \"Test\"").unwrap();
-        let css = generate_base_css(&config);
+        let theme = crate::theme::builtin_theme("oxidoc").unwrap();
+        let css = generate_base_css(&theme, "system", None);
         assert!(css.contains("--oxidoc-primary: #2563eb"));
         assert!(css.contains(".oxidoc-layout"));
         assert!(css.contains("prefers-color-scheme: dark"));
@@ -65,17 +63,23 @@ mod tests {
 
     #[test]
     fn generates_dark_mode_css() {
-        let config =
-            parse_config("[project]\nname = \"T\"\n[theme]\ndark_mode = \"dark\"").unwrap();
-        let css = generate_base_css(&config);
+        let theme = crate::theme::builtin_theme("oxidoc").unwrap();
+        let css = generate_base_css(&theme, "dark", None);
         assert!(css.contains("color-scheme: dark"));
     }
 
     #[test]
     fn generates_light_mode_css() {
-        let config =
-            parse_config("[project]\nname = \"T\"\n[theme]\ndark_mode = \"light\"").unwrap();
-        let css = generate_base_css(&config);
+        let theme = crate::theme::builtin_theme("oxidoc").unwrap();
+        let css = generate_base_css(&theme, "light", None);
         assert!(css.contains("color-scheme: light"));
+    }
+
+    #[test]
+    fn includes_custom_css() {
+        let theme = crate::theme::builtin_theme("oxidoc").unwrap();
+        let custom = "/* Custom styles */\nbody { margin: 10px; }";
+        let css = generate_base_css(&theme, "system", Some(custom));
+        assert!(css.contains(custom));
     }
 }

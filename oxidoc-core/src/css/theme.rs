@@ -1,67 +1,15 @@
-/// Generate the dark/light scheme CSS based on the configured mode.
-///
-/// # WCAG AA Compliance
-/// Color contrast ratios for text (verified at 16px):
-///
-/// **Light Mode:**
-/// - Text (#1e293b) on bg (#ffffff): 12.6:1 ✓ WCAG AAA
-/// - Text-secondary (#64748b) on bg (#ffffff): 4.6:1 ✓ WCAG AA
-/// - Primary (#2563eb) on bg (#ffffff): 4.56:1 ✓ WCAG AA
-///
-/// **Dark Mode:**
-/// - Text (#e2e8f0) on bg (#0f172a): 13.5:1 ✓ WCAG AAA
-/// - Text-secondary (#94a3b8) on bg (#0f172a): 7.0:1 ✓ WCAG AAA
-/// - Primary (#2563eb) on bg (#0f172a): 3.5:1 ⚠ WCAG A (acceptable for normal text, passes for links)
-pub fn dark_scheme_css(dark_mode: &str) -> String {
-    match dark_mode {
-        "dark" => r#"
-html { color-scheme: dark; }
-:root {
-    --oxidoc-bg: #0f172a;
-    --oxidoc-bg-secondary: #1e293b;
-    --oxidoc-text: #e2e8f0;
-    --oxidoc-text-secondary: #94a3b8;
-    --oxidoc-border: #334155;
-    --oxidoc-code-bg: #1e293b;
-}
-"#
-        .to_string(),
-        "light" => r#"
-html { color-scheme: light; }
-:root {
-    --oxidoc-bg: #ffffff;
-    --oxidoc-bg-secondary: #f8fafc;
-    --oxidoc-text: #1e293b;
-    --oxidoc-text-secondary: #64748b;
-    --oxidoc-border: #e2e8f0;
-    --oxidoc-code-bg: #f1f5f9;
-}
-"#
-        .to_string(),
-        _ => r#"
-:root {
-    --oxidoc-bg: #ffffff;
-    --oxidoc-bg-secondary: #f8fafc;
-    --oxidoc-text: #1e293b;
-    --oxidoc-text-secondary: #64748b;
-    --oxidoc-border: #e2e8f0;
-    --oxidoc-code-bg: #f1f5f9;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --oxidoc-bg: #0f172a;
-        --oxidoc-bg-secondary: #1e293b;
-        --oxidoc-text: #e2e8f0;
-        --oxidoc-text-secondary: #94a3b8;
-        --oxidoc-border: #334155;
-        --oxidoc-code-bg: #1e293b;
-    }
-}
-"#
-        .to_string(),
-    }
-}
+// WCAG AA Compliance Notes:
+// Color contrast ratios for text (verified at 16px):
+//
+// **Light Mode (Oxidoc):**
+// - Text (#1e293b) on bg (#ffffff): 12.6:1 ✓ WCAG AAA
+// - Text-secondary (#64748b) on bg (#ffffff): 4.6:1 ✓ WCAG AA
+// - Primary (#2563eb) on bg (#ffffff): 4.56:1 ✓ WCAG AA
+//
+// **Dark Mode (Oxidoc):**
+// - Text (#e2e8f0) on bg (#0f172a): 13.5:1 ✓ WCAG AAA
+// - Text-secondary (#94a3b8) on bg (#0f172a): 7.0:1 ✓ WCAG AAA
+// - Primary (#2563eb) on bg (#0f172a): 3.5:1 ⚠ WCAG A (acceptable for normal text, passes for links)
 
 pub const RESET_AND_BODY: &str = r#"/* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

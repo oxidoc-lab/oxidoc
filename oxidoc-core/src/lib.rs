@@ -21,6 +21,7 @@ pub mod sri;
 pub mod suggest;
 pub mod template;
 pub mod template_parts;
+pub mod theme;
 pub mod toc;
 pub mod utils;
 pub mod versioning;

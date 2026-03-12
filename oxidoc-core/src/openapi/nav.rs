@@ -73,6 +73,7 @@ pub fn build_api_pages(
     all_nav_groups: &[NavGroup],
     assets: &crate::template::AssetConfig<'_>,
     search_provider: &crate::search_provider::SearchProvider,
+    theme: &crate::theme::ResolvedTheme,
 ) -> Result<usize> {
     let endpoints = super::parser::extract_endpoints(spec);
     let mut count = 0;
@@ -107,6 +108,7 @@ pub fn build_api_pages(
             &config.i18n.default_locale,
             &i18n_state,
             search_provider,
+            theme,
         );
 
         let page_output = output_dir.join(format!("{slug}.html"));

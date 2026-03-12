@@ -18,6 +18,7 @@ use crate::search_provider::SearchProvider;
 use crate::sri::generate_sri_hash;
 use crate::template::{AssetConfig, render_404_page, render_page};
 use crate::template_parts::render_sidebar;
+use crate::theme;
 use crate::toc::{extract_toc, render_toc};
 use crate::versioning::VersioningState;
 use rayon::prelude::*;
@@ -65,8 +66,39 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         HashMap::new()
     };
 
+    // Resolve theme
+    let resolved_theme = theme::resolve_theme(
+        &config.theme.theme,
+        config.theme.primary.as_deref(),
+        config.theme.accent.as_deref(),
+        config.theme.font.as_deref(),
+        config.theme.code_font.as_deref(),
+        project_root,
+    )?;
+
+    // Load custom CSS if configured
+    let custom_css = if let Some(css_path) = &config.theme.custom_css {
+        let custom_path = if Path::new(css_path).is_absolute() {
+            Path::new(css_path).to_path_buf()
+        } else {
+            project_root.join(css_path)
+        };
+        Some(
+            std::fs::read_to_string(&custom_path).map_err(|e| OxidocError::FileRead {
+                path: custom_path.display().to_string(),
+                source: e,
+            })?,
+        )
+    } else {
+        None
+    };
+
     // Generate assets (CSS and JS)
-    let css = generate_base_css(&config);
+    let css = generate_base_css(
+        &resolved_theme,
+        &config.theme.dark_mode,
+        custom_css.as_deref(),
+    );
     let css = minify_css(&css);
     let js = generate_loader_js();
 
@@ -111,6 +143,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     let config = Arc::new(config);
     let i18n_state = Arc::new(i18n_state);
     let search_provider = Arc::new(search_provider);
+    let resolved_theme = Arc::new(resolved_theme);
 
     let mut pages_rendered_total = 0;
 
@@ -146,6 +179,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         let config_arc = Arc::clone(&config);
         let i18n_state_arc = Arc::clone(&i18n_state);
         let search_provider_arc = Arc::clone(&search_provider);
+        let theme_arc = Arc::clone(&resolved_theme);
         let nav_groups_arc = Arc::clone(&nav_groups_arc);
         let locale_str = locale.clone();
 
@@ -178,6 +212,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                     &locale_str,
                     &i18n_state_arc,
                     &search_provider_arc,
+                    &theme_arc,
                 );
 
                 let page_output = locale_output_dir.join(format!("{}.html", page.slug));
@@ -229,6 +264,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 &combined_nav,
                 &assets,
                 &search_provider,
+                &resolved_theme,
             )?;
             pages_rendered_total += api_count;
         }
@@ -251,8 +287,14 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             output_dir.join(locale)
         };
 
-        let not_found_html =
-            render_404_page(&config, &assets, locale, &i18n_state, &search_provider);
+        let not_found_html = render_404_page(
+            &config,
+            &assets,
+            locale,
+            &i18n_state,
+            &search_provider,
+            &resolved_theme,
+        );
         let not_found_minified = minify_html(&not_found_html);
         std::fs::write(locale_output_dir.join("404.html"), not_found_minified).map_err(|e| {
             OxidocError::FileWrite {

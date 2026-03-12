@@ -26,6 +26,8 @@ pub struct OxidocConfig {
     pub redirects: RedirectConfig,
     #[serde(default)]
     pub analytics: AnalyticsConfig,
+    #[serde(default)]
+    pub attribution: AttributionConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,23 +43,38 @@ pub struct ProjectConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct ThemeConfig {
-    #[serde(default = "default_primary")]
-    pub primary: String,
+    #[serde(default = "default_theme_name")]
+    pub theme: String,
+    #[serde(default)]
+    pub primary: Option<String>,
+    #[serde(default)]
+    pub accent: Option<String>,
     #[serde(default = "default_dark_mode")]
     pub dark_mode: String,
+    #[serde(default)]
+    pub custom_css: Option<String>,
+    #[serde(default)]
+    pub font: Option<String>,
+    #[serde(default)]
+    pub code_font: Option<String>,
 }
 
 impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
-            primary: default_primary(),
+            theme: default_theme_name(),
+            primary: None,
+            accent: None,
             dark_mode: default_dark_mode(),
+            custom_css: None,
+            font: None,
+            code_font: None,
         }
     }
 }
 
-fn default_primary() -> String {
-    "#2563eb".into()
+fn default_theme_name() -> String {
+    "oxidoc".into()
 }
 
 fn default_dark_mode() -> String {
@@ -212,6 +229,29 @@ pub struct AnalyticsConfig {
     pub google_analytics: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AttributionConfig {
+    /// Show "Built with Oxidoc" in footer (default: true)
+    #[serde(default = "default_true")]
+    pub oxidoc: bool,
+    /// Show theme name/author in footer (default: true)
+    #[serde(default = "default_true")]
+    pub theme: bool,
+}
+
+impl Default for AttributionConfig {
+    fn default() -> Self {
+        Self {
+            oxidoc: true,
+            theme: true,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// Load and validate `oxidoc.toml` from a project root.
 pub fn load_config(project_root: &Path) -> Result<OxidocConfig> {
     let config_path = project_root.join("oxidoc.toml");
@@ -253,6 +293,7 @@ fn validate_config_keys(content: &str) {
         "footer",
         "redirects",
         "analytics",
+        "attribution",
     ];
 
     if let Ok(value) = toml::from_str::<toml::Table>(content) {
@@ -286,7 +327,8 @@ name = "My Docs"
 "#;
         let config = parse_config(toml).unwrap();
         assert_eq!(config.project.name, "My Docs");
-        assert_eq!(config.theme.primary, "#2563eb");
+        assert_eq!(config.theme.theme, "oxidoc");
+        assert_eq!(config.theme.primary, None);
         assert_eq!(config.theme.dark_mode, "system");
         assert_eq!(config.search.provider, "oxidoc");
         assert!(config.routing.navigation.is_empty());
@@ -302,8 +344,13 @@ logo = "/assets/logo.svg"
 description = "Complete SDK documentation"
 
 [theme]
+theme = "ocean"
 primary = "#ff0000"
+accent = "#00ff00"
 dark_mode = "dark"
+custom_css = "assets/custom.css"
+font = "Georgia"
+code_font = "Courier New"
 
 [routing]
 navigation = [
@@ -335,7 +382,16 @@ to = "/new-page"
             config.project.description.as_deref(),
             Some("Complete SDK documentation")
         );
-        assert_eq!(config.theme.primary, "#ff0000");
+        assert_eq!(config.theme.theme, "ocean");
+        assert_eq!(config.theme.primary.as_deref(), Some("#ff0000"));
+        assert_eq!(config.theme.accent.as_deref(), Some("#00ff00"));
+        assert_eq!(config.theme.dark_mode, "dark");
+        assert_eq!(
+            config.theme.custom_css.as_deref(),
+            Some("assets/custom.css")
+        );
+        assert_eq!(config.theme.font.as_deref(), Some("Georgia"));
+        assert_eq!(config.theme.code_font.as_deref(), Some("Courier New"));
         assert_eq!(config.routing.navigation.len(), 2);
         assert_eq!(config.routing.navigation[0].group, "Getting Started");
         assert_eq!(

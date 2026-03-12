@@ -94,3 +94,6 @@ numr = "0.5"
 fluent = "0.16"
 unic-langid = "0.9"
 intl-memoizer = "0.5"
+
+# Static initialization
+lazy_static = "1.4"
