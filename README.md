@@ -1,34 +1,89 @@
 # Oxidoc
 
-A next-generation documentation engine written entirely in Rust. Generate fast static documentation sites with interactive WebAssembly islands, powered by Leptos.
+A next-generation documentation engine written entirely in Rust. Zero Node.js dependency. Sub-second builds. Interactive WebAssembly islands.
 
 ## Features
 
-- **Static Site Generation (SSG)**: Sub-second builds for 1,000+ page sites with zero Node.js dependency
-- **Islands Architecture**: Partial hydration with multi-binary Wasm code-splitting for minimal client payload
-- **RDX Format**: Author in Rust Document eXpressions — embed reactive components directly in Markdown
-- **OpenAPI Native**: First-class support for interactive API playgrounds with Shadow DOM isolation
-- **WebAssembly Components**: Responsive Leptos-based islands (Callout, Tabs, CodeBlock, Accordion, and more)
-- **Accessibility (a11y)**: Enterprise-grade ARIA support and focus management across Shadow DOM boundaries
-- **Incremental Builds**: Smart caching system detects changed content and only rebuilds what's necessary
+### Authoring & Content
+
+- **RDX Format** — Author in Rust Document eXpressions: Markdown with embedded reactive components
+- **Built-in Components** — Callout, Tabs, CodeBlock, CardGrid, Accordion with full ARIA keyboard navigation
+- **Custom Web Components** — Vanilla JS escape hatch for rapid UI iteration via `[components.custom]`
+- **OpenAPI Native** — First-class `openapi.yaml`/`json` ingestion with auto-generated API reference pages
+
+### Performance & Build
+
+- **Static Site Generation** — Sub-second builds for 1,000+ page sites (275ms for 1,000 pages, 3.3ms incremental)
+- **Live Dev Server** — `oxidoc dev` with file watching and hot reload — edit `.rdx` or `oxidoc.toml`, browser refreshes instantly
+- **Islands Architecture** — Partial hydration with three-binary Wasm code-splitting (~50KB core, ~200KB API, ~2MB search)
+- **Incremental Builds** — Hash-based change detection rebuilds only modified pages
+- **Parallel Rendering** — Rayon-powered multi-core page processing
+- **Asset Pipeline** — Content-hashed filenames, CSS minification via LightningCSS, HTML minification
+
+### Search
+
+- **Built-in Hybrid Search** — Lexical (BM25) + semantic (WebGPU-accelerated via boostr) with RRF fusion
+- **Three-tier Fallback** — WebGPU → CPU Wasm → lexical, automatic degradation
+- **Pluggable Providers** — Algolia, Typesense, Meilisearch presets, or custom script injection
+
+### Internationalization
+
+- **Multi-locale Builds** — Per-locale HTML output (`/en/`, `/es/`, `/ja/`)
+- **Fluent Translations** — W3C-standard `.ftl` files with variable substitution
+- **Locale Switcher** — Auto-generated language picker with 25+ language display names
+
+### Theming
+
+- **Built-in Themes** — Three polished themes out of the box: `oxidoc` (default), `ocean`, `forest`
+- **Community Themes** — Create and share themes as `.toml` files with full light/dark palettes
+- **Dual Light/Dark** — Every theme ships with both modes; toggle via system preference or manual switch
+- **Customizable** — Override primary/accent colors, fonts, and spacing; layer custom CSS on top
+
+### Enterprise & SEO
+
+- **OpenAPI Playground** — Interactive request builder with auth, code generation (curl/Python/JS/Rust), Shadow DOM isolation
+- **SEO** — Open Graph, Twitter Cards, JSON-LD, canonical URLs, sitemap.xml, robots.txt
+- **RSS/Atom Feed** — Auto-generated for changelog/blog sections
+- **Versioning** — Multi-version output (`/v1.0/`, `/v2.0/`) with version switcher
+- **Security** — SRI hashes, CSP documentation, content-hashed assets
+- **Analytics** — Google Analytics or custom script injection
+- **Redirects** — URL migration via `[redirects]` config
+- **LLM-ready** — Auto-generated `llms.txt` and `llms-full.txt` for RAG pipelines
+
+### Developer Experience
+
+- **`oxidoc init`** — Scaffold a new project in seconds
+- **Error Diagnostics** — miette-powered errors with source spans, file paths, and suggestions
+- **Config Validation** — Unknown key detection with did-you-mean suggestions
+
+### Accessibility
+
+- **WCAG 2.1** — All components meet AA contrast, ARIA roles, keyboard navigation
+- **Shadow DOM Bridging** — Focus trapping and ARIA sync across shadow boundaries
+- **Skip Navigation** — Jump-to-content link, semantic heading hierarchy, landmark roles
 
 ## Quick Start
 
-### Installation
+### Install
 
 ```bash
 cargo install oxidoc-cli
 ```
 
-### Create a New Documentation Site
+### Create a Project
 
 ```bash
 oxidoc init my-docs
 cd my-docs
+```
+
+### Develop
+
+```bash
 oxidoc dev
 ```
 
-The dev server runs at `http://localhost:3000` with Hot Module Reload (HMR).
+Starts a local server at `http://localhost:3000` with hot reload — edit any `.rdx` file or `oxidoc.toml` and the browser refreshes automatically.
 
 ### Build for Production
 
@@ -36,23 +91,52 @@ The dev server runs at `http://localhost:3000` with Hot Module Reload (HMR).
 oxidoc build
 ```
 
-Output is a static `/dist` directory ready to deploy to any static host.
+Outputs a static `dist/` directory ready to deploy to GitHub Pages, Vercel, Netlify, Cloudflare Pages, or any static host.
 
 ## Project Structure
 
-Oxidoc is organized as a Cargo workspace with focused crates:
+```
+my-docs/
+├── oxidoc.toml              # Site configuration
+├── docs/                    # Your .rdx content files
+│   ├── intro.rdx
+│   ├── quickstart.rdx
+│   └── guides/
+│       ├── installation.rdx
+│       └── deployment.rdx
+├── assets/                  # Static files (images, fonts, etc.)
+│   └── logo.svg
+├── i18n/                    # Translation files (optional)
+│   ├── en.ftl
+│   └── ja.ftl
+└── openapi.yaml             # API spec (optional)
+```
 
-| Crate | Purpose |
-|:---|:---|
-| `oxidoc-cli` | Binary: `oxidoc dev` and `oxidoc build` commands |
-| `oxidoc-core` | Build engine: config, RDX parsing, HTML generation |
-| `oxidoc-island` | Library: island component trait definition |
-| `oxidoc-components` | Built-in Leptos components (Callout, Tabs, etc.) |
-| `oxidoc-registry` | Wasm: DOM scanning and hydration entry point |
+### Routing
+
+By default, Oxidoc discovers all `.rdx` files in `docs/` and orders them alphabetically. Use numeric prefixes to control order:
+
+```
+docs/
+├── 01-intro.rdx        → /intro
+├── 02-quickstart.rdx   → /quickstart
+└── 03-advanced.rdx     → /advanced
+```
+
+For explicit control, define navigation groups in `oxidoc.toml`:
+
+```toml
+[routing]
+navigation = [
+  { group = "Getting Started", pages = ["intro", "quickstart"] },
+  { group = "Guides", pages = ["guides/installation", "guides/deployment"] },
+  { group = "API Reference", openapi = "./openapi.yaml" }
+]
+```
+
+Each entry in `pages` maps to a file in `docs/` — `"intro"` resolves to `docs/intro.rdx`. Groups with `openapi` auto-generate API reference pages from the spec.
 
 ## Configuration
-
-Create an `oxidoc.toml` file in your project root:
 
 ```toml
 [project]
@@ -62,8 +146,10 @@ logo = "/assets/logo.svg"
 base_url = "https://docs.example.com"
 
 [theme]
-primary = "#2563eb"
-dark_mode = "system"
+theme = "oxidoc"                   # "oxidoc", "ocean", "forest", or path to .toml
+primary = "#2563eb"                # optional override
+dark_mode = "system"               # "system", "light", "dark"
+custom_css = "assets/custom.css"   # optional, layered on top
 
 [routing]
 navigation = [
@@ -71,50 +157,84 @@ navigation = [
   { group = "API Reference", openapi = "./openapi.yaml" }
 ]
 
+[i18n]
+default_locale = "en"
+locales = ["en", "es", "ja"]
+
 [search]
-provider = "oxidoc-boostr"
+provider = "oxidoc"
 ```
 
-For a complete configuration reference, see [docs/configuration.md](docs/configuration.md).
+### Community Themes
 
-## Build Commands
+Create a `.toml` file with light and dark color palettes:
 
-```bash
-# Development server with HMR
-oxidoc dev
+```toml
+[meta]
+name = "My Theme"
 
-# Production build
-oxidoc build
+[colors.light]
+bg = "#ffffff"
+primary = "#2563eb"
+text = "#1e293b"
 
-# Help
-oxidoc --help
+[colors.dark]
+bg = "#0f172a"
+primary = "#3b82f6"
+text = "#e2e8f0"
+
+[fonts]
+sans = '"Inter", system-ui, sans-serif'
+mono = '"JetBrains Mono", monospace'
 ```
 
-## Documentation
+Then reference it: `theme = "./themes/my-theme.toml"`
 
-- [Configuration Reference](docs/configuration.md) — All config options explained
-- [Contributing Guide](CONTRIBUTING.md) — Development setup and code conventions
-- [Security Guide](docs/security.md) — Content-Security-Policy and Wasm security
+See [docs/configuration.md](docs/configuration.md) for the full reference.
+
+## Workspace
+
+| Crate               | Type    | Purpose                                                   |
+| :------------------ | :------ | :-------------------------------------------------------- |
+| `oxidoc-cli`        | Binary  | CLI commands: `dev`, `build`, `init`                      |
+| `oxidoc-core`       | Library | Build engine: config, parsing, rendering, search indexing |
+| `oxidoc-island`     | Library | `OxidocIsland` trait definition                           |
+| `oxidoc-components` | Library | Built-in Leptos components                                |
+| `oxidoc-registry`   | cdylib  | Wasm entry point: DOM scanning + hydration                |
+| `oxidoc-openapi`    | cdylib  | Wasm: API playground island                               |
+| `oxidoc-search`     | cdylib  | Wasm: hybrid search island                                |
 
 ## Architecture
 
-Oxidoc operates across two environments:
-
-**Build Engine (Host):**
-- Reads `oxidoc.toml` and `.rdx` files
-- Parses with the standalone `rdx-parser` crate
-- Generates static HTML with `<oxidoc-island>` placeholders
-- Ships pre-compiled Wasm binaries (no cargo build during user builds)
-
-**Frontend Runtime (Browser):**
-- `oxidoc-registry.wasm` scans DOM and hydrates components
-- Island components load on-demand via Leptos
-- Shadow DOM isolates complex components (like ApiPlayground)
+```
+        .rdx files + oxidoc.toml
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│           oxidoc-core                │
+│  Config → Parse → Render → dist/    │
+│  Static HTML + <oxidoc-island> tags  │
+└──────────────────┬───────────────────┘
+                   │
+        Browser loads HTML
+                   │
+┌──────────────────▼───────────────────┐
+│         oxidoc-registry.wasm         │
+│  Scans DOM → hydrates Leptos islands │
+│  Lazy-loads openapi/search Wasm      │
+└──────────────────────────────────────┘
+```
 
 ## RDX Language
 
-RDX (Rust Document eXpressions) is a separate language project. Learn more at [github.com/rdx-lang/rdx](https://github.com/rdx-lang/rdx).
+RDX (Rust Document eXpressions) is a standalone language project. See [github.com/rdx-lang/rdx](https://github.com/rdx-lang/rdx).
+
+## Documentation
+
+- [Configuration Reference](docs/configuration.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Security Guide](docs/security.md)
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+Apache-2.0
