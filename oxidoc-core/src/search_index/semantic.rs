@@ -60,10 +60,7 @@ mod tests {
 
     #[test]
     fn test_build_vector_index_no_model() {
-        let config = SearchConfig {
-            provider: "test".to_string(),
-            model_path: None,
-        };
+        let config = SearchConfig::default();
         let pages = vec![PageContent {
             title: "Test".to_string(),
             slug: "test".to_string(),
@@ -77,8 +74,8 @@ mod tests {
     #[test]
     fn test_build_vector_index_with_model_path() {
         let config = SearchConfig {
-            provider: "test".to_string(),
             model_path: Some("/model.gguf".to_string()),
+            ..SearchConfig::default()
         };
         let pages = vec![PageContent {
             title: "Test".to_string(),

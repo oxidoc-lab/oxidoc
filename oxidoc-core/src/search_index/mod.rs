@@ -93,10 +93,7 @@ mod tests {
         let output = tmp.path().join("output");
         std::fs::create_dir(&output).unwrap();
 
-        let config = SearchConfig {
-            provider: "test".to_string(),
-            model_path: None,
-        };
+        let config = SearchConfig::default();
 
         generate_search_index(&nav_groups, &output, &config).unwrap();
 

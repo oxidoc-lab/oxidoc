@@ -121,6 +121,29 @@ pub struct SearchConfig {
     pub provider: String,
     #[serde(default)]
     pub model_path: Option<String>,
+    // Algolia preset fields
+    #[serde(default)]
+    pub app_id: Option<String>,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub index_name: Option<String>,
+    // Typesense preset fields
+    #[serde(default)]
+    pub host: Option<String>,
+    #[serde(default)]
+    pub port: Option<u16>,
+    #[serde(default)]
+    pub protocol: Option<String>,
+    #[serde(default)]
+    pub collection_name: Option<String>,
+    // Custom provider fields
+    #[serde(default)]
+    pub stylesheet: Option<String>,
+    #[serde(default)]
+    pub script: Option<String>,
+    #[serde(default)]
+    pub init_script: Option<String>,
 }
 
 impl Default for SearchConfig {
@@ -128,12 +151,22 @@ impl Default for SearchConfig {
         Self {
             provider: default_provider(),
             model_path: None,
+            app_id: None,
+            api_key: None,
+            index_name: None,
+            host: None,
+            port: None,
+            protocol: None,
+            collection_name: None,
+            stylesheet: None,
+            script: None,
+            init_script: None,
         }
     }
 }
 
 fn default_provider() -> String {
-    "oxidoc-boostr".into()
+    "oxidoc".into()
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -255,7 +288,7 @@ name = "My Docs"
         assert_eq!(config.project.name, "My Docs");
         assert_eq!(config.theme.primary, "#2563eb");
         assert_eq!(config.theme.dark_mode, "system");
-        assert_eq!(config.search.provider, "oxidoc-boostr");
+        assert_eq!(config.search.provider, "oxidoc");
         assert!(config.routing.navigation.is_empty());
         assert!(config.components.custom.is_empty());
     }
@@ -287,7 +320,7 @@ default_locale = "en"
 locales = ["en", "es", "ja"]
 
 [search]
-provider = "oxidoc-tantivy"
+provider = "oxidoc"
 
 [components.custom]
 PromoBanner = "assets/js/promo-banner.js"
@@ -311,7 +344,7 @@ to = "/new-page"
         );
         assert_eq!(config.versioning.versions.len(), 2);
         assert_eq!(config.i18n.locales.len(), 3);
-        assert_eq!(config.search.provider, "oxidoc-tantivy");
+        assert_eq!(config.search.provider, "oxidoc");
         assert_eq!(
             config.components.custom.get("PromoBanner").unwrap(),
             "assets/js/promo-banner.js"

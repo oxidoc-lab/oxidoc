@@ -14,6 +14,7 @@ use crate::outputs::{
     generate_index_redirect, generate_llms_txt, generate_redirects, generate_seo_files,
 };
 use crate::renderer::render_document;
+use crate::search_provider::SearchProvider;
 use crate::sri::generate_sri_hash;
 use crate::template::{AssetConfig, render_404_page, render_page};
 use crate::template_parts::render_sidebar;
@@ -45,6 +46,9 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
     // Load incremental cache
     let mut cache = IncrementalCache::load(output_dir)?;
+
+    // Resolve search provider from config
+    let search_provider = SearchProvider::from_config(&config.search)?;
 
     // Setup versioning (reserved for future use when implementing per-version builds)
     let _versioning = VersioningState::from_config(&config.versioning);
@@ -106,6 +110,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
     let config = Arc::new(config);
     let i18n_state = Arc::new(i18n_state);
+    let search_provider = Arc::new(search_provider);
 
     let mut pages_rendered_total = 0;
 
@@ -140,6 +145,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
         let config_arc = Arc::clone(&config);
         let i18n_state_arc = Arc::clone(&i18n_state);
+        let search_provider_arc = Arc::clone(&search_provider);
         let nav_groups_arc = Arc::clone(&nav_groups_arc);
         let locale_str = locale.clone();
 
@@ -171,6 +177,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                     &assets,
                     &locale_str,
                     &i18n_state_arc,
+                    &search_provider_arc,
                 );
 
                 let page_output = locale_output_dir.join(format!("{}.html", page.slug));
@@ -215,8 +222,14 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             let mut combined_nav = nav_groups.to_vec();
             combined_nav.extend(api_nav);
 
-            let api_count =
-                openapi::build_api_pages(&spec, output_dir, &config, &combined_nav, &assets)?;
+            let api_count = openapi::build_api_pages(
+                &spec,
+                output_dir,
+                &config,
+                &combined_nav,
+                &assets,
+                &search_provider,
+            )?;
             pages_rendered_total += api_count;
         }
     }
@@ -238,7 +251,8 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             output_dir.join(locale)
         };
 
-        let not_found_html = render_404_page(&config, &assets, locale, &i18n_state);
+        let not_found_html =
+            render_404_page(&config, &assets, locale, &i18n_state, &search_provider);
         let not_found_minified = minify_html(&not_found_html);
         std::fs::write(locale_output_dir.join("404.html"), not_found_minified).map_err(|e| {
             OxidocError::FileWrite {
@@ -254,8 +268,10 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     // Save incremental cache
     cache.save(output_dir)?;
 
-    // Generate search indices
-    crate::search_index::generate_search_index(&nav_groups, output_dir, &config.search)?;
+    // Generate search indices (only for built-in oxidoc provider)
+    if search_provider.is_builtin() {
+        crate::search_index::generate_search_index(&nav_groups, output_dir, &config.search)?;
+    }
 
     // Generate per-locale JSON translation bundles for Wasm islands
     if !translation_bundles.is_empty() {

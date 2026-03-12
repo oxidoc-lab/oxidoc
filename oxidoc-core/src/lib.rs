@@ -15,6 +15,7 @@ pub mod openapi;
 pub mod outputs;
 pub mod renderer;
 pub mod search_index;
+pub mod search_provider;
 pub mod sitemap;
 pub mod sri;
 pub mod suggest;

@@ -1,5 +1,6 @@
 use crate::config::OxidocConfig;
 use crate::i18n::I18nState;
+use crate::search_provider::SearchProvider;
 use crate::template_parts::{render_analytics_script, render_footer};
 
 /// Optional asset paths and SRI hashes for CSS/JS resources.
@@ -71,6 +72,7 @@ pub fn render_page(
     assets: &AssetConfig<'_>,
     locale: &str,
     i18n_state: &I18nState,
+    search_provider: &SearchProvider,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -115,6 +117,10 @@ pub fn render_page(
     let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
     let script_tag = build_script_tag(js_src, assets.js_sri);
 
+    // Generate search provider head tags and scripts
+    let search_head_tags = search_provider.render_head_tags();
+    let search_scripts = search_provider.render_scripts();
+
     // Generate locale switcher if i18n is enabled
     let current_path = format!("/{}", active_slug);
     let locale_switcher_html = i18n_state.render_locale_switcher(locale, &current_path);
@@ -141,6 +147,7 @@ pub fn render_page(
     <link rel="preload" href="{js_src}" as="script">
 {stylesheet_link}
     {analytics_html}
+    {search_head_tags}
 </head>
 <body data-locale="{locale}">
     <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
@@ -165,6 +172,7 @@ pub fn render_page(
     </div>
     {footer_html}
 {script_tag}
+    {search_scripts}
 </body>
 </html>"##,
         lang = locale,
@@ -188,6 +196,8 @@ pub fn render_page(
         analytics_html = analytics_html,
         stylesheet_link = stylesheet_link,
         script_tag = script_tag,
+        search_head_tags = search_head_tags,
+        search_scripts = search_scripts,
         HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
     )
 }
@@ -198,6 +208,7 @@ pub fn render_404_page(
     assets: &AssetConfig<'_>,
     locale: &str,
     i18n_state: &I18nState,
+    search_provider: &SearchProvider,
 ) -> String {
     let (logo_html, safe_name) = render_logo_html(config);
     let footer_html = render_footer(config);
@@ -208,6 +219,9 @@ pub fn render_404_page(
     let analytics_html = render_analytics_script(config);
     let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
     let script_tag = build_script_tag(js_src, assets.js_sri);
+
+    let search_head_tags = search_provider.render_head_tags();
+    let search_scripts = search_provider.render_scripts();
 
     let locale_switcher_html = i18n_state.render_locale_switcher(locale, "/");
 
@@ -224,6 +238,7 @@ pub fn render_404_page(
     <link rel="preload" href="{js_src}" as="script">
 {stylesheet_link}
     {analytics_html}
+    {search_head_tags}
 </head>
 <body data-locale="{locale}">
     <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
@@ -243,6 +258,7 @@ pub fn render_404_page(
     </div>
     {footer_html}
 {script_tag}
+    {search_scripts}
 </body>
 </html>"##,
         lang = locale,
@@ -256,6 +272,8 @@ pub fn render_404_page(
         analytics_html = analytics_html,
         stylesheet_link = stylesheet_link,
         script_tag = script_tag,
+        search_head_tags = search_head_tags,
+        search_scripts = search_scripts,
         HEADER_ACTIONS_HTML = HEADER_ACTIONS_HTML,
     )
 }
@@ -281,10 +299,15 @@ name = "Test Docs""#,
         crate::i18n::I18nState::from_config("en", &[])
     }
 
+    fn default_search_provider() -> SearchProvider {
+        SearchProvider::Oxidoc { model_path: None }
+    }
+
     #[test]
     fn render_page_structure_and_accessibility() {
         let config = test_config();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let html = render_page(
             &config,
             "Intro",
@@ -297,6 +320,7 @@ name = "Test Docs""#,
             &default_assets(),
             "en",
             &i18n,
+            &provider,
         );
         // Essential structure
         assert!(html.contains("<!DOCTYPE html>"));
@@ -319,6 +343,7 @@ name = "Test Docs""#,
         // Logo rendering
         let logo_cfg = parse_config("[project]\nname = \"T\"\nlogo = \"/logo.svg\"").unwrap();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let html = render_page(
             &logo_cfg,
             "",
@@ -331,6 +356,7 @@ name = "Test Docs""#,
             &default_assets(),
             "en",
             &i18n,
+            &provider,
         );
         assert!(html.contains(r#"src="/logo.svg""#) && html.contains("oxidoc-logo-img"));
     }
@@ -339,6 +365,7 @@ name = "Test Docs""#,
     fn render_page_seo_and_description() {
         let config = test_config();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let html = render_page(
             &config,
             "Test Page",
@@ -351,6 +378,7 @@ name = "Test Docs""#,
             &default_assets(),
             "en",
             &i18n,
+            &provider,
         );
         assert!(html.contains(r#"<meta name="description" content="A test page">"#));
         assert!(html.contains(r#"<meta property="og:title""#));
@@ -362,6 +390,7 @@ name = "Test Docs""#,
         // Description fallback from config
         let cfg = parse_config("[project]\nname = \"T\"\ndescription = \"Fallback desc\"").unwrap();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let html = render_page(
             &cfg,
             "P",
@@ -374,6 +403,7 @@ name = "Test Docs""#,
             &default_assets(),
             "en",
             &i18n,
+            &provider,
         );
         assert!(html.contains("Fallback desc"));
     }
@@ -382,13 +412,14 @@ name = "Test Docs""#,
     fn render_page_with_custom_assets_and_sri() {
         let config = test_config();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let assets = AssetConfig {
             css_path: Some("/oxidoc.a1b2c3d4.css"),
             js_path: Some("/oxidoc-loader.h5i6j7k8.js"),
             ..Default::default()
         };
         let html = render_page(
-            &config, "Test", "", "", "", "", "test", None, &assets, "en", &i18n,
+            &config, "Test", "", "", "", "", "test", None, &assets, "en", &i18n, &provider,
         );
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
@@ -410,6 +441,7 @@ name = "Test Docs""#,
             &sri_assets,
             "en",
             &i18n,
+            &provider,
         );
         assert!(html.contains(r#"integrity="sha384-abc123""#));
         assert!(html.contains(r#"integrity="sha384-def456""#));
@@ -423,6 +455,7 @@ name = "Test Docs""#,
         )
         .unwrap();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let html = render_page(
             &ga_config,
             "",
@@ -435,6 +468,7 @@ name = "Test Docs""#,
             &default_assets(),
             "en",
             &i18n,
+            &provider,
         );
         assert!(html.contains("googletagmanager.com") && html.contains("G-XXXXXXXXXX"));
 
@@ -443,6 +477,7 @@ name = "Test Docs""#,
         )
         .unwrap();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let html = render_page(
             &custom_config,
             "",
@@ -455,6 +490,7 @@ name = "Test Docs""#,
             &default_assets(),
             "en",
             &i18n,
+            &provider,
         );
         assert!(html.contains("custom"));
     }
@@ -463,7 +499,8 @@ name = "Test Docs""#,
     fn render_404_page_contains_essentials() {
         let config = test_config();
         let i18n = default_i18n_state();
-        let html = render_404_page(&config, &default_assets(), "en", &i18n);
+        let provider = default_search_provider();
+        let html = render_404_page(&config, &default_assets(), "en", &i18n, &provider);
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("404"));
         assert!(html.contains("Not Found"));
@@ -474,13 +511,14 @@ name = "Test Docs""#,
     fn render_404_page_with_assets_and_sri() {
         let config = test_config();
         let i18n = default_i18n_state();
+        let provider = default_search_provider();
         let assets = AssetConfig {
             css_path: Some("/oxidoc.a1b2c3d4.css"),
             js_path: Some("/oxidoc-loader.h5i6j7k8.js"),
             css_sri: Some("sha384-abc123"),
             js_sri: Some("sha384-def456"),
         };
-        let html = render_404_page(&config, &assets, "en", &i18n);
+        let html = render_404_page(&config, &assets, "en", &i18n, &provider);
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
         assert!(html.contains(r#"integrity="sha384-abc123""#));

@@ -89,6 +89,13 @@ pub enum OxidocError {
     #[error("Translation parse error in {path}: {message}")]
     #[diagnostic(code(oxidoc::i18n::parse))]
     TranslationParse { path: String, message: String },
+
+    #[error("Search provider '{provider}' requires field '{field}'")]
+    #[diagnostic(
+        code(oxidoc::search::config),
+        help("Add {field} to your [search] config in oxidoc.toml")
+    )]
+    SearchProviderConfig { provider: String, field: String },
 }
 
 impl OxidocError {
