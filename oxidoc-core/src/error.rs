@@ -77,6 +77,10 @@ pub enum OxidocError {
         #[source]
         source: std::io::Error,
     },
+
+    #[error("Search index error: {message}")]
+    #[diagnostic(code(oxidoc::search::index))]
+    SearchIndex { message: String },
 }
 
 impl OxidocError {

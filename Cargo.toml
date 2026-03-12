@@ -84,3 +84,8 @@ fluxbench = "0.1"
 
 # Testing
 wasm-bindgen-test = "0.3"
+
+# Search indexing
+splintr = "0.9"
+boostr = "0.1"
+numr = "0.5"

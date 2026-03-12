@@ -218,6 +218,9 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     // Save incremental cache
     cache.save(output_dir)?;
 
+    // Generate search indices
+    crate::search_index::generate_search_index(&nav_groups, output_dir, &config.search)?;
+
     Ok(BuildResult {
         pages_rendered,
         output_dir: output_dir.display().to_string(),
@@ -319,6 +322,7 @@ mod tests {
             "robots.txt",
             "404.html",
             ".oxidoc-cache.json",
+            "search-lexical.json",
         ] {
             assert!(output.join(f).exists(), "{f} should exist");
         }

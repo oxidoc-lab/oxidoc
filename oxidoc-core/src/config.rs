@@ -112,12 +112,15 @@ fn default_locale() -> String {
 pub struct SearchConfig {
     #[serde(default = "default_provider")]
     pub provider: String,
+    #[serde(default)]
+    pub model_path: Option<String>,
 }
 
 impl Default for SearchConfig {
     fn default() -> Self {
         Self {
             provider: default_provider(),
+            model_path: None,
         }
     }
 }

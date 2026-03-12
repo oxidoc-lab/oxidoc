@@ -13,6 +13,7 @@ pub mod minify;
 pub mod openapi;
 pub mod outputs;
 pub mod renderer;
+pub mod search_index;
 pub mod sitemap;
 pub mod sri;
 pub mod suggest;
