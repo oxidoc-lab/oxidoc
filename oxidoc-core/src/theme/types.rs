@@ -176,8 +176,8 @@ fn load_theme_file(path: &Path) -> Result<ResolvedTheme> {
 
 pub(crate) fn default_fonts() -> FontConfig {
     FontConfig {
-        sans: r#"-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif"#.to_string(),
-        mono: r#""SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", Menlo, Consolas, monospace"#.to_string(),
+        sans: r#"system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol""#.to_string(),
+        mono: r#"SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace"#.to_string(),
     }
 }
 

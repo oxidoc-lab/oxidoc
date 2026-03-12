@@ -2,61 +2,61 @@
 /// Supports both light and dark color schemes via CSS variables.
 pub const SYNTAX: &str = r##"/* Syntax Highlighting Tokens */
 .tok-keyword {
-    color: var(--oxidoc-tok-keyword, #0ea5e9);
+    color: var(--oxidoc-tok-keyword, #2563eb);
     font-weight: 600;
 }
 .tok-string {
-    color: var(--oxidoc-tok-string, #10b981);
+    color: var(--oxidoc-tok-string, #047857);
 }
 .tok-comment {
     color: var(--oxidoc-tok-comment, #6b7280);
     font-style: italic;
 }
 .tok-number {
-    color: var(--oxidoc-tok-number, #f59e0b);
+    color: var(--oxidoc-tok-number, #b45309);
 }
 .tok-function {
-    color: var(--oxidoc-tok-function, #8b5cf6);
+    color: var(--oxidoc-tok-function, #6d28d9);
     font-weight: 500;
 }
 .tok-type {
-    color: var(--oxidoc-tok-type, #ec4899);
+    color: var(--oxidoc-tok-type, #9333ea);
     font-weight: 500;
 }
 .tok-operator {
-    color: var(--oxidoc-tok-operator, #6366f1);
+    color: var(--oxidoc-tok-operator, #4338ca);
 }
 .tok-punctuation {
     color: var(--oxidoc-tok-punctuation, #64748b);
 }
 .tok-property {
-    color: var(--oxidoc-tok-property, #06b6d4);
+    color: var(--oxidoc-tok-property, #0e7490);
 }
 .tok-variable {
     color: var(--oxidoc-tok-variable, #f3f4f6);
 }
 .tok-builtin {
-    color: var(--oxidoc-tok-builtin, #3b82f6);
+    color: var(--oxidoc-tok-builtin, #1d4ed8);
     font-weight: 500;
 }
 .tok-attr {
-    color: var(--oxidoc-tok-attr, #f59e0b);
+    color: var(--oxidoc-tok-attr, #b45309);
 }
 
 @media (prefers-color-scheme: light) {
     :root {
-        --oxidoc-tok-keyword: #0ea5e9;
-        --oxidoc-tok-string: #10b981;
+        --oxidoc-tok-keyword: #2563eb;
+        --oxidoc-tok-string: #047857;
         --oxidoc-tok-comment: #6b7280;
-        --oxidoc-tok-number: #d97706;
-        --oxidoc-tok-function: #7c3aed;
-        --oxidoc-tok-type: #c026d3;
-        --oxidoc-tok-operator: #4f46e5;
+        --oxidoc-tok-number: #b45309;
+        --oxidoc-tok-function: #6d28d9;
+        --oxidoc-tok-type: #9333ea;
+        --oxidoc-tok-operator: #4338ca;
         --oxidoc-tok-punctuation: #64748b;
-        --oxidoc-tok-property: #0891b2;
+        --oxidoc-tok-property: #0e7490;
         --oxidoc-tok-variable: #1e293b;
-        --oxidoc-tok-builtin: #2563eb;
-        --oxidoc-tok-attr: #d97706;
+        --oxidoc-tok-builtin: #1d4ed8;
+        --oxidoc-tok-attr: #b45309;
     }
 }
 

@@ -13,12 +13,16 @@
 
 pub const RESET_AND_BODY: &str = r#"/* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+html { font-size: 106.25%; -webkit-text-size-adjust: 100%; }
 body {
     font-family: var(--oxidoc-font-sans);
     color: var(--oxidoc-text);
     background: var(--oxidoc-bg);
-    line-height: 1.7;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
     min-height: 100vh;
 }"#;
 

@@ -20,9 +20,16 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
 .oxidoc-callout-body { margin-top: 0.5rem; font-size: 0.875rem; }
 
 /* Component: Tabs */
+.oxidoc-tabs {
+    border: 1px solid var(--oxidoc-border);
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+    overflow: hidden;
+}
 .oxidoc-tabs-list {
     display: flex;
     border-bottom: 1px solid var(--oxidoc-border);
+    background: var(--oxidoc-bg-secondary);
     gap: 0;
 }
 .oxidoc-tab {
@@ -41,7 +48,7 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
     border-bottom-color: var(--oxidoc-primary);
     font-weight: 500;
 }
-.oxidoc-tab-panel { padding: 1rem 0; }
+.oxidoc-tab-panel { padding: 1rem; }
 
 /* Component: CodeBlock */
 .oxidoc-codeblock {
@@ -61,6 +68,12 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
     color: var(--oxidoc-text-secondary);
 }
 .oxidoc-codeblock-body { position: relative; }
+.oxidoc-codeblock-body pre {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
 .oxidoc-copy-btn {
     position: absolute;
     top: 0.5rem;
@@ -77,7 +90,18 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
 }
 .oxidoc-codeblock:hover .oxidoc-copy-btn { opacity: 1; }
 .oxidoc-copy-btn.copied { color: #10b981; }
-.oxidoc-line.highlighted { background: color-mix(in srgb, var(--oxidoc-primary) 10%, transparent); }
+.oxidoc-line {
+    display: block;
+    margin-left: -1rem;
+    margin-right: -1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+.oxidoc-line.highlighted {
+    background: color-mix(in srgb, var(--oxidoc-primary) 10%, transparent);
+    border-left: 3px solid var(--oxidoc-primary);
+    padding-left: calc(1rem - 3px);
+}
 .oxidoc-line-number {
     display: inline-block;
     width: 2.5rem;
@@ -120,6 +144,12 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
 }
 
 /* Component: CardGrid */
+.oxidoc-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
 .oxidoc-card {
     border: 1px solid var(--oxidoc-border);
     border-radius: 0.5rem;
@@ -127,14 +157,17 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
     text-decoration: none;
     color: var(--oxidoc-text);
     transition: border-color 0.15s, box-shadow 0.15s;
-    display: block;
+    display: flex;
+    flex-direction: column;
 }
 a.oxidoc-card:hover {
     border-color: var(--oxidoc-primary);
     box-shadow: 0 2px 8px color-mix(in srgb, var(--oxidoc-primary) 15%, transparent);
 }
 .oxidoc-card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; display: block; }
-.oxidoc-card-title { font-weight: 600; margin-bottom: 0.25rem; }
+.oxidoc-card-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 1rem; }
+.oxidoc-card-body { font-size: 0.875rem; color: var(--oxidoc-text-secondary); }
+.oxidoc-card-body p { margin: 0; }
 .oxidoc-card-desc { font-size: 0.8125rem; color: var(--oxidoc-text-secondary); }"#;
 
 pub const TYPOGRAPHY: &str = r#"/* Typography */
@@ -195,12 +228,29 @@ article pre {
     overflow-x: auto;
     font-size: 0.875rem;
     line-height: 1.6;
+    position: relative;
 }
 article pre code {
     background: none;
     padding: 0;
     border-radius: 0;
 }
+article pre .oxidoc-copy-code {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--oxidoc-border);
+    border-radius: 0.25rem;
+    background: var(--oxidoc-bg);
+    color: var(--oxidoc-text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+article pre:hover .oxidoc-copy-code { opacity: 1; }
+article pre .oxidoc-copy-code.copied { color: #10b981; }
 
 article table {
     width: 100%;
