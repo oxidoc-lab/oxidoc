@@ -2,16 +2,38 @@ use rdx_ast::{AttributeValue, Node, Root};
 use std::collections::HashMap;
 use std::fmt::Write;
 
+use crate::static_render::{
+    debug_wrap, render_static_accordion, render_static_callout, render_static_card,
+    render_static_card_grid, render_static_code_block, render_static_tab, render_static_tabs,
+};
+
+/// Rendering context threaded through all render functions.
+pub(crate) struct RenderCtx<'a> {
+    pub(crate) custom: &'a HashMap<String, String>,
+    pub(crate) debug_islands: bool,
+}
+
 /// Render a parsed RDX document into an HTML string.
-pub fn render_document(root: &Root, custom_components: &HashMap<String, String>) -> String {
+///
+/// When `debug_islands` is true, each statically-rendered component gets a
+/// visible debug outline so you can identify static vs wasm-hydrated components.
+pub fn render_document(
+    root: &Root,
+    custom_components: &HashMap<String, String>,
+    debug_islands: bool,
+) -> String {
+    let ctx = RenderCtx {
+        custom: custom_components,
+        debug_islands,
+    };
     let mut html = String::with_capacity(4096);
     for node in &root.children {
-        render_node(node, &mut html, custom_components);
+        render_node(node, &mut html, &ctx);
     }
     html
 }
 
-fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) {
+fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
     match node {
         Node::Heading(h) => {
             let level = h.depth.unwrap_or(1).clamp(1, 6);
@@ -19,12 +41,12 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
                 crate::utils::heading_anchor(&crate::utils::extract_plain_text(node))
             });
             let _ = write!(out, r#"<h{level} id="{id}">"#);
-            render_children(&h.children, out, custom);
+            render_children(&h.children, out, ctx);
             let _ = write!(out, "</h{level}>");
         }
         Node::Paragraph(p) => {
             out.push_str("<p>");
-            render_children(&p.children, out, custom);
+            render_children(&p.children, out, ctx);
             out.push_str("</p>");
         }
         Node::Text(t) => {
@@ -32,17 +54,17 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
         }
         Node::Strong(s) => {
             out.push_str("<strong>");
-            render_children(&s.children, out, custom);
+            render_children(&s.children, out, ctx);
             out.push_str("</strong>");
         }
         Node::Emphasis(e) => {
             out.push_str("<em>");
-            render_children(&e.children, out, custom);
+            render_children(&e.children, out, ctx);
             out.push_str("</em>");
         }
         Node::Strikethrough(s) => {
             out.push_str("<del>");
-            render_children(&s.children, out, custom);
+            render_children(&s.children, out, ctx);
             out.push_str("</del>");
         }
         Node::CodeInline(c) => {
@@ -63,7 +85,7 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
         Node::List(l) => {
             let tag = if l.ordered == Some(true) { "ol" } else { "ul" };
             let _ = write!(out, "<{tag}>");
-            render_children(&l.children, out, custom);
+            render_children(&l.children, out, ctx);
             let _ = write!(out, "</{tag}>");
         }
         Node::ListItem(li) => {
@@ -76,12 +98,12 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
             } else {
                 out.push_str("<li>");
             }
-            render_children(&li.children, out, custom);
+            render_children(&li.children, out, ctx);
             out.push_str("</li>");
         }
         Node::Blockquote(bq) => {
             out.push_str("<blockquote>");
-            render_children(&bq.children, out, custom);
+            render_children(&bq.children, out, ctx);
             out.push_str("</blockquote>");
         }
         Node::Link(link) => {
@@ -95,7 +117,7 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
                 r#"<a href="{}"{title_attr}>"#,
                 crate::utils::html_escape(&link.url)
             );
-            render_children(&link.children, out, custom);
+            render_children(&link.children, out, ctx);
             out.push_str("</a>");
         }
         Node::Image(img) => {
@@ -113,24 +135,24 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
         }
         Node::Table(t) => {
             out.push_str("<table>");
-            render_children(&t.children, out, custom);
+            render_children(&t.children, out, ctx);
             out.push_str("</table>");
         }
         Node::TableRow(tr) => {
             out.push_str("<tr>");
-            render_children(&tr.children, out, custom);
+            render_children(&tr.children, out, ctx);
             out.push_str("</tr>");
         }
         Node::TableCell(td) => {
             out.push_str("<td>");
-            render_children(&td.children, out, custom);
+            render_children(&td.children, out, ctx);
             out.push_str("</td>");
         }
         Node::ThematicBreak(_) => {
             out.push_str("<hr>");
         }
         Node::Html(h) => {
-            render_children(&h.children, out, custom);
+            render_children(&h.children, out, ctx);
         }
         Node::MathInline(m) => {
             let _ = write!(out, r#"<span class="math math-inline">"#);
@@ -144,7 +166,7 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
         }
         Node::FootnoteDefinition(f) => {
             let _ = write!(out, r#"<div class="footnote" id="fn-{}">"#, f.label);
-            render_children(&f.children, out, custom);
+            render_children(&f.children, out, ctx);
             out.push_str("</div>");
         }
         Node::FootnoteReference(f) => {
@@ -155,14 +177,13 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
             );
         }
         Node::Component(c) => {
-            if let Some(js_src) = custom.get(&c.name) {
+            if let Some(js_src) = ctx.custom.get(&c.name) {
                 render_web_component(&c.name, &c.attributes, js_src, out);
             } else {
-                render_island_component(&c.name, &c.attributes, &c.children, out, custom);
+                render_island_component(&c.name, &c.attributes, &c.children, out, ctx);
             }
         }
         Node::Variable(v) => {
-            // Variables are resolved at a higher level; emit placeholder
             let _ = write!(out, r#"<span data-var="{}">{{}}</span>"#, v.path);
         }
         Node::Error(e) => {
@@ -175,32 +196,52 @@ fn render_node(node: &Node, out: &mut String, custom: &HashMap<String, String>) 
     }
 }
 
-fn render_children(children: &[Node], out: &mut String, custom: &HashMap<String, String>) {
+pub(crate) fn render_children(children: &[Node], out: &mut String, ctx: &RenderCtx<'_>) {
     for child in children {
-        render_node(child, out, custom);
+        render_node(child, out, ctx);
     }
 }
 
-/// Render an RDX component as an `<oxidoc-island>` placeholder.
+/// Render a component — built-in components get proper static HTML,
+/// unknown components get island placeholders for wasm hydration.
 fn render_island_component(
     name: &str,
     attributes: &[rdx_ast::AttributeNode],
     children: &[Node],
     out: &mut String,
-    custom: &HashMap<String, String>,
+    ctx: &RenderCtx<'_>,
 ) {
     let props = attributes_to_map(attributes);
-    let props_json = serde_json::to_string(&props).unwrap_or_else(|_| "{}".into());
-    let escaped_props = crate::utils::html_escape(&props_json);
-    let _ = write!(
-        out,
-        r#"<oxidoc-island data-island-type="{}" data-props="{}">"#,
-        crate::utils::html_escape(&name.to_lowercase()),
-        escaped_props,
-    );
-    // Render children as fallback content (visible before Wasm hydration)
-    render_children(children, out, custom);
-    out.push_str("</oxidoc-island>");
+
+    match name {
+        "Callout" | "CardGrid" | "Card" | "Tabs" | "Tab" | "Accordion" | "CodeBlock" => {
+            debug_wrap(name, "static", out, ctx.debug_islands, |out| match name {
+                "Callout" => render_static_callout(&props, children, out, ctx),
+                "CardGrid" => render_static_card_grid(children, out, ctx),
+                "Card" => render_static_card(&props, children, out, ctx),
+                "Tabs" => render_static_tabs(children, out, ctx),
+                "Tab" => render_static_tab(&props, children, out, ctx),
+                "Accordion" => render_static_accordion(&props, children, out, ctx),
+                "CodeBlock" => render_static_code_block(&props, children, out, ctx),
+                _ => unreachable!(),
+            });
+        }
+        _ => {
+            // Unknown component — render as island placeholder for wasm hydration
+            let props_json = serde_json::to_string(&props).unwrap_or_else(|_| "{}".into());
+            let escaped_props = crate::utils::html_escape(&props_json);
+            debug_wrap(name, "island", out, ctx.debug_islands, |out| {
+                let _ = write!(
+                    out,
+                    r#"<oxidoc-island data-island-type="{}" data-props="{}">"#,
+                    crate::utils::html_escape(&name.to_lowercase()),
+                    escaped_props,
+                );
+                render_children(children, out, ctx);
+                out.push_str("</oxidoc-island>");
+            });
+        }
+    }
 }
 
 /// Render a Vanilla Web Component passthrough.
@@ -222,7 +263,9 @@ fn render_web_component(
     );
 }
 
-fn attributes_to_map(attributes: &[rdx_ast::AttributeNode]) -> HashMap<String, serde_json::Value> {
+pub(crate) fn attributes_to_map(
+    attributes: &[rdx_ast::AttributeNode],
+) -> HashMap<String, serde_json::Value> {
     attributes
         .iter()
         .map(|attr| {
@@ -288,21 +331,21 @@ mod tests {
                 },
             },
         };
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(html.is_empty());
     }
 
     #[test]
     fn render_paragraph_with_text() {
         let root = rdx_parser::parse("Hello, world!");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert_eq!(html, "<p>Hello, world!</p>");
     }
 
     #[test]
     fn render_heading_with_anchor() {
         let root = rdx_parser::parse("# Getting Started");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(html.contains(r#"<h1 id="getting-started">"#));
         assert!(html.contains("Getting Started"));
     }
@@ -310,7 +353,7 @@ mod tests {
     #[test]
     fn render_code_block() {
         let root = rdx_parser::parse("```rust\nfn main() {}\n```");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(html.contains(r#"class="language-rust""#));
         assert!(html.contains("fn main() {}"));
     }
@@ -318,7 +361,7 @@ mod tests {
     #[test]
     fn render_emphasis_and_strong() {
         let root = rdx_parser::parse("*italic* and **bold**");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(html.contains("<em>italic</em>"));
         assert!(html.contains("<strong>bold</strong>"));
     }
@@ -326,27 +369,34 @@ mod tests {
     #[test]
     fn render_link() {
         let root = rdx_parser::parse("[click here](https://example.com)");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(html.contains(r#"<a href="https://example.com">"#));
         assert!(html.contains("click here</a>"));
     }
 
     #[test]
-    fn render_component_as_island() {
-        let root = rdx_parser::parse(r#"<Callout type="warning">Watch out!</Callout>"#);
-        let html = render_document(&root, &HashMap::new());
-        assert!(html.contains(r#"data-island-type="callout""#));
+    fn render_builtin_component_as_static() {
+        let root = rdx_parser::parse(r#"<Callout kind="warning">Watch out!</Callout>"#);
+        let html = render_document(&root, &HashMap::new(), false);
+        assert!(html.contains("oxidoc-callout-warning"));
+        assert!(html.contains("Watch out!"));
+        assert!(!html.contains("oxidoc-island"));
+    }
+
+    #[test]
+    fn render_unknown_component_as_island() {
+        let root = rdx_parser::parse(r#"<MyWidget foo="bar">content</MyWidget>"#);
+        let html = render_document(&root, &HashMap::new(), false);
+        assert!(html.contains(r#"data-island-type="mywidget""#));
         assert!(html.contains("data-props="));
     }
 
     #[test]
-    fn render_island_escapes_props() {
-        let root = rdx_parser::parse(r#"<Callout message="it's &quot;here&quot;">Hi</Callout>"#);
-        let html = render_document(&root, &HashMap::new());
-        // Props attribute must not contain unescaped quotes that break HTML
-        assert!(!html.contains(r#"data-props='{"#));
-        assert!(html.contains("data-props=\""));
-        assert!(!html.contains(r#"onclick"#));
+    fn render_debug_islands_shows_outline() {
+        let root = rdx_parser::parse(r#"<Callout kind="info">Debug test</Callout>"#);
+        let html = render_document(&root, &HashMap::new(), true);
+        assert!(html.contains("oxidoc-debug-island"));
+        assert!(html.contains("data-render=\"static\""));
     }
 
     #[test]
@@ -354,7 +404,7 @@ mod tests {
         let mut custom = HashMap::new();
         custom.insert("PromoBanner".into(), "assets/js/promo.js".into());
         let root = rdx_parser::parse(r#"<PromoBanner variant="dark" />"#);
-        let html = render_document(&root, &custom);
+        let html = render_document(&root, &custom, false);
         assert!(html.contains("<PromoBanner"));
         assert!(html.contains(r#"src="assets/js/promo.js""#));
         assert!(!html.contains("oxidoc-island"));
@@ -363,7 +413,7 @@ mod tests {
     #[test]
     fn code_block_language_is_escaped() {
         let root = rdx_parser::parse("```rust\" onclick=\"alert(1)\ncode\n```");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(!html.contains(r#"onclick="alert"#));
         assert!(html.contains("&quot;"));
     }
@@ -371,7 +421,7 @@ mod tests {
     #[test]
     fn xss_in_text_is_escaped() {
         let root = rdx_parser::parse("<script>alert('xss')</script>");
-        let html = render_document(&root, &HashMap::new());
+        let html = render_document(&root, &HashMap::new(), false);
         assert!(!html.contains("<script>"));
     }
 }

@@ -108,6 +108,15 @@ pub enum OxidocError {
     #[error("Invalid theme file {path}: {message}")]
     #[diagnostic(code(oxidoc::theme::parse), help("Check your theme .toml file syntax"))]
     ThemeParse { path: String, message: String },
+
+    #[error("Wasm build failed: {message}")]
+    #[diagnostic(
+        code(oxidoc::wasm::build),
+        help(
+            "Ensure wasm32-unknown-unknown target and wasm-bindgen-cli are installed:\n  rustup target add wasm32-unknown-unknown\n  cargo install wasm-bindgen-cli"
+        )
+    )]
+    WasmBuild { message: String },
 }
 
 impl OxidocError {

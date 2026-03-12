@@ -9,7 +9,7 @@ use std::collections::HashMap;
 #[test]
 fn fuzz_render_document_empty() {
     let root = rdx_parser::parse("");
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     // Should return empty or whitespace, not panic
     assert!(result.is_empty() || result.trim().is_empty());
 }
@@ -17,7 +17,7 @@ fn fuzz_render_document_empty() {
 #[test]
 fn fuzz_render_document_plain_text() {
     let root = rdx_parser::parse("Just plain text with no special markup");
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.contains("Just plain text"));
 }
@@ -27,7 +27,7 @@ fn fuzz_render_document_deeply_nested_emphasis() {
     // Deeply nested emphasis
     let input = "***very ***very ***very ***deeply ***nested*** emphasis*** here*** text***";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     // Should not panic, even with ambiguous nesting
     assert!(!result.is_empty());
 }
@@ -36,7 +36,7 @@ fn fuzz_render_document_deeply_nested_emphasis() {
 fn fuzz_render_document_unclosed_tags() {
     let input = "Some [unclosed link text\nMore text here";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     // rdx-parser handles this gracefully
     assert!(!result.is_empty());
 }
@@ -45,7 +45,7 @@ fn fuzz_render_document_unclosed_tags() {
 fn fuzz_render_document_mismatched_brackets() {
     let input = "[[[ nested brackets ]]] and [incomplete";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
 }
 
@@ -53,7 +53,7 @@ fn fuzz_render_document_mismatched_brackets() {
 fn fuzz_render_document_null_bytes_in_text() {
     let input = "Text with\0null\0bytes";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     // Should escape properly
     assert!(!result.is_empty());
 }
@@ -62,7 +62,7 @@ fn fuzz_render_document_null_bytes_in_text() {
 fn fuzz_render_document_extremely_long_line() {
     let long_text = "a".repeat(10000);
     let root = rdx_parser::parse(&long_text);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.len() >= 10000); // Should contain the long text
 }
@@ -74,7 +74,7 @@ fn fuzz_render_document_many_headings() {
         input.push_str(&format!("# Heading {}\n\nContent {}\n\n", i, i));
     }
     let root = rdx_parser::parse(&input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.contains("<h1"));
 }
@@ -83,7 +83,7 @@ fn fuzz_render_document_many_headings() {
 fn fuzz_render_document_mixed_formatting() {
     let input = "***bold and italic*** and **just bold** and *just italic* and `code`";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.contains("<strong>"));
     assert!(result.contains("<em>"));
@@ -94,7 +94,7 @@ fn fuzz_render_document_mixed_formatting() {
 fn fuzz_render_document_invalid_urls() {
     let input = "[link](ht!tp://invalid url with spaces)\n[another](::invalid)";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     // Should not panic, should render something
     assert!(!result.is_empty());
 }
@@ -107,7 +107,7 @@ fn fuzz_render_document_code_blocks_with_special_chars() {
 ```
 "#;
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     // Should escape script content
     assert!(!result.is_empty());
 }
@@ -116,7 +116,7 @@ fn fuzz_render_document_code_blocks_with_special_chars() {
 fn fuzz_render_document_unicode_content() {
     let input = "Unicode: 你好世界 🚀 مرحبا العالم ñ é ü ü 中文 العربية";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
 }
 
@@ -124,7 +124,7 @@ fn fuzz_render_document_unicode_content() {
 fn fuzz_render_document_list_with_mixed_items() {
     let input = "- Item 1\n- Item 2 with *emphasis*\n- Item 3 with [link](http://test)\n  - Nested\n  - Nested 2";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.contains("<ul>"));
     assert!(result.contains("<li>"));
@@ -134,7 +134,7 @@ fn fuzz_render_document_list_with_mixed_items() {
 fn fuzz_render_document_table_with_special_content() {
     let input = "| Header | Header 2 |\n|--------|----------|\n| `code` | **bold** |\n| [link](http://test) | *italic* |";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.contains("<table>"));
 }
@@ -143,7 +143,7 @@ fn fuzz_render_document_table_with_special_content() {
 fn fuzz_render_document_blockquote_nested() {
     let input = "> Quote level 1\n> > Quote level 2\n> > > Quote level 3";
     let root = rdx_parser::parse(input);
-    let result = render_document(&root, &HashMap::new());
+    let result = render_document(&root, &HashMap::new(), false);
     assert!(!result.is_empty());
     assert!(result.contains("<blockquote>"));
 }
