@@ -217,6 +217,20 @@ fn run_init(
         include_str!("../assets/templates/quickstart.rdx"),
     )?;
 
+    // Initialize git repo if not already inside one
+    let in_git = std::process::Command::new("git")
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .current_dir(target)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !in_git {
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(target)
+            .output();
+    }
+
     if let Some(n) = name {
         eprintln!("Initialized Oxidoc project in {n}/");
     } else {
