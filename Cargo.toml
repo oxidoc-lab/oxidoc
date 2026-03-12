@@ -97,3 +97,6 @@ intl-memoizer = "0.5"
 
 # Static initialization
 lazy_static = "1.4"
+
+# Syntax highlighting
+oxidoc-highlight = "0.1"

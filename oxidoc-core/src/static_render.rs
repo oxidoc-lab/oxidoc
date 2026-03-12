@@ -29,24 +29,35 @@ pub(crate) fn debug_wrap(
     debug: bool,
     f: impl FnOnce(&mut String),
 ) {
-    if debug {
-        let color = if mode == "static" {
-            "#f59e0b"
-        } else {
-            "#10b981"
-        };
-        let _ = write!(
-            out,
-            r#"<div class="oxidoc-debug-island" data-component="{name}" data-render="{mode}" style="outline:2px dashed {color};outline-offset:2px;position:relative">"#,
+    if debug && mode == "hydration" {
+        // Hydration-required component: render with a debug wrapper that checks
+        // if wasm actually hydrated it. If not, show an error after timeout.
+        let id = format!(
+            "oxidoc-dbg-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
         );
         let _ = write!(
             out,
-            r#"<span style="position:absolute;top:-10px;right:4px;font-size:10px;background:{color};color:#fff;padding:0 4px;border-radius:2px;z-index:99">{name} ({mode})</span>"#,
+            r#"<div id="{id}" class="oxidoc-debug-island" data-component="{name}" data-render="{mode}" style="outline:2px dashed #ef4444;outline-offset:2px;position:relative">"#,
         );
-    }
-    f(out);
-    if debug {
+        let _ = write!(
+            out,
+            r#"<span class="oxidoc-debug-label" style="position:absolute;top:-10px;right:4px;font-size:10px;background:#ef4444;color:#fff;padding:0 4px;border-radius:2px;z-index:99">{name} (awaiting hydration)</span>"#,
+        );
+        f(out);
+        // Watch for data-hydrated attribute via MutationObserver for instant feedback.
+        // Falls back to 5s timeout to show error if hydration never happens.
+        let _ = write!(
+            out,
+            r##"<script>(function(){{var d=document.getElementById("{id}");if(!d)return;var i=d.querySelector("oxidoc-island");if(!i)return;function ok(){{d.style.outline="2px solid #10b981";var l=d.querySelector(".oxidoc-debug-label");if(l){{l.style.background="#10b981";l.textContent="{name} (hydrated)"}}}}if(i.getAttribute("data-hydrated")==="true"){{ok();return}}var o=new MutationObserver(function(m){{if(i.getAttribute("data-hydrated")==="true"){{ok();o.disconnect()}}}});o.observe(i,{{attributes:true,attributeFilter:["data-hydrated"]}});setTimeout(function(){{o.disconnect();if(i.getAttribute("data-hydrated")!=="true"){{d.style.outline="2px dashed #ef4444";var l=d.querySelector(".oxidoc-debug-label");if(l){{l.style.background="#ef4444";l.textContent="{name} (failed)"}}}}}},5000)}})()</script>"##,
+        );
         out.push_str("</div>");
+    } else {
+        // Static-only or debug off: just render content directly, no wrapper
+        f(out);
     }
 }
 
@@ -180,22 +191,59 @@ pub(crate) fn render_static_accordion(
 pub(crate) fn render_static_code_block(
     props: &HashMap<String, serde_json::Value>,
     children: &[Node],
+    raw_content: &str,
     out: &mut String,
-    ctx: &RenderCtx<'_>,
+    _ctx: &RenderCtx<'_>,
 ) {
     let language = prop_str(props, "language").unwrap_or("");
     let filename = prop_str(props, "filename");
+    let highlight_attr = prop_str(props, "highlight").unwrap_or("");
+    let raw_code = if !raw_content.is_empty() {
+        raw_content.to_string()
+    } else {
+        crate::utils::extract_plain_text_from_nodes(children)
+    };
+    let trimmed = raw_code.trim_matches('\n');
+
+    // Process comment-based highlight markers
+    let (code, comment_highlights) = crate::utils::process_highlight_comments(trimmed);
+    let mut hl_lines = crate::utils::parse_highlight_ranges(highlight_attr);
+    hl_lines.extend(comment_highlights);
+
+    let raw_html = if !language.is_empty() && oxidoc_highlight::is_supported(language) {
+        oxidoc_highlight::highlight(&code, language)
+    } else {
+        crate::utils::html_escape(&code).to_string()
+    };
+
+    let highlighted = crate::utils::wrap_lines_with_highlights(&raw_html, &hl_lines);
+
+    let copy_btn = r#"<button class="oxidoc-copy-code" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})">Copy</button>"#;
+
     if let Some(fname) = filename {
+        // Wrapped CodeBlock with header
+        out.push_str(r#"<div class="oxidoc-codeblock">"#);
         let _ = write!(
             out,
-            r#"<div class="oxidoc-code-filename">{}</div>"#,
-            crate::utils::html_escape(fname)
+            r#"<div class="oxidoc-codeblock-header"><span>{}</span><span>{}</span></div>"#,
+            crate::utils::html_escape(fname),
+            crate::utils::html_escape(language),
+        );
+        let _ = write!(
+            out,
+            r#"<div class="oxidoc-codeblock-body"><pre><code class="language-{}">{}</code>{}</pre></div></div>"#,
+            crate::utils::html_escape(language),
+            highlighted,
+            copy_btn,
+        );
+    } else {
+        // Plain code block (same as markdown fenced code)
+        let _ = write!(
+            out,
+            r#"<pre><code class="language-{}">{}</code>{}</pre>"#,
+            crate::utils::html_escape(language),
+            highlighted,
+            copy_btn,
         );
     }
-    let _ = write!(
-        out,
-        r#"<pre class="oxidoc-code"><code class="language-{language}">"#
-    );
-    render_children(children, out, ctx);
-    out.push_str("</code></pre>");
 }

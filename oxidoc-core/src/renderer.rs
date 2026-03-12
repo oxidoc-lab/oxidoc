@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 
 use crate::static_render::{
-    debug_wrap, render_static_accordion, render_static_callout, render_static_card,
+    debug_wrap, prop_str, render_static_accordion, render_static_callout, render_static_card,
     render_static_card_grid, render_static_code_block, render_static_tab, render_static_tabs,
 };
 
@@ -73,14 +73,19 @@ fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
             out.push_str("</code>");
         }
         Node::CodeBlock(c) => {
-            let lang_attr = c
-                .lang
-                .as_deref()
-                .map(|l| format!(r#" class="language-{}""#, crate::utils::html_escape(l)))
-                .unwrap_or_default();
+            let lang = c.lang.as_deref().unwrap_or("");
+            let lang_attr = if lang.is_empty() {
+                String::new()
+            } else {
+                format!(r#" class="language-{}""#, crate::utils::html_escape(lang))
+            };
             let _ = write!(out, "<pre><code{lang_attr}>");
-            push_escaped(&c.value, out);
-            out.push_str("</code></pre>");
+            if !lang.is_empty() && oxidoc_highlight::is_supported(lang) {
+                out.push_str(&oxidoc_highlight::highlight(&c.value, lang));
+            } else {
+                push_escaped(&c.value, out);
+            }
+            out.push_str(r#"</code><button class="oxidoc-copy-code" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})">Copy</button></pre>"#);
         }
         Node::List(l) => {
             let tag = if l.ordered == Some(true) { "ol" } else { "ul" };
@@ -180,7 +185,14 @@ fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
             if let Some(js_src) = ctx.custom.get(&c.name) {
                 render_web_component(&c.name, &c.attributes, js_src, out);
             } else {
-                render_island_component(&c.name, &c.attributes, &c.children, out, ctx);
+                render_island_component(
+                    &c.name,
+                    &c.attributes,
+                    &c.children,
+                    &c.raw_content,
+                    out,
+                    ctx,
+                );
             }
         }
         Node::Variable(v) => {
@@ -202,35 +214,172 @@ pub(crate) fn render_children(children: &[Node], out: &mut String, ctx: &RenderC
     }
 }
 
+/// Render children to a standalone HTML string (for embedding in island props).
+fn render_children_to_string(children: &[Node], ctx: &RenderCtx<'_>) -> String {
+    let mut buf = String::new();
+    render_children(children, &mut buf, ctx);
+    buf
+}
+
+/// Collect plain text from AST children (no HTML tags).
+fn collect_text(children: &[Node]) -> String {
+    crate::utils::extract_plain_text_from_nodes(children)
+}
+
+/// Build the proper props JSON that the wasm component expects.
+/// This bridges the gap between RDX AST attributes and component prop structs.
+fn build_hydration_props(
+    name: &str,
+    attrs: &std::collections::HashMap<String, serde_json::Value>,
+    children: &[Node],
+    raw_content: &str,
+    ctx: &RenderCtx<'_>,
+) -> serde_json::Value {
+    match name {
+        "Tabs" => {
+            let mut labels = Vec::new();
+            let mut contents = Vec::new();
+            for child in children {
+                if let Node::Component(c) = child
+                    && c.name == "Tab"
+                {
+                    let tab_props = attributes_to_map(&c.attributes);
+                    let title = prop_str(&tab_props, "title").unwrap_or("Tab").to_string();
+                    labels.push(title);
+                    contents.push(render_children_to_string(&c.children, ctx));
+                }
+            }
+            let storage_key = attrs
+                .get("storage_key")
+                .or_else(|| attrs.get("storageKey"))
+                .cloned();
+            let mut map = serde_json::Map::new();
+            map.insert("labels".into(), serde_json::json!(labels));
+            map.insert("contents".into(), serde_json::json!(contents));
+            if let Some(sk) = storage_key {
+                map.insert("storage_key".into(), sk);
+            }
+            serde_json::Value::Object(map)
+        }
+        "Accordion" => {
+            let mut items = Vec::new();
+            // Single accordion item from RDX <Accordion title="...">content</Accordion>
+            let title = prop_str(attrs, "title").unwrap_or("").to_string();
+            let content = render_children_to_string(children, ctx);
+            let open = attrs.get("open").and_then(|v| v.as_bool()).unwrap_or(false);
+            items.push(serde_json::json!({
+                "title": title,
+                "content": content,
+                "open": open,
+            }));
+            let multiple = attrs
+                .get("multiple")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            serde_json::json!({ "items": items, "multiple": multiple })
+        }
+        "CodeBlock" => {
+            let language = prop_str(attrs, "language").unwrap_or("").to_string();
+            let filename = prop_str(attrs, "filename").unwrap_or("").to_string();
+            let line_numbers = attrs
+                .get("lineNumbers")
+                .or_else(|| attrs.get("line_numbers"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            // Parse highlight attribute ranges (e.g. "1,3-5,8")
+            let mut attr_highlights = attrs
+                .get("highlight")
+                .and_then(|v| v.as_str())
+                .map(crate::utils::parse_highlight_ranges)
+                .unwrap_or_default();
+            // Use raw_content from parser to preserve whitespace/indentation
+            let fallback = collect_text(children);
+            let code_source = if !raw_content.is_empty() {
+                raw_content
+            } else {
+                &fallback
+            };
+            let trimmed = code_source.trim_matches('\n');
+            // Process comment-based highlight markers (// highlight-next-line, etc.)
+            let (code, comment_highlights) = crate::utils::process_highlight_comments(trimmed);
+            attr_highlights.extend(comment_highlights);
+            let highlight = attr_highlights;
+            // Pre-highlight at build time so wasm doesn't need the highlighter
+            let raw_html = if !language.is_empty() && oxidoc_highlight::is_supported(&language) {
+                oxidoc_highlight::highlight(&code, &language)
+            } else {
+                crate::utils::html_escape(&code).to_string()
+            };
+            let code_html = crate::utils::wrap_lines_with_highlights(&raw_html, &highlight);
+            serde_json::json!({
+                "language": language,
+                "code": code,
+                "code_html": code_html,
+                "filename": filename,
+                "line_numbers": line_numbers,
+                "highlight_lines": highlight,
+            })
+        }
+        // Tab shouldn't appear at top level, but handle gracefully
+        "Tab" => serde_json::to_value(attrs).unwrap_or_default(),
+        _ => serde_json::to_value(attrs).unwrap_or_default(),
+    }
+}
+
 /// Render a component — built-in components get proper static HTML,
 /// unknown components get island placeholders for wasm hydration.
 fn render_island_component(
     name: &str,
     attributes: &[rdx_ast::AttributeNode],
     children: &[Node],
+    raw_content: &str,
     out: &mut String,
     ctx: &RenderCtx<'_>,
 ) {
     let props = attributes_to_map(attributes);
 
+    // Components are categorized:
+    // - Static-only: purely presentational, no hydration needed (Callout, Card, CardGrid)
+    // - Hydration-required: need wasm for interactivity (Tabs, CodeBlock, Accordion)
+    // - Unknown: always wrapped as island for wasm hydration
     match name {
-        "Callout" | "CardGrid" | "Card" | "Tabs" | "Tab" | "Accordion" | "CodeBlock" => {
-            debug_wrap(name, "static", out, ctx.debug_islands, |out| match name {
-                "Callout" => render_static_callout(&props, children, out, ctx),
-                "CardGrid" => render_static_card_grid(children, out, ctx),
-                "Card" => render_static_card(&props, children, out, ctx),
-                "Tabs" => render_static_tabs(children, out, ctx),
-                "Tab" => render_static_tab(&props, children, out, ctx),
-                "Accordion" => render_static_accordion(&props, children, out, ctx),
-                "CodeBlock" => render_static_code_block(&props, children, out, ctx),
-                _ => unreachable!(),
+        // Static-only components — render as plain HTML, no island wrapper
+        "Callout" => render_static_callout(&props, children, out, ctx),
+        "CardGrid" => render_static_card_grid(children, out, ctx),
+        "Card" => render_static_card(&props, children, out, ctx),
+        // Hydration-required components — SSR inside <oxidoc-island> for wasm to hydrate
+        "Tabs" | "Tab" | "Accordion" | "CodeBlock" => {
+            let hydration_props = build_hydration_props(name, &props, children, raw_content, ctx);
+            let props_json =
+                serde_json::to_string(&hydration_props).unwrap_or_else(|_| "{}".into());
+            let escaped_props = crate::utils::html_escape(&props_json);
+
+            debug_wrap(name, "hydration", out, ctx.debug_islands, |out| {
+                let _ = write!(
+                    out,
+                    r#"<oxidoc-island data-island-type="{}" data-props="{}">"#,
+                    crate::utils::html_escape(&name.to_lowercase()),
+                    escaped_props,
+                );
+                // SSR fallback content (shown before wasm loads)
+                match name {
+                    "Tabs" => render_static_tabs(children, out, ctx),
+                    "Tab" => render_static_tab(&props, children, out, ctx),
+                    "Accordion" => render_static_accordion(&props, children, out, ctx),
+                    "CodeBlock" => {
+                        render_static_code_block(&props, children, raw_content, out, ctx)
+                    }
+                    _ => unreachable!(),
+                }
+                out.push_str("</oxidoc-island>");
             });
         }
+
+        // Unknown components — island placeholder for wasm hydration
         _ => {
-            // Unknown component — render as island placeholder for wasm hydration
             let props_json = serde_json::to_string(&props).unwrap_or_else(|_| "{}".into());
             let escaped_props = crate::utils::html_escape(&props_json);
-            debug_wrap(name, "island", out, ctx.debug_islands, |out| {
+            debug_wrap(name, "hydration", out, ctx.debug_islands, |out| {
                 let _ = write!(
                     out,
                     r#"<oxidoc-island data-island-type="{}" data-props="{}">"#,
@@ -355,7 +504,9 @@ mod tests {
         let root = rdx_parser::parse("```rust\nfn main() {}\n```");
         let html = render_document(&root, &HashMap::new(), false);
         assert!(html.contains(r#"class="language-rust""#));
-        assert!(html.contains("fn main() {}"));
+        // Content is syntax-highlighted with tok-* spans
+        assert!(html.contains("tok-keyword"));
+        assert!(html.contains("main"));
     }
 
     #[test]
@@ -375,12 +526,23 @@ mod tests {
     }
 
     #[test]
-    fn render_builtin_component_as_static() {
+    fn render_static_component_no_island() {
+        // Static-only components (Callout, Card, CardGrid) render plain HTML, no island
         let root = rdx_parser::parse(r#"<Callout kind="warning">Watch out!</Callout>"#);
         let html = render_document(&root, &HashMap::new(), false);
         assert!(html.contains("oxidoc-callout-warning"));
         assert!(html.contains("Watch out!"));
         assert!(!html.contains("oxidoc-island"));
+    }
+
+    #[test]
+    fn render_hydration_component_as_island() {
+        // Hydration-required components (Tabs, CodeBlock, Accordion) get island wrapper
+        let root = rdx_parser::parse(r#"<Tabs><Tab title="A">aaa</Tab></Tabs>"#);
+        let html = render_document(&root, &HashMap::new(), false);
+        assert!(html.contains("oxidoc-island"));
+        assert!(html.contains(r#"data-island-type="tabs""#));
+        assert!(html.contains("oxidoc-tabs")); // SSR content inside
     }
 
     #[test]
@@ -392,11 +554,21 @@ mod tests {
     }
 
     #[test]
-    fn render_debug_islands_shows_outline() {
-        let root = rdx_parser::parse(r#"<Callout kind="info">Debug test</Callout>"#);
+    fn render_debug_shows_hydration_check() {
+        // Debug mode shows hydration check for interactive components
+        let root = rdx_parser::parse(r#"<Tabs><Tab title="X">x</Tab></Tabs>"#);
         let html = render_document(&root, &HashMap::new(), true);
         assert!(html.contains("oxidoc-debug-island"));
-        assert!(html.contains("data-render=\"static\""));
+        assert!(html.contains("awaiting hydration"));
+    }
+
+    #[test]
+    fn render_debug_no_wrapper_for_static() {
+        // Static components get no debug wrapper (they're correct as-is)
+        let root = rdx_parser::parse(r#"<Callout kind="info">test</Callout>"#);
+        let html = render_document(&root, &HashMap::new(), true);
+        assert!(!html.contains("oxidoc-debug-island"));
+        assert!(html.contains("oxidoc-callout-info"));
     }
 
     #[test]

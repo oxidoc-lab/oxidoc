@@ -53,6 +53,110 @@ pub fn extract_plain_text(node: &Node) -> String {
     text
 }
 
+pub fn extract_plain_text_from_nodes(nodes: &[Node]) -> String {
+    let mut text = String::new();
+    for node in nodes {
+        text.push_str(&extract_plain_text(node));
+    }
+    text
+}
+
+/// Parse a highlight range string like "1,2,3,5-10,15" into a set of line numbers.
+pub fn parse_highlight_ranges(s: &str) -> Vec<usize> {
+    let mut lines = Vec::new();
+    for part in s.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        if let Some((start, end)) = part.split_once('-') {
+            if let (Ok(s), Ok(e)) = (start.trim().parse::<usize>(), end.trim().parse::<usize>()) {
+                for n in s..=e {
+                    lines.push(n);
+                }
+            }
+        } else if let Ok(n) = part.parse::<usize>() {
+            lines.push(n);
+        }
+    }
+    lines
+}
+
+/// Comment markers for highlight directives.
+/// These are stripped from the output and used to mark lines for highlighting.
+const HIGHLIGHT_NEXT: &[&str] = &[
+    "// highlight-next-line",
+    "# highlight-next-line",
+    "<!-- highlight-next-line -->",
+];
+const HIGHLIGHT_START: &[&str] = &[
+    "// highlight-start",
+    "# highlight-start",
+    "<!-- highlight-start -->",
+];
+const HIGHLIGHT_END: &[&str] = &[
+    "// highlight-end",
+    "# highlight-end",
+    "<!-- highlight-end -->",
+];
+
+/// Process code to extract comment-based highlight markers.
+/// Returns (cleaned code with markers stripped, set of 1-based line numbers to highlight).
+pub fn process_highlight_comments(code: &str) -> (String, Vec<usize>) {
+    let mut output_lines = Vec::new();
+    let mut highlight_lines = Vec::new();
+    let mut highlight_next = false;
+    let mut in_highlight_block = false;
+
+    for line in code.lines() {
+        let trimmed = line.trim();
+
+        if HIGHLIGHT_NEXT.contains(&trimmed) {
+            highlight_next = true;
+            continue; // strip marker line
+        }
+        if HIGHLIGHT_START.contains(&trimmed) {
+            in_highlight_block = true;
+            continue; // strip marker line
+        }
+        if HIGHLIGHT_END.contains(&trimmed) {
+            in_highlight_block = false;
+            continue; // strip marker line
+        }
+
+        output_lines.push(line);
+        let line_num = output_lines.len(); // 1-based
+
+        if highlight_next || in_highlight_block {
+            highlight_lines.push(line_num);
+            highlight_next = false;
+        }
+    }
+
+    (output_lines.join("\n"), highlight_lines)
+}
+
+/// Apply line highlighting to already-highlighted HTML.
+/// Wraps each line in a span with `oxidoc-line` class, adding `highlighted` for specified lines.
+pub fn wrap_lines_with_highlights(html: &str, highlight_lines: &[usize]) -> String {
+    if highlight_lines.is_empty() {
+        return html.to_string();
+    }
+    html.split('\n')
+        .enumerate()
+        .map(|(i, line)| {
+            let num = i + 1;
+            let class = if highlight_lines.contains(&num) {
+                "oxidoc-line highlighted"
+            } else {
+                "oxidoc-line"
+            };
+            format!(r#"<span class="{class}">{line}</span>"#)
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,5 +200,47 @@ mod tests {
         assert!(text.contains("Hello"));
         assert!(text.contains("world"));
         assert!(text.contains("code"));
+    }
+
+    #[test]
+    fn parse_highlight_ranges_basic() {
+        assert_eq!(parse_highlight_ranges("2"), vec![2]);
+        assert_eq!(parse_highlight_ranges("1,3,5"), vec![1, 3, 5]);
+        assert_eq!(parse_highlight_ranges("2-5"), vec![2, 3, 4, 5]);
+        assert_eq!(parse_highlight_ranges("1,3-5,8"), vec![1, 3, 4, 5, 8]);
+        assert_eq!(parse_highlight_ranges(""), Vec::<usize>::new());
+        assert_eq!(parse_highlight_ranges("1, 3 - 5, 8"), vec![1, 3, 4, 5, 8]);
+    }
+
+    #[test]
+    fn highlight_comments_next_line() {
+        let code = "line1\n// highlight-next-line\nline2\nline3";
+        let (cleaned, hl) = process_highlight_comments(code);
+        assert_eq!(cleaned, "line1\nline2\nline3");
+        assert_eq!(hl, vec![2]); // line2 is now line 2 after stripping
+    }
+
+    #[test]
+    fn highlight_comments_block() {
+        let code = "line1\n// highlight-start\nline2\nline3\n// highlight-end\nline4";
+        let (cleaned, hl) = process_highlight_comments(code);
+        assert_eq!(cleaned, "line1\nline2\nline3\nline4");
+        assert_eq!(hl, vec![2, 3]);
+    }
+
+    #[test]
+    fn highlight_comments_hash() {
+        let code = "line1\n# highlight-next-line\nline2";
+        let (cleaned, hl) = process_highlight_comments(code);
+        assert_eq!(cleaned, "line1\nline2");
+        assert_eq!(hl, vec![2]);
+    }
+
+    #[test]
+    fn highlight_comments_html() {
+        let code = "line1\n<!-- highlight-next-line -->\nline2";
+        let (cleaned, hl) = process_highlight_comments(code);
+        assert_eq!(cleaned, "line1\nline2");
+        assert_eq!(hl, vec![2]);
     }
 }
