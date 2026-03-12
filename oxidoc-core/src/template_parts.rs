@@ -108,6 +108,14 @@ pub fn render_footer(config: &OxidocConfig, theme: &crate::theme::ResolvedTheme)
 
 /// Generate sidebar HTML from resolved navigation groups.
 pub fn render_sidebar(groups: &[NavGroup], active_slug: &str) -> String {
+    render_sidebar_with_homepage(groups, active_slug, None)
+}
+
+pub fn render_sidebar_with_homepage(
+    groups: &[NavGroup],
+    active_slug: &str,
+    homepage_slug: Option<&str>,
+) -> String {
     let mut html = String::with_capacity(1024);
     for group in groups {
         if !group.title.is_empty() {
@@ -125,10 +133,14 @@ pub fn render_sidebar(groups: &[NavGroup], active_slug: &str) -> String {
             } else {
                 ""
             };
+            let href = if homepage_slug == Some(page.slug.as_str()) {
+                "/".to_string()
+            } else {
+                format!("/{}", crate::utils::html_escape(&page.slug))
+            };
             let _ = write!(
                 html,
-                r#"<li><a href="/{slug}"{active}>{title}</a></li>"#,
-                slug = crate::utils::html_escape(&page.slug),
+                r#"<li><a href="{href}"{active}>{title}</a></li>"#,
                 title = crate::utils::html_escape(&page.title),
             );
         }

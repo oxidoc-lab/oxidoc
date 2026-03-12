@@ -17,7 +17,7 @@ use crate::renderer::render_document;
 use crate::search_provider::SearchProvider;
 use crate::sri::generate_sri_hash;
 use crate::template::{AssetConfig, render_404_page, render_page};
-use crate::template_parts::render_sidebar;
+use crate::template_parts::render_sidebar_with_homepage;
 use crate::theme;
 use crate::toc::{extract_toc, render_toc};
 use crate::versioning::VersioningState;
@@ -100,19 +100,24 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         custom_css.as_deref(),
     );
     let css = minify_css(&css);
-    let js = generate_loader_js();
-
     // Hash assets for cache busting
     let css_hash = hash_content(css.as_bytes());
-    let js_hash = hash_content(js.as_bytes());
     let css_filename = format!("oxidoc.{}.css", css_hash);
-    let js_filename = format!("oxidoc-loader.{}.js", js_hash);
     let css_path = format!("/{}", css_filename);
-    let js_path = format!("/{}", js_filename);
-
-    // Generate SRI hashes for security
     let css_sri = generate_sri_hash(css.as_bytes());
+
+    let js = generate_loader_js();
+    let js_hash = hash_content(js.as_bytes());
+    let js_filename = format!("oxidoc-loader.{}.js", js_hash);
+    let js_path = format!("/{}", js_filename);
     let js_sri = generate_sri_hash(js.as_bytes());
+
+    std::fs::write(output_dir.join(&js_filename), js.as_bytes()).map_err(|e| {
+        OxidocError::FileWrite {
+            path: output_dir.join(&js_filename).display().to_string(),
+            source: e,
+        }
+    })?;
 
     let assets = AssetConfig {
         css_path: Some(&css_path),
@@ -129,16 +134,12 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         }
     })?;
 
-    std::fs::write(output_dir.join(&js_filename), js.as_bytes()).map_err(|e| {
-        OxidocError::FileWrite {
-            path: output_dir.join(&js_filename).display().to_string(),
-            source: e,
-        }
-    })?;
-
     // Build pages for each locale
     let build_locales = i18n_state.build_locales();
     let pages_to_build: Vec<_> = nav_groups.iter().flat_map(|g| g.pages.iter()).collect();
+
+    // Determine homepage slug: explicit config or first page in navigation
+    let homepage_slug: Option<String> = config.routing.homepage.clone();
 
     let config = Arc::new(config);
     let i18n_state = Arc::new(i18n_state);
@@ -189,15 +190,26 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 let root = rdx_parser::parse(content);
                 check_parse_errors(&root, &page.file_path.display().to_string())?;
 
-                let content_html = render_document(&root, &config_arc.components.custom);
+                let content_html = render_document(
+                    &root,
+                    &config_arc.components.custom,
+                    config_arc.project.debug_islands,
+                );
                 let toc_entries = extract_toc(&root);
                 let toc_html = render_toc(&toc_entries);
-                let sidebar_with_active = render_sidebar(&nav_groups_arc, &page.slug);
+                let sidebar_with_active = render_sidebar_with_homepage(
+                    &nav_groups_arc,
+                    &page.slug,
+                    homepage_slug.as_deref(),
+                );
                 let breadcrumbs = generate_breadcrumbs(&page.slug);
                 let breadcrumb_html = render_breadcrumbs(&breadcrumbs);
 
                 let page_title = extract_page_title(&root).unwrap_or_else(|| page.title.clone());
                 let page_description = extract_page_description(&root);
+
+                let is_homepage = homepage_slug.as_deref() == Some(page.slug.as_str());
+                let render_slug = if is_homepage { "" } else { &page.slug };
 
                 let full_html = render_page(
                     &config_arc,
@@ -206,7 +218,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                     &toc_html,
                     &sidebar_with_active,
                     &breadcrumb_html,
-                    &page.slug,
+                    render_slug,
                     page_description.as_deref(),
                     &assets,
                     &locale_str,
@@ -214,8 +226,11 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                     &search_provider_arc,
                     &theme_arc,
                 );
-
-                let page_output = locale_output_dir.join(format!("{}.html", page.slug));
+                let page_output = if is_homepage {
+                    locale_output_dir.join("index.html")
+                } else {
+                    locale_output_dir.join(format!("{}.html", page.slug))
+                };
                 if let Some(parent) = page_output.parent() {
                     std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
                         path: parent.display().to_string(),
@@ -275,8 +290,20 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         tracing::info!(count = assets_copied, "Assets copied");
     }
 
+    // Build and copy wasm islands (only when running inside the oxidoc workspace)
+    match crate::wasm::build_wasm(output_dir) {
+        Ok(()) => {}
+        Err(OxidocError::WasmBuild { ref message }) if message.contains("locate") => {
+            tracing::debug!("Skipping wasm build (not in oxidoc workspace)");
+        }
+        Err(e) => return Err(e),
+    }
+
     generate_llms_txt(&nav_groups, output_dir)?;
-    generate_index_redirect(&nav_groups, output_dir)?;
+    // Only generate redirect if no homepage was rendered as index.html
+    if homepage_slug.is_none() {
+        generate_index_redirect(&nav_groups, output_dir)?;
+    }
     generate_seo_files(&nav_groups, &config, output_dir)?;
 
     // Generate 404 page for each locale
@@ -431,7 +458,7 @@ mod tests {
         assert!(css.contains("oxidoc-primary"));
         let js =
             std::fs::read_to_string(find_hashed_file(&output, "oxidoc-loader.", ".js")).unwrap();
-        assert!(js.contains("oxidoc-registry.wasm"));
+        assert!(js.contains("oxidoc_registry.js"));
 
         let intro = read("intro.html");
         assert!(

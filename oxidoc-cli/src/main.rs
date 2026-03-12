@@ -120,7 +120,14 @@ fn run_init(target: &std::path::Path, name: Option<&str>) -> miette::Result<()> 
         miette::bail!("oxidoc.toml already exists in {}", target.display());
     }
 
-    let project_name = name.unwrap_or("My Documentation");
+    let project_name = name
+        .map(|n| {
+            std::path::Path::new(n)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or(n)
+        })
+        .unwrap_or("My Documentation");
 
     // Create directories
     let docs_dir = target.join("docs");
@@ -130,6 +137,20 @@ fn run_init(target: &std::path::Path, name: Option<&str>) -> miette::Result<()> 
     std::fs::create_dir_all(&assets_dir)
         .map_err(|e| miette::miette!("Failed to create assets/: {e}"))?;
 
+    // Write default logo
+    std::fs::write(
+        assets_dir.join("logo.svg"),
+        include_str!("../assets/logo.svg"),
+    )
+    .map_err(|e| miette::miette!("Failed to write assets/logo.svg: {e}"))?;
+
+    // Write .gitignore
+    std::fs::write(
+        target.join(".gitignore"),
+        "# Oxidoc build artifacts\n.oxidoc-dev/\ndist/\n",
+    )
+    .map_err(|e| miette::miette!("Failed to write .gitignore: {e}"))?;
+
     // Write oxidoc.toml
     std::fs::write(
         &config_path,
@@ -137,7 +158,7 @@ fn run_init(target: &std::path::Path, name: Option<&str>) -> miette::Result<()> 
             r##"[project]
 name = "{project_name}"
 # description = "Your project description"
-# logo = "/assets/logo.svg"
+logo = "/assets/logo.svg"
 # base_url = "https://docs.example.com"
 
 [theme]
@@ -145,6 +166,7 @@ primary = "#3b82f6"
 dark_mode = "system"
 
 [routing]
+homepage = "intro"
 navigation = [
   {{ group = "Getting Started", pages = ["intro", "quickstart"] }},
 ]
@@ -300,6 +322,7 @@ Your site is generated in `dist/` — deploy it anywhere.
     }
     eprintln!();
     eprintln!("  oxidoc.toml          — site configuration");
+    eprintln!("  assets/logo.svg      — default logo (replace with your own)");
     eprintln!("  docs/intro.rdx       — landing page");
     eprintln!("  docs/quickstart.rdx  — getting started guide");
     eprintln!();

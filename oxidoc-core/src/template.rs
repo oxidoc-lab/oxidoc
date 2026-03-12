@@ -35,6 +35,30 @@ fn build_script_tag(src: &str, sri: Option<&str>) -> String {
     }
 }
 
+/// Build `<link rel="preload">` tags for CSS and JS assets with optional SRI.
+fn build_preload_links(
+    css_href: &str,
+    css_sri: Option<&str>,
+    js_src: &str,
+    js_sri: Option<&str>,
+) -> (String, String) {
+    let css_preload = if let Some(sri) = css_sri {
+        format!(
+            r#"    <link rel="preload" href="{css_href}" as="style" integrity="{sri}" crossorigin="anonymous">"#
+        )
+    } else {
+        format!(r#"    <link rel="preload" href="{css_href}" as="style">"#)
+    };
+    let js_preload = if let Some(sri) = js_sri {
+        format!(
+            r#"    <link rel="preload" href="{js_src}" as="script" integrity="{sri}" crossorigin="anonymous">"#
+        )
+    } else {
+        format!(r#"    <link rel="preload" href="{js_src}" as="script">"#)
+    };
+    (css_preload, js_preload)
+}
+
 const HEADER_ACTIONS_HTML: &str = r#"<div class="oxidoc-header-actions">
             <button data-oxidoc-search class="oxidoc-search-trigger" aria-label="Search documentation" title="Search (Ctrl+K)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/><path d="m10 10 4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -95,10 +119,16 @@ pub fn render_page(
         .unwrap_or(default_description.as_str());
 
     // Build JSON-LD structured data
-    let safe_url = if base_url.ends_with('/') {
-        format!("{}{}.html", base_url, active_slug)
+    let safe_url = if active_slug.is_empty() {
+        if base_url.ends_with('/') {
+            base_url.to_string()
+        } else {
+            format!("{}/", base_url)
+        }
+    } else if base_url.ends_with('/') {
+        format!("{}{}", base_url, active_slug)
     } else {
-        format!("{}/{}.html", base_url, active_slug)
+        format!("{}/{}", base_url, active_slug)
     };
 
     let json_ld = format!(
@@ -114,10 +144,11 @@ pub fn render_page(
 
     let css_href = assets.css_path.unwrap_or("/oxidoc.css");
     let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
-
     let analytics_html = render_analytics_script(config);
     let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
     let script_tag = build_script_tag(js_src, assets.js_sri);
+    let (css_preload, js_preload) =
+        build_preload_links(css_href, assets.css_sri, js_src, assets.js_sri);
 
     // Generate search provider head tags and scripts
     let search_head_tags = search_provider.render_head_tags();
@@ -145,8 +176,8 @@ pub fn render_page(
     <meta name="twitter:title" content="{page_title_escaped}">
     <script type="application/ld+json">{json_ld}</script>
     <link rel="canonical" href="{base_url}{active_slug}">
-    <link rel="preload" href="{css_href}" as="style">
-    <link rel="preload" href="{js_src}" as="script">
+{css_preload}
+{js_preload}
 {stylesheet_link}
     {analytics_html}
     {search_head_tags}
@@ -193,8 +224,8 @@ pub fn render_page(
         content_html = content_html,
         toc_html = toc_html,
         footer_html = footer_html,
-        css_href = css_href,
-        js_src = js_src,
+        css_preload = css_preload,
+        js_preload = js_preload,
         analytics_html = analytics_html,
         stylesheet_link = stylesheet_link,
         script_tag = script_tag,
@@ -218,10 +249,11 @@ pub fn render_404_page(
 
     let css_href = assets.css_path.unwrap_or("/oxidoc.css");
     let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
-
     let analytics_html = render_analytics_script(config);
     let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
     let script_tag = build_script_tag(js_src, assets.js_sri);
+    let (css_preload, js_preload) =
+        build_preload_links(css_href, assets.css_sri, js_src, assets.js_sri);
 
     let search_head_tags = search_provider.render_head_tags();
     let search_scripts = search_provider.render_scripts();
@@ -237,8 +269,8 @@ pub fn render_404_page(
     <title>Page Not Found - {project_name}</title>
     <meta name="description" content="The page you are looking for could not be found.">
     <meta name="generator" content="oxidoc">
-    <link rel="preload" href="{css_href}" as="style">
-    <link rel="preload" href="{js_src}" as="script">
+{css_preload}
+{js_preload}
 {stylesheet_link}
     {analytics_html}
     {search_head_tags}
@@ -270,8 +302,8 @@ pub fn render_404_page(
         logo_html = logo_html,
         locale_switcher_html = locale_switcher_html,
         footer_html = footer_html,
-        css_href = css_href,
-        js_src = js_src,
+        css_preload = css_preload,
+        js_preload = js_preload,
         analytics_html = analytics_html,
         stylesheet_link = stylesheet_link,
         script_tag = script_tag,

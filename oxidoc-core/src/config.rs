@@ -39,6 +39,10 @@ pub struct ProjectConfig {
     pub base_url: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// When true, each statically-rendered component shows a debug outline
+    /// so you can visually identify which components are static vs wasm-hydrated.
+    #[serde(default)]
+    pub debug_islands: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,6 +89,10 @@ fn default_dark_mode() -> String {
 pub struct RoutingConfig {
     #[serde(default)]
     pub navigation: Vec<NavigationGroup>,
+    /// Slug of the page to use as the homepage (served at `/`).
+    /// Defaults to the first page in navigation.
+    #[serde(default)]
+    pub homepage: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
