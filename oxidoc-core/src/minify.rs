@@ -59,8 +59,13 @@ pub fn minify_html(html: &str) -> String {
                 result.push(' ');
             }
         } else {
-            result.push(bytes[i] as char);
-            i += 1;
+            // Handle multi-byte UTF-8 correctly
+            if let Some(ch) = html[i..].chars().next() {
+                result.push(ch);
+                i += ch.len_utf8();
+            } else {
+                break;
+            }
         }
     }
 

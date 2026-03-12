@@ -13,11 +13,15 @@ use crate::openapi;
 use crate::outputs::{
     generate_index_redirect, generate_llms_txt, generate_redirects, generate_seo_files,
 };
+use crate::page_extract::{
+    build_page_nav, check_parse_errors, extract_page_description, extract_page_title,
+    resolve_git_meta,
+};
 use crate::renderer::render_document;
 use crate::search_provider::SearchProvider;
 use crate::sri::generate_sri_hash;
 use crate::template::{AssetConfig, render_404_page, render_page};
-use crate::template_parts::render_sidebar_with_homepage;
+use crate::template_parts::{render_page_meta, render_sidebar_with_homepage};
 use crate::theme;
 use crate::toc::{extract_toc, render_toc};
 use crate::versioning::VersioningState;
@@ -163,6 +167,17 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         })
         .collect();
 
+    // Build flat page list and slug-to-index map for prev/next navigation
+    let flat_pages: Vec<crate::crawler::PageEntry> =
+        pages_to_build.iter().map(|p| (*p).clone()).collect();
+    let slug_index: HashMap<String, usize> = flat_pages
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.slug.clone(), i))
+        .collect();
+    let slug_index = Arc::new(slug_index);
+    let flat_pages = Arc::new(flat_pages);
+
     let nav_groups_arc = Arc::new(nav_groups.clone());
 
     for locale in &build_locales {
@@ -182,6 +197,8 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         let search_provider_arc = Arc::clone(&search_provider);
         let theme_arc = Arc::clone(&resolved_theme);
         let nav_groups_arc = Arc::clone(&nav_groups_arc);
+        let slug_index_arc = Arc::clone(&slug_index);
+        let pages_arc = Arc::clone(&flat_pages);
         let locale_str = locale.clone();
 
         let results: Result<Vec<_>> = page_contents
@@ -211,6 +228,17 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                 let is_homepage = homepage_slug.as_deref() == Some(page.slug.as_str());
                 let render_slug = if is_homepage { "" } else { &page.slug };
 
+                let page_nav = build_page_nav(&page.slug, &slug_index_arc, &pages_arc);
+                let git_meta = resolve_git_meta(&page.file_path);
+
+                let page_meta_html = render_page_meta(
+                    &config_arc,
+                    &page.slug,
+                    &page_nav,
+                    &git_meta,
+                    homepage_slug.as_deref(),
+                );
+
                 let full_html = render_page(
                     &config_arc,
                     &page_title,
@@ -220,6 +248,7 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
                     &breadcrumb_html,
                     render_slug,
                     page_description.as_deref(),
+                    &page_meta_html,
                     &assets,
                     &locale_str,
                     &i18n_state_arc,
@@ -351,45 +380,6 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         pages_rendered: pages_rendered_total,
         output_dir: output_dir.display().to_string(),
     })
-}
-
-/// Check for error nodes in the parsed AST.
-fn check_parse_errors(root: &rdx_ast::Root, path: &str) -> Result<()> {
-    for node in &root.children {
-        if let rdx_ast::Node::Error(e) = node {
-            return Err(OxidocError::RdxParse {
-                path: path.into(),
-                message: e.message.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Extract the page title from the first h1 heading.
-fn extract_page_title(root: &rdx_ast::Root) -> Option<String> {
-    for node in &root.children {
-        if let rdx_ast::Node::Heading(h) = node
-            && h.depth.unwrap_or(1) == 1
-        {
-            return Some(crate::toc::extract_heading_text(node));
-        }
-    }
-    None
-}
-
-/// Extract a description from the first paragraph of content.
-fn extract_page_description(root: &rdx_ast::Root) -> Option<String> {
-    for node in &root.children {
-        if let rdx_ast::Node::Paragraph(_) = node {
-            let text = crate::utils::extract_plain_text(node);
-            if !text.trim().is_empty() {
-                // Limit to 160 characters for SEO meta description
-                return Some(text.chars().take(160).collect());
-            }
-        }
-    }
-    None
 }
 
 #[cfg(test)]

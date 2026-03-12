@@ -2,8 +2,9 @@ use rdx_ast::{AttributeValue, Node, Root};
 use std::collections::HashMap;
 use std::fmt::Write;
 
+use crate::island_props::build_hydration_props;
 use crate::static_render::{
-    debug_wrap, prop_str, render_static_accordion, render_static_callout, render_static_card,
+    debug_wrap, render_static_accordion, render_static_callout, render_static_card,
     render_static_card_grid, render_static_code_block, render_static_tab, render_static_tabs,
 };
 
@@ -214,118 +215,6 @@ pub(crate) fn render_children(children: &[Node], out: &mut String, ctx: &RenderC
     }
 }
 
-/// Render children to a standalone HTML string (for embedding in island props).
-fn render_children_to_string(children: &[Node], ctx: &RenderCtx<'_>) -> String {
-    let mut buf = String::new();
-    render_children(children, &mut buf, ctx);
-    buf
-}
-
-/// Collect plain text from AST children (no HTML tags).
-fn collect_text(children: &[Node]) -> String {
-    crate::utils::extract_plain_text_from_nodes(children)
-}
-
-/// Build the proper props JSON that the wasm component expects.
-/// This bridges the gap between RDX AST attributes and component prop structs.
-fn build_hydration_props(
-    name: &str,
-    attrs: &std::collections::HashMap<String, serde_json::Value>,
-    children: &[Node],
-    raw_content: &str,
-    ctx: &RenderCtx<'_>,
-) -> serde_json::Value {
-    match name {
-        "Tabs" => {
-            let mut labels = Vec::new();
-            let mut contents = Vec::new();
-            for child in children {
-                if let Node::Component(c) = child
-                    && c.name == "Tab"
-                {
-                    let tab_props = attributes_to_map(&c.attributes);
-                    let title = prop_str(&tab_props, "title").unwrap_or("Tab").to_string();
-                    labels.push(title);
-                    contents.push(render_children_to_string(&c.children, ctx));
-                }
-            }
-            let storage_key = attrs
-                .get("storage_key")
-                .or_else(|| attrs.get("storageKey"))
-                .cloned();
-            let mut map = serde_json::Map::new();
-            map.insert("labels".into(), serde_json::json!(labels));
-            map.insert("contents".into(), serde_json::json!(contents));
-            if let Some(sk) = storage_key {
-                map.insert("storage_key".into(), sk);
-            }
-            serde_json::Value::Object(map)
-        }
-        "Accordion" => {
-            let mut items = Vec::new();
-            // Single accordion item from RDX <Accordion title="...">content</Accordion>
-            let title = prop_str(attrs, "title").unwrap_or("").to_string();
-            let content = render_children_to_string(children, ctx);
-            let open = attrs.get("open").and_then(|v| v.as_bool()).unwrap_or(false);
-            items.push(serde_json::json!({
-                "title": title,
-                "content": content,
-                "open": open,
-            }));
-            let multiple = attrs
-                .get("multiple")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            serde_json::json!({ "items": items, "multiple": multiple })
-        }
-        "CodeBlock" => {
-            let language = prop_str(attrs, "language").unwrap_or("").to_string();
-            let filename = prop_str(attrs, "filename").unwrap_or("").to_string();
-            let line_numbers = attrs
-                .get("lineNumbers")
-                .or_else(|| attrs.get("line_numbers"))
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            // Parse highlight attribute ranges (e.g. "1,3-5,8")
-            let mut attr_highlights = attrs
-                .get("highlight")
-                .and_then(|v| v.as_str())
-                .map(crate::utils::parse_highlight_ranges)
-                .unwrap_or_default();
-            // Use raw_content from parser to preserve whitespace/indentation
-            let fallback = collect_text(children);
-            let code_source = if !raw_content.is_empty() {
-                raw_content
-            } else {
-                &fallback
-            };
-            let trimmed = code_source.trim_matches('\n');
-            // Process comment-based highlight markers (// highlight-next-line, etc.)
-            let (code, comment_highlights) = crate::utils::process_highlight_comments(trimmed);
-            attr_highlights.extend(comment_highlights);
-            let highlight = attr_highlights;
-            // Pre-highlight at build time so wasm doesn't need the highlighter
-            let raw_html = if !language.is_empty() && oxidoc_highlight::is_supported(&language) {
-                oxidoc_highlight::highlight(&code, &language)
-            } else {
-                crate::utils::html_escape(&code).to_string()
-            };
-            let code_html = crate::utils::wrap_lines_with_highlights(&raw_html, &highlight);
-            serde_json::json!({
-                "language": language,
-                "code": code,
-                "code_html": code_html,
-                "filename": filename,
-                "line_numbers": line_numbers,
-                "highlight_lines": highlight,
-            })
-        }
-        // Tab shouldn't appear at top level, but handle gracefully
-        "Tab" => serde_json::to_value(attrs).unwrap_or_default(),
-        _ => serde_json::to_value(attrs).unwrap_or_default(),
-    }
-}
-
 /// Render a component — built-in components get proper static HTML,
 /// unknown components get island placeholders for wasm hydration.
 fn render_island_component(
@@ -463,23 +352,7 @@ mod tests {
 
     #[test]
     fn render_empty_document() {
-        let root = Root {
-            node_type: rdx_ast::RootType::Root,
-            frontmatter: None,
-            children: vec![],
-            position: rdx_ast::Position {
-                start: rdx_ast::Point {
-                    line: 1,
-                    column: 1,
-                    offset: 0,
-                },
-                end: rdx_ast::Point {
-                    line: 1,
-                    column: 1,
-                    offset: 0,
-                },
-            },
-        };
+        let root = rdx_parser::parse("");
         let html = render_document(&root, &HashMap::new(), false);
         assert!(html.is_empty());
     }
@@ -595,5 +468,19 @@ mod tests {
         let root = rdx_parser::parse("<script>alert('xss')</script>");
         let html = render_document(&root, &HashMap::new(), false);
         assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn emdash_preserved() {
+        let root = rdx_parser::parse("Hello \u{2014} world");
+        let html = render_document(&root, &HashMap::new(), false);
+        let bytes: Vec<u8> = html.bytes().collect();
+        // em dash should be e2 80 94, not double-encoded c3 a2 c2 80 c2 94
+        assert!(
+            html.contains('\u{2014}'),
+            "em dash should be preserved. HTML: {:?}, bytes: {:02x?}",
+            html,
+            bytes
+        );
     }
 }
