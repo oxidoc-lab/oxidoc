@@ -19,6 +19,8 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
             title: page.title.clone(),
             path: format!("/{}", page.slug),
             snippet: types::create_snippet(&page.text, 160),
+            text: page.text.clone(),
+            headings: page.headings.clone(),
         })
         .collect();
 
@@ -85,20 +87,63 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
 /// Tokenize text into lowercase terms.
 ///
 /// Splits on whitespace, strips non-alphanumeric chars (preserving hyphens and underscores),
+/// splits camelCase/PascalCase into sub-words (emitting both compound and parts),
 /// and filters tokens shorter than 2 characters. This logic must match the tokenizer in
 /// `oxidoc-search/src/lexical.rs` to ensure consistent indexing and querying.
 fn tokenize(text: &str) -> Vec<String> {
-    text.to_lowercase()
-        .split_whitespace()
-        .filter(|token| token.len() > 1)
-        .map(|token| {
-            token
-                .chars()
-                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
-                .collect::<String>()
-        })
-        .filter(|token| !token.is_empty())
-        .collect()
+    let mut result = Vec::new();
+    for word in text.split_whitespace() {
+        let cleaned: String = word
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if cleaned.is_empty() {
+            continue;
+        }
+        let lower = cleaned.to_lowercase();
+        if lower.len() <= 1 {
+            continue;
+        }
+        // Split camelCase/PascalCase into sub-words
+        let parts = split_camel_case(&cleaned);
+        if parts.len() > 1 {
+            // Emit the compound token
+            result.push(lower);
+            // Emit each sub-word
+            for part in parts {
+                let p = part.to_lowercase();
+                if p.len() > 1 {
+                    result.push(p);
+                }
+            }
+        } else {
+            result.push(lower);
+        }
+    }
+    result
+}
+
+/// Split a camelCase or PascalCase string into its component words.
+/// e.g. "CodeBlock" -> ["Code", "Block"], "myFunc" -> ["my", "Func"]
+fn split_camel_case(s: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let bytes = s.as_bytes();
+    let mut start = 0;
+    for i in 1..bytes.len() {
+        let curr_upper = bytes[i].is_ascii_uppercase();
+        let prev_upper = bytes[i - 1].is_ascii_uppercase();
+        // Split at lowercase->uppercase boundary (e.g. "code|Block")
+        // Split at uppercase->uppercase->lowercase boundary (e.g. "XML|Parser")
+        if curr_upper && (!prev_upper || (i + 1 < bytes.len() && bytes[i + 1].is_ascii_lowercase()))
+        {
+            parts.push(&s[start..i]);
+            start = i;
+        }
+    }
+    if start < s.len() {
+        parts.push(&s[start..]);
+    }
+    parts
 }
 
 /// Compute inverse document frequency.
@@ -173,6 +218,7 @@ mod tests {
             title: "Test".to_string(),
             slug: "test".to_string(),
             text: "hello world".to_string(),
+            headings: vec![],
         }];
 
         let index = build_lexical_index(&pages);
@@ -190,11 +236,13 @@ mod tests {
                 title: "Doc1".to_string(),
                 slug: "doc1".to_string(),
                 text: "hello world".to_string(),
+                headings: vec![],
             },
             PageContent {
                 title: "Doc2".to_string(),
                 slug: "doc2".to_string(),
                 text: "hello there".to_string(),
+                headings: vec![],
             },
         ];
 
@@ -233,6 +281,8 @@ mod tests {
                 title: "Test".to_string(),
                 path: "/test".to_string(),
                 snippet: "test snippet".to_string(),
+                text: String::new(),
+                headings: vec![],
             }],
         };
 

@@ -52,6 +52,8 @@ mod tests {
                 title: "Test".to_string(),
                 path: "/test".to_string(),
                 snippet: "Hello world".to_string(),
+                text: String::new(),
+                headings: vec![],
             }],
         };
 
@@ -70,6 +72,8 @@ mod tests {
                 title: "Test".to_string(),
                 path: "/test".to_string(),
                 snippet: "Hello world".to_string(),
+                text: String::new(),
+                headings: vec![],
             }],
             vectors: vec![vec![0.1, 0.2, 0.3]],
             dimension: 3,

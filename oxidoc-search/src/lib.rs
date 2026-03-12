@@ -5,6 +5,7 @@ pub mod island;
 pub mod lexical;
 pub mod semantic;
 pub mod types;
+pub mod wasm;
 
 pub use engine::SearchEngine;
 pub use error::{SearchError, SearchResult};
