@@ -60,6 +60,7 @@ fn build_preload_links(
 }
 
 const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
+const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.js");
 const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
 const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
 const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
@@ -203,7 +204,9 @@ pub fn render_page(
     </header>
     <div class="oxidoc-layout">
         <aside class="oxidoc-sidebar" role="navigation" aria-label="Documentation navigation">
-            {sidebar_html}
+            <div class="oxidoc-sidebar-inner">
+                {sidebar_html}
+            </div>
         </aside>
         <main id="oxidoc-main" class="oxidoc-content" role="main">
             {breadcrumb_html}
@@ -213,7 +216,9 @@ pub fn render_page(
             {page_meta_html}
         </main>
         <aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents">
-            {toc_html}
+            <div class="oxidoc-toc-inner">
+                {toc_html}
+            </div>
         </aside>
     </div>
     {footer_html}
@@ -252,8 +257,8 @@ pub fn render_page(
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS
         ),
     )
 }

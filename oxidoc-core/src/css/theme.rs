@@ -38,6 +38,10 @@ pub const HEADER: &str = r#"/* Header */
     padding: 0 1.5rem;
     background: var(--oxidoc-bg);
     border-bottom: 1px solid var(--oxidoc-border);
+    transition: transform 0.3s ease;
+}
+.oxidoc-header.oxidoc-header-hidden {
+    transform: translateY(-100%);
 }
 .oxidoc-logo {
     font-weight: 700;
@@ -56,15 +60,21 @@ pub const LAYOUT: &str = r#"/* Layout — 3-column */
 
 pub const SIDEBAR: &str = r#"/* Sidebar */
 .oxidoc-sidebar {
+    border-right: 1px solid var(--oxidoc-border);
+    background: var(--oxidoc-bg-secondary);
+}
+.oxidoc-sidebar-inner {
     position: sticky;
     top: var(--oxidoc-header-height);
-    align-self: start;
     max-height: calc(100vh - var(--oxidoc-header-height));
     overflow-y: auto;
     padding: 1.5rem 1rem;
-    border-right: 1px solid var(--oxidoc-border);
-    background: var(--oxidoc-bg-secondary);
     scrollbar-width: thin;
+    transition: top 0.3s ease, max-height 0.3s ease;
+}
+.oxidoc-header-hidden ~ .oxidoc-layout .oxidoc-sidebar-inner {
+    top: 0;
+    max-height: 100vh;
 }
 .oxidoc-nav-title {
     font-size: 0.75rem;
@@ -109,14 +119,20 @@ pub const CONTENT_AND_TOC: &str = r#"/* Main content */
 
 /* TOC sidebar */
 .oxidoc-toc-sidebar {
+    border-left: 1px solid var(--oxidoc-border);
+}
+.oxidoc-toc-inner {
     position: sticky;
     top: var(--oxidoc-header-height);
-    align-self: start;
     max-height: calc(100vh - var(--oxidoc-header-height));
     overflow-y: auto;
     padding: 1.5rem 1rem;
-    border-left: 1px solid var(--oxidoc-border);
     scrollbar-width: thin;
+    transition: top 0.3s ease, max-height 0.3s ease;
+}
+.oxidoc-header-hidden ~ .oxidoc-layout .oxidoc-toc-inner {
+    top: 0;
+    max-height: 100vh;
 }
 .oxidoc-toc {
     font-size: 0.8125rem;
