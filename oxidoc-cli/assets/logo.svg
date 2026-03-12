@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Hexagonal doc shape -->
+  <path d="M64 8L116 36v56L64 120 12 92V36z" fill="#2563eb" opacity="0.12"/>
+  <path d="M64 8L116 36v56L64 120 12 92V36z" stroke="#2563eb" stroke-width="3" fill="none"/>
+  <!-- Oxide ring (O) -->
+  <circle cx="64" cy="64" r="22" stroke="#2563eb" stroke-width="4" fill="none"/>
+  <circle cx="64" cy="64" r="12" stroke="#2563eb" stroke-width="2.5" fill="none" opacity="0.5"/>
+</svg>
