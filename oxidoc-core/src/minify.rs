@@ -20,6 +20,7 @@ pub fn minify_html(html: &str) -> String {
                 in_special_tag = false;
             } else {
                 // Pass through verbatim (handle multi-byte UTF-8)
+                // SAFETY: i < bytes.len() (loop guard) guarantees html[i..] is non-empty
                 let ch = html[i..].chars().next().unwrap();
                 result.push(ch);
                 i += ch.len_utf8();
@@ -65,6 +66,7 @@ pub fn minify_html(html: &str) -> String {
             }
         } else {
             // Handle multi-byte UTF-8 correctly
+            // SAFETY: i < bytes.len() (loop guard) guarantees html[i..] is non-empty
             let ch = html[i..].chars().next().unwrap();
             result.push(ch);
             i += ch.len_utf8();
