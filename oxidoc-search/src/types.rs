@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// A heading position within a document's text.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeadingPos {
+    pub title: String,
+    pub anchor: String,
+    pub depth: u8,
+    pub offset: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
     pub title: String,
@@ -8,6 +17,15 @@ pub struct SearchResult {
     pub snippet: String,
     pub score: f32,
     pub source: SearchSource,
+    /// Breadcrumb trail: ["Page Title", "h2", "h3"] — last entry is the closest heading.
+    #[serde(default)]
+    pub breadcrumb: Vec<String>,
+    /// Anchor for the closest heading (for linking to the right section).
+    #[serde(default)]
+    pub anchor: String,
+    /// Terms that actually matched (for highlighting).
+    #[serde(default)]
+    pub highlight_terms: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -37,6 +55,10 @@ pub struct DocMetadata {
     pub title: String,
     pub path: String,
     pub snippet: String,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub headings: Vec<HeadingPos>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +92,9 @@ mod tests {
             snippet: "This is a test snippet".to_string(),
             score: 0.95,
             source: SearchSource::Semantic,
+            breadcrumb: vec![],
+            anchor: String::new(),
+            highlight_terms: Vec::new(),
         };
 
         let json = serde_json::to_string(&result).unwrap();

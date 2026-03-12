@@ -74,6 +74,9 @@ impl<R: Runtime<DType = DType>> SemanticSearcher<R> {
                         snippet: doc.snippet.clone(),
                         score,
                         source: SearchSource::Semantic,
+                        breadcrumb: vec![],
+                        anchor: String::new(),
+                        highlight_terms: Vec::new(),
                     })
             })
             .collect())

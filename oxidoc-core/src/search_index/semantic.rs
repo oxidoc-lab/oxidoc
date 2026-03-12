@@ -30,6 +30,8 @@ pub fn build_vector_index(
             title: page.title.clone(),
             path: format!("/{}", page.slug),
             snippet: super::types::create_snippet(&page.text, 160),
+            text: page.text.clone(),
+            headings: page.headings.clone(),
         })
         .collect();
 
@@ -65,6 +67,7 @@ mod tests {
             title: "Test".to_string(),
             slug: "test".to_string(),
             text: "hello world".to_string(),
+            headings: vec![],
         }];
 
         let result = build_vector_index(&pages, &config).unwrap();
@@ -81,6 +84,7 @@ mod tests {
             title: "Test".to_string(),
             slug: "test".to_string(),
             text: "hello world".to_string(),
+            headings: vec![],
         }];
 
         let result = build_vector_index(&pages, &config).unwrap();
@@ -98,6 +102,8 @@ mod tests {
                 title: "Test".to_string(),
                 path: "/test".to_string(),
                 snippet: "test snippet".to_string(),
+                text: String::new(),
+                headings: vec![],
             }],
             vectors: vec![vec![0.1, 0.2, 0.3]],
             dimension: 3,

@@ -1,13 +1,29 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Metadata for a searchable document.
+/// A heading position within a document's text.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeadingPos {
+    pub title: String,
+    pub anchor: String,
+    pub depth: u8,
+    /// Character offset in the document's `text` field where this heading's content starts.
+    pub offset: usize,
+}
+
+/// Metadata for a searchable document (one per page).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocMetadata {
     pub id: u32,
     pub title: String,
     pub path: String,
     pub snippet: String,
+    /// Full plain text content for search and snippet extraction.
+    #[serde(default)]
+    pub text: String,
+    /// Heading positions within the text, for locating which section a match falls in.
+    #[serde(default)]
+    pub headings: Vec<HeadingPos>,
 }
 
 /// A posting entry in the inverted index (term -> doc with score).
@@ -32,12 +48,14 @@ pub struct VectorIndex {
     pub dimension: usize,
 }
 
-/// Plain text content extracted from a page.
+/// Plain text content extracted from a page (one per page).
 #[derive(Debug, Clone)]
 pub struct PageContent {
     pub title: String,
     pub slug: String,
     pub text: String,
+    /// Heading positions within the text.
+    pub headings: Vec<HeadingPos>,
 }
 
 /// Create a snippet from text (first N characters).
@@ -74,6 +92,8 @@ mod tests {
             title: "Test Page".to_string(),
             path: "/docs/test".to_string(),
             snippet: "This is a test".to_string(),
+            text: String::new(),
+            headings: vec![],
         };
 
         let json = serde_json::to_string(&meta).unwrap();
@@ -94,6 +114,8 @@ mod tests {
                 title: "Doc1".to_string(),
                 path: "/doc1".to_string(),
                 snippet: "snippet1".to_string(),
+                text: String::new(),
+                headings: vec![],
             }],
         };
         index.postings.insert(
@@ -120,6 +142,8 @@ mod tests {
                 title: "Doc1".to_string(),
                 path: "/doc1".to_string(),
                 snippet: "snippet1".to_string(),
+                text: String::new(),
+                headings: vec![],
             }],
             vectors: vec![vec![0.1, 0.2, 0.3]],
             dimension: 3,

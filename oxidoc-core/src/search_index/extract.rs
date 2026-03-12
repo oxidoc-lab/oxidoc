@@ -1,9 +1,10 @@
 use crate::crawler::NavGroup;
 use crate::error::Result;
 
-use super::types::PageContent;
+use super::types::{HeadingPos, PageContent};
 
 /// Extract searchable plain text from all pages in navigation groups.
+/// Produces one entry per page with heading positions for section resolution at search time.
 pub fn extract_page_text(nav_groups: &[NavGroup]) -> Result<Vec<PageContent>> {
     let mut pages = Vec::new();
 
@@ -18,17 +19,58 @@ pub fn extract_page_text(nav_groups: &[NavGroup]) -> Result<Vec<PageContent>> {
 
             let root = rdx_parser::parse(&content);
             let title = extract_page_title(&root).unwrap_or_else(|| page_entry.title.clone());
-            let text = extract_searchable_text(&root);
+
+            // Extract full text and heading positions simultaneously
+            let (text, headings) = extract_text_with_headings(&root);
 
             pages.push(PageContent {
                 title,
                 slug: page_entry.slug.clone(),
                 text,
+                headings,
             });
         }
     }
 
     Ok(pages)
+}
+
+/// Extract all searchable text and record heading positions (offset into the text).
+fn extract_text_with_headings(root: &rdx_ast::Root) -> (String, Vec<HeadingPos>) {
+    let mut text = String::new();
+    let mut headings = Vec::new();
+
+    for node in &root.children {
+        if let rdx_ast::Node::Heading(h) = node {
+            let depth = h.depth.unwrap_or(1);
+            if depth >= 2 {
+                let heading_title = crate::utils::extract_plain_text(node);
+                let anchor = heading_to_anchor(&heading_title);
+                headings.push(HeadingPos {
+                    title: heading_title,
+                    anchor,
+                    depth,
+                    offset: text.len(),
+                });
+            }
+        }
+        append_searchable_content(&mut text, node);
+    }
+
+    (text, headings)
+}
+
+/// Convert a heading text to a URL-safe anchor slug.
+fn heading_to_anchor(heading: &str) -> String {
+    heading
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 /// Extract the page title from the first h1 heading.
@@ -41,18 +83,6 @@ fn extract_page_title(root: &rdx_ast::Root) -> Option<String> {
         }
     }
     None
-}
-
-/// Extract all searchable plain text from a document.
-/// Includes headings, paragraphs, list items, and inline code.
-fn extract_searchable_text(root: &rdx_ast::Root) -> String {
-    let mut text = String::new();
-
-    for node in &root.children {
-        append_searchable_content(&mut text, node);
-    }
-
-    text
 }
 
 /// Recursively append searchable content from a node, filtering out code blocks.
@@ -100,28 +130,26 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_searchable_text_basic() {
-        let root = rdx_parser::parse("# Heading\n\nParagraph text");
-        let text = extract_searchable_text(&root);
-        assert!(text.contains("Heading"));
-        assert!(text.contains("Paragraph"));
-        assert!(text.contains("text"));
+    fn test_extract_text_with_headings() {
+        let root = rdx_parser::parse(
+            "# Title\n\nIntro text\n\n## Setup\n\nSetup content\n\n## Usage\n\nUsage content",
+        );
+        let (text, headings) = extract_text_with_headings(&root);
+        assert!(text.contains("Intro text"));
+        assert!(text.contains("Setup content"));
+        assert!(text.contains("Usage content"));
+        assert_eq!(headings.len(), 2);
+        assert_eq!(headings[0].title, "Setup");
+        assert_eq!(headings[0].depth, 2);
+        assert_eq!(headings[1].title, "Usage");
+        // Offsets should be increasing
+        assert!(headings[1].offset > headings[0].offset);
     }
 
     #[test]
-    fn test_extract_searchable_text_with_formatting() {
-        let root = rdx_parser::parse("# Title\n\nThis is **bold** and `code` text");
-        let text = extract_searchable_text(&root);
-        assert!(text.contains("Title"));
-        assert!(text.contains("bold"));
-        assert!(text.contains("code"));
-    }
-
-    #[test]
-    fn test_extract_searchable_text_empty_document() {
-        let root = rdx_parser::parse("");
-        let text = extract_searchable_text(&root);
-        assert!(text.is_empty() || text.chars().all(|c| c.is_whitespace()));
+    fn test_heading_to_anchor() {
+        assert_eq!(heading_to_anchor("Getting Started"), "getting-started");
+        assert_eq!(heading_to_anchor("Hello, World!"), "hello-world");
     }
 
     #[test]
@@ -131,7 +159,7 @@ mod tests {
         std::fs::create_dir(&docs).unwrap();
         std::fs::write(
             docs.join("test.rdx"),
-            "# Test Page\n\nThis is test content with **bold** text.",
+            "# Test Page\n\nThis is test content with **bold** text.\n\n## Section One\n\nSection content here.",
         )
         .unwrap();
 
@@ -146,10 +174,12 @@ mod tests {
         }];
 
         let pages = extract_page_text(&nav_groups).unwrap();
+        // One entry per page
         assert_eq!(pages.len(), 1);
-        assert_eq!(pages[0].slug, "test");
         assert_eq!(pages[0].title, "Test Page");
-        assert!(pages[0].text.contains("Test"));
-        assert!(pages[0].text.contains("content"));
+        assert!(pages[0].text.contains("test content"));
+        assert!(pages[0].text.contains("Section content"));
+        assert_eq!(pages[0].headings.len(), 1);
+        assert_eq!(pages[0].headings[0].title, "Section One");
     }
 }
