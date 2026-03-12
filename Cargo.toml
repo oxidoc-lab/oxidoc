@@ -89,3 +89,8 @@ wasm-bindgen-test = "0.3"
 splintr = "0.9"
 boostr = "0.1"
 numr = "0.5"
+
+# Internationalization (i18n)
+fluent = "0.16"
+unic-langid = "0.9"
+intl-memoizer = "0.5"

@@ -93,6 +93,8 @@ pub struct I18nConfig {
     pub default_locale: String,
     #[serde(default)]
     pub locales: Vec<String>,
+    #[serde(default = "default_translation_dir")]
+    pub translation_dir: String,
 }
 
 impl Default for I18nConfig {
@@ -100,12 +102,17 @@ impl Default for I18nConfig {
         Self {
             default_locale: default_locale(),
             locales: Vec::new(),
+            translation_dir: default_translation_dir(),
         }
     }
 }
 
 fn default_locale() -> String {
     "en".into()
+}
+
+fn default_translation_dir() -> String {
+    "i18n".into()
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,7 +1,30 @@
-use crate::config::RedirectEntry;
+use crate::config::{OxidocConfig, RedirectEntry};
 use crate::crawler::NavGroup;
 use crate::error::{OxidocError, Result};
 use std::path::Path;
+
+/// Generate all SEO-related files (sitemap, robots.txt, feed).
+pub fn generate_seo_files(
+    nav_groups: &[NavGroup],
+    config: &OxidocConfig,
+    output_dir: &Path,
+) -> Result<()> {
+    let base_url = config.project.base_url.as_deref().unwrap_or("/");
+    crate::sitemap::generate_sitemap(nav_groups, base_url, output_dir)?;
+    crate::sitemap::generate_robots_txt(base_url, output_dir)?;
+    let description = config
+        .project
+        .description
+        .as_deref()
+        .unwrap_or("Documentation");
+    crate::feed::generate_feed(
+        nav_groups,
+        &config.project.name,
+        base_url,
+        description,
+        output_dir,
+    )
+}
 
 /// Generate `llms.txt` and `llms-full.txt` for AI/RAG consumption.
 pub fn generate_llms_txt(nav_groups: &[NavGroup], output_dir: &Path) -> Result<()> {

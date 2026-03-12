@@ -90,6 +90,9 @@ pub fn build_api_pages(
         let breadcrumbs = crate::breadcrumb::generate_breadcrumbs(&slug);
         let breadcrumb_html = crate::breadcrumb::render_breadcrumbs(&breadcrumbs);
 
+        let i18n_state =
+            crate::i18n::I18nState::from_config(&config.i18n.default_locale, &config.i18n.locales);
+
         let full_html = crate::template::render_page(
             config,
             &title,
@@ -100,6 +103,8 @@ pub fn build_api_pages(
             &slug,
             None,
             assets,
+            &config.i18n.default_locale,
+            &i18n_state,
         );
 
         let page_output = output_dir.join(format!("{slug}.html"));

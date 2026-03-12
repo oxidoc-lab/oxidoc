@@ -38,7 +38,10 @@ fn snapshot_basic_page() {
     assert!(html.contains("<!DOCTYPE html>"), "Missing DOCTYPE");
     assert!(html.contains("<html"), "Missing html tag");
     assert!(html.contains("<head>"), "Missing head tag");
-    assert!(html.contains("<body>"), "Missing body tag");
+    assert!(
+        html.contains(r#"<body data-locale=""#),
+        "Missing body tag with locale"
+    );
     assert!(html.contains("</html>"), "Missing closing html tag");
 
     // Assert page structure
@@ -66,7 +69,7 @@ fn snapshot_basic_page() {
     assert_eq!(html.matches("</html>").count(), 1);
     assert_eq!(html.matches("<head>").count(), 1);
     assert_eq!(html.matches("</head>").count(), 1);
-    assert_eq!(html.matches("<body>").count(), 1);
+    assert_eq!(html.matches("<body").count(), 1);
     assert_eq!(html.matches("</body>").count(), 1);
 }
 

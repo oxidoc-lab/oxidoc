@@ -7,6 +7,7 @@ pub mod crawler;
 pub mod css;
 pub mod error;
 pub mod feed;
+pub mod i18n;
 pub mod incremental;
 pub mod loader;
 pub mod minify;

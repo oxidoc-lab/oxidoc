@@ -81,6 +81,14 @@ pub enum OxidocError {
     #[error("Search index error: {message}")]
     #[diagnostic(code(oxidoc::search::index))]
     SearchIndex { message: String },
+
+    #[error("Translation file not found: {path}")]
+    #[diagnostic(code(oxidoc::i18n::not_found))]
+    TranslationNotFound { path: String },
+
+    #[error("Translation parse error in {path}: {message}")]
+    #[diagnostic(code(oxidoc::i18n::parse))]
+    TranslationParse { path: String, message: String },
 }
 
 impl OxidocError {
