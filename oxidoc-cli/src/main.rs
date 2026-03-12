@@ -1,6 +1,7 @@
 mod server;
 
 use clap::{Parser, Subcommand};
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -44,7 +45,17 @@ enum Command {
     Init {
         /// Project directory name (defaults to current directory)
         name: Option<String>,
+
+        /// Force overwrite existing files
+        #[arg(short, long)]
+        force: bool,
+
+        /// Skip confirmation prompts (auto-confirm)
+        #[arg(short, long)]
+        yes: bool,
     },
+    /// Remove build artifacts (.oxidoc-dev/ and dist/)
+    Clean,
 }
 
 fn main() -> ExitCode {
@@ -70,13 +81,14 @@ fn main() -> ExitCode {
     let result = match cli.command {
         Command::Build { output } => run_build(&project_root, &output),
         Command::Dev { port } => run_dev(&project_root, port),
-        Command::Init { name } => {
+        Command::Init { name, force, yes } => {
             let target = match name {
                 Some(ref n) => project_root.join(n),
                 None => project_root.clone(),
             };
-            run_init(&target, name.as_deref())
+            run_init(&target, name.as_deref(), force, yes)
         }
+        Command::Clean => run_clean(&project_root),
     };
 
     match result {
@@ -106,18 +118,63 @@ fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()>
 }
 
 fn run_dev(project_root: &std::path::Path, port: u16) -> miette::Result<()> {
+    // Clean dev output before starting
+    let dev_dir = project_root.join(".oxidoc-dev");
+    if dev_dir.exists() {
+        std::fs::remove_dir_all(&dev_dir)
+            .map_err(|e| miette::miette!("Failed to clean .oxidoc-dev/: {e}"))?;
+        tracing::debug!("Cleaned .oxidoc-dev/");
+    }
+
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| miette::miette!("Failed to create async runtime: {e}"))?;
     rt.block_on(server::run_dev_server(project_root.to_path_buf(), port))
 }
 
-fn run_init(target: &std::path::Path, name: Option<&str>) -> miette::Result<()> {
+fn run_clean(project_root: &std::path::Path) -> miette::Result<()> {
+    let mut cleaned = false;
+    for dir_name in [".oxidoc-dev", "dist"] {
+        let dir = project_root.join(dir_name);
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir)
+                .map_err(|e| miette::miette!("Failed to remove {dir_name}/: {e}"))?;
+            tracing::info!("Removed {dir_name}/");
+            cleaned = true;
+        }
+    }
+    if !cleaned {
+        tracing::info!("Nothing to clean");
+    }
+    Ok(())
+}
+
+fn run_init(
+    target: &std::path::Path,
+    name: Option<&str>,
+    force: bool,
+    yes: bool,
+) -> miette::Result<()> {
     std::fs::create_dir_all(target)
         .map_err(|e| miette::miette!("Failed to create project directory: {e}"))?;
 
     let config_path = target.join("oxidoc.toml");
-    if config_path.exists() {
-        miette::bail!("oxidoc.toml already exists in {}", target.display());
+    if config_path.exists() && !force {
+        miette::bail!(
+            "oxidoc.toml already exists in {}. Use --force to overwrite.",
+            target.display()
+        );
+    }
+
+    if config_path.exists() && force && !yes {
+        eprint!("Overwrite existing project in {}? [y/N] ", target.display());
+        let _ = std::io::stderr().flush();
+        let mut input = String::new();
+        std::io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| miette::miette!("Failed to read input: {e}"))?;
+        if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+            miette::bail!("Aborted");
+        }
     }
 
     let project_name = name
@@ -137,183 +194,28 @@ fn run_init(target: &std::path::Path, name: Option<&str>) -> miette::Result<()> 
     std::fs::create_dir_all(&assets_dir)
         .map_err(|e| miette::miette!("Failed to create assets/: {e}"))?;
 
-    // Write default logo
-    std::fs::write(
-        assets_dir.join("logo.svg"),
+    // Write files from embedded templates
+    write_file(
+        &assets_dir.join("logo.svg"),
         include_str!("../assets/logo.svg"),
-    )
-    .map_err(|e| miette::miette!("Failed to write assets/logo.svg: {e}"))?;
-
-    // Write .gitignore
-    std::fs::write(
-        target.join(".gitignore"),
+    )?;
+    write_file(
+        &target.join(".gitignore"),
         "# Oxidoc build artifacts\n.oxidoc-dev/\ndist/\n",
-    )
-    .map_err(|e| miette::miette!("Failed to write .gitignore: {e}"))?;
-
-    // Write oxidoc.toml
-    std::fs::write(
+    )?;
+    write_file(
         &config_path,
-        format!(
-            r##"[project]
-name = "{project_name}"
-# description = "Your project description"
-logo = "/assets/logo.svg"
-# base_url = "https://docs.example.com"
-
-[theme]
-primary = "#3b82f6"
-dark_mode = "system"
-
-[routing]
-homepage = "intro"
-navigation = [
-  {{ group = "Getting Started", pages = ["intro", "quickstart"] }},
-]
-
-# [search]
-# provider = "oxidoc"
-
-# [footer]
-# copyright = "© 2024 {project_name}"
-"##
-        ),
-    )
-    .map_err(|e| miette::miette!("Failed to write oxidoc.toml: {e}"))?;
-
-    // Write intro.rdx
-    std::fs::write(
-        docs_dir.join("intro.rdx"),
-        r#"# Welcome
-
-Welcome to your new documentation site, powered by **Oxidoc**.
-
-<Callout kind="info" title="What is Oxidoc?">
-Oxidoc is a documentation engine written in Rust. It generates fast static sites with interactive WebAssembly components.
-</Callout>
-
-## Features
-
-<CardGrid>
-<Card title="Fast Builds" href="/quickstart">
-Sub-second builds for thousands of pages with incremental rebuilds.
-</Card>
-<Card title="Interactive Islands" href="/quickstart">
-Wasm-powered components like tabs, code blocks, and API playgrounds.
-</Card>
-<Card title="Search Built-in" href="/quickstart">
-Hybrid lexical + semantic search with zero external dependencies.
-</Card>
-</CardGrid>
-
-## Next Steps
-
-Check out the [Quickstart Guide](/quickstart) to create your first page.
-"#,
-    )
-    .map_err(|e| miette::miette!("Failed to write intro.rdx: {e}"))?;
-
-    // Write quickstart.rdx
-    std::fs::write(
-        docs_dir.join("quickstart.rdx"),
-        r#"# Quickstart
-
-## Writing Content
-
-Create `.rdx` files in the `docs/` directory. RDX is Markdown with embedded components:
-
-<Tabs>
-<Tab title="Markdown">
-```markdown
-# My Page
-
-Regular Markdown works as expected — headings, **bold**, *italic*,
-links, lists, code blocks, and more.
-```
-</Tab>
-<Tab title="With Components">
-```markdown
-# My Page
-
-<Callout kind="warning" title="Heads up">
-Components are embedded directly in your Markdown content.
-</Callout>
-```
-</Tab>
-</Tabs>
-
-## Available Components
-
-<Accordion title="Callout">
-Display info, warnings, errors, or tips:
-
-```markdown
-<Callout kind="info" title="Note">
-Your message here.
-</Callout>
-```
-
-Variants: `info`, `warning`, `error`, `tip`
-</Accordion>
-
-<Accordion title="Tabs">
-Group content into switchable tabs:
-
-```markdown
-<Tabs>
-<Tab title="JavaScript">
-console.log("hello");
-</Tab>
-<Tab title="Python">
-print("hello")
-</Tab>
-</Tabs>
-```
-</Accordion>
-
-<Accordion title="CodeBlock">
-Code with line numbers, highlighting, and copy button:
-
-```markdown
-<CodeBlock language="rust" filename="main.rs" highlight="2">
-fn main() {
-    println!("Hello, Oxidoc!");
-}
-</CodeBlock>
-```
-</Accordion>
-
-<Accordion title="CardGrid">
-Responsive grid of linked cards:
-
-```markdown
-<CardGrid>
-<Card title="First" href="/page-1">Description here.</Card>
-<Card title="Second" href="/page-2">Another card.</Card>
-</CardGrid>
-```
-</Accordion>
-
-## Development Server
-
-Run `oxidoc dev` to start a local server with hot reload:
-
-<CodeBlock language="bash">
-oxidoc dev
-</CodeBlock>
-
-Edit any `.rdx` file and the browser refreshes automatically.
-
-## Building for Production
-
-<CodeBlock language="bash">
-oxidoc build
-</CodeBlock>
-
-Your site is generated in `dist/` — deploy it anywhere.
-"#,
-    )
-    .map_err(|e| miette::miette!("Failed to write quickstart.rdx: {e}"))?;
+        &include_str!("../assets/templates/oxidoc.toml.tmpl")
+            .replace("{project_name}", project_name),
+    )?;
+    write_file(
+        &docs_dir.join("intro.rdx"),
+        include_str!("../assets/templates/intro.rdx"),
+    )?;
+    write_file(
+        &docs_dir.join("quickstart.rdx"),
+        include_str!("../assets/templates/quickstart.rdx"),
+    )?;
 
     if let Some(n) = name {
         eprintln!("Initialized Oxidoc project in {n}/");
@@ -335,4 +237,9 @@ Your site is generated in `dist/` — deploy it anywhere.
     }
 
     Ok(())
+}
+
+fn write_file(path: &std::path::Path, content: &str) -> miette::Result<()> {
+    std::fs::write(path, content)
+        .map_err(|e| miette::miette!("Failed to write {}: {e}", path.display()))
 }
