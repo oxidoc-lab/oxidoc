@@ -14,7 +14,7 @@ members = [
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/oxidoc/oxidoc"
+repository = "https://github.com/oxidoc-lab/oxidoc"
 
 [workspace.dependencies]
 # Internal crates
@@ -51,7 +51,28 @@ openapiv3 = "2"
 leptos = "0.8"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Element", "Document", "HtmlElement", "NodeList", "Window", "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "CustomEvent", "CustomEventInit", "MutationObserver", "MutationObserverInit", "MutationRecord", "Navigator", "Clipboard", "Storage", "Request", "RequestInit", "RequestMode", "Response"] }
+web-sys = { version = "0.3", features = [
+    "Element",
+    "Document",
+    "HtmlElement",
+    "NodeList",
+    "Window",
+    "ShadowRoot",
+    "ShadowRootInit",
+    "ShadowRootMode",
+    "CustomEvent",
+    "CustomEventInit",
+    "MutationObserver",
+    "MutationObserverInit",
+    "MutationRecord",
+    "Navigator",
+    "Clipboard",
+    "Storage",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
+] }
 js-sys = "0.3"
 
 # File watching (HMR)

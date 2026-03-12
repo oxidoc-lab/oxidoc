@@ -13,7 +13,7 @@ We welcome contributions to Oxidoc! This guide covers development setup, code co
 ### Clone and Build
 
 ```bash
-git clone https://github.com/oxidoc/oxidoc.git
+git clone https://github.com/oxidoc-lab/oxidoc.git
 cd oxidoc
 cargo build
 cargo test --workspace

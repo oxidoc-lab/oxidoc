@@ -18,7 +18,7 @@ lazy_static::lazy_static! {
     static ref THEME_OXIDOC: ResolvedTheme = ResolvedTheme {
         name: "oxidoc".to_string(),
         author: Some("Oxidoc".to_string()),
-        url: Some("https://github.com/oxidoc/oxidoc".to_string()),
+        url: Some("https://github.com/oxidoc-lab/oxidoc".to_string()),
         colors_light: ColorPalette {
             bg: "#ffffff".to_string(),
             bg_secondary: "#f8fafc".to_string(),
@@ -60,7 +60,7 @@ lazy_static::lazy_static! {
     static ref THEME_OCEAN: ResolvedTheme = ResolvedTheme {
         name: "ocean".to_string(),
         author: Some("Oxidoc".to_string()),
-        url: Some("https://github.com/oxidoc/oxidoc".to_string()),
+        url: Some("https://github.com/oxidoc-lab/oxidoc".to_string()),
         colors_light: ColorPalette {
             bg: "#ffffff".to_string(),
             bg_secondary: "#f0f9ff".to_string(),
@@ -90,7 +90,7 @@ lazy_static::lazy_static! {
     static ref THEME_FOREST: ResolvedTheme = ResolvedTheme {
         name: "forest".to_string(),
         author: Some("Oxidoc".to_string()),
-        url: Some("https://github.com/oxidoc/oxidoc".to_string()),
+        url: Some("https://github.com/oxidoc-lab/oxidoc".to_string()),
         colors_light: ColorPalette {
             bg: "#ffffff".to_string(),
             bg_secondary: "#f0fdf4".to_string(),
