@@ -7,9 +7,10 @@ pub const COMPONENTS: &str = r#"/* Component: Callout */
     margin: 1rem 0;
     background: var(--oxidoc-bg-secondary);
 }
-.oxidoc-callout-warning { border-left-color: #f59e0b; }
-.oxidoc-callout-error, .oxidoc-callout-danger { border-left-color: #ef4444; }
-.oxidoc-callout-tip, .oxidoc-callout-success { border-left-color: #10b981; }
+.oxidoc-callout-info { border-left-color: var(--oxidoc-primary); background: color-mix(in srgb, var(--oxidoc-primary) 5%, var(--oxidoc-bg-secondary)); }
+.oxidoc-callout-warning { border-left-color: #f59e0b; background: color-mix(in srgb, #f59e0b 5%, var(--oxidoc-bg-secondary)); }
+.oxidoc-callout-error, .oxidoc-callout-danger { border-left-color: #ef4444; background: color-mix(in srgb, #ef4444 5%, var(--oxidoc-bg-secondary)); }
+.oxidoc-callout-tip, .oxidoc-callout-success { border-left-color: #10b981; background: color-mix(in srgb, #10b981 5%, var(--oxidoc-bg-secondary)); }
 .oxidoc-callout-header {
     display: flex;
     align-items: center;
