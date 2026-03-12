@@ -9,8 +9,23 @@ pub fn minify_html(html: &str) -> String {
     let bytes = html.as_bytes();
 
     while i < bytes.len() {
-        // Check for opening tag
-        if bytes[i] == b'<' {
+        if in_special_tag {
+            // Inside a special tag: look only for the closing tag, pass everything else through
+            let closing = format!("</{}>", special_tag_name);
+            if bytes[i] == b'<' && html[i..].to_lowercase().starts_with(&closing) {
+                // Found closing tag — output it and exit special mode
+                let end = i + closing.len();
+                result.push_str(&html[i..end]);
+                i = end;
+                in_special_tag = false;
+            } else {
+                // Pass through verbatim (handle multi-byte UTF-8)
+                let ch = html[i..].chars().next().unwrap();
+                result.push(ch);
+                i += ch.len_utf8();
+            }
+        } else if bytes[i] == b'<' {
+            // Parse tag
             let tag_start = i;
             i += 1;
             let mut tag_end = i;
@@ -25,14 +40,12 @@ pub fn minify_html(html: &str) -> String {
             let tag_lower = tag_text.to_lowercase();
 
             // Check if entering a special tag
-            if !in_special_tag
-                && (tag_lower.starts_with("<pre")
-                    || tag_lower.starts_with("<code")
-                    || tag_lower.starts_with("<script")
-                    || tag_lower.starts_with("<style"))
+            if tag_lower.starts_with("<pre")
+                || tag_lower.starts_with("<code")
+                || tag_lower.starts_with("<script")
+                || tag_lower.starts_with("<style")
             {
                 in_special_tag = true;
-                // Extract tag name
                 if let Some(space_or_close) =
                     tag_lower[1..].find(|c: char| c.is_whitespace() || c == '>')
                 {
@@ -40,17 +53,9 @@ pub fn minify_html(html: &str) -> String {
                 }
             }
 
-            // Check if exiting a special tag
-            if in_special_tag {
-                let closing = format!("</{}>", special_tag_name);
-                if tag_lower.starts_with(&closing.to_lowercase()) {
-                    in_special_tag = false;
-                }
-            }
-
             result.push_str(tag_text);
             i = tag_end;
-        } else if !in_special_tag && bytes[i].is_ascii_whitespace() {
+        } else if bytes[i].is_ascii_whitespace() {
             // Collapse whitespace outside special tags
             while i < bytes.len() && bytes[i].is_ascii_whitespace() {
                 i += 1;
@@ -60,12 +65,9 @@ pub fn minify_html(html: &str) -> String {
             }
         } else {
             // Handle multi-byte UTF-8 correctly
-            if let Some(ch) = html[i..].chars().next() {
-                result.push(ch);
-                i += ch.len_utf8();
-            } else {
-                break;
-            }
+            let ch = html[i..].chars().next().unwrap();
+            result.push(ch);
+            i += ch.len_utf8();
         }
     }
 
@@ -92,7 +94,6 @@ mod tests {
     fn minify_preserves_pre_content() {
         let input = r#"<pre>  code   with   spaces  </pre>"#;
         let output = minify_html(input);
-        // Should preserve exact content in pre tags
         assert_eq!(output, input);
     }
 
@@ -100,7 +101,6 @@ mod tests {
     fn minify_preserves_code_content() {
         let input = r#"<code>  x =   1  </code>"#;
         let output = minify_html(input);
-        // Should preserve exact content in code tags
         assert_eq!(output, input);
     }
 
@@ -116,6 +116,13 @@ mod tests {
         let input = "<script>\n  const x = 1;\n  console.log(x);\n</script>";
         let output = minify_html(input);
         assert!(output.contains("const x = 1;"));
+    }
+
+    #[test]
+    fn minify_preserves_script_with_less_than() {
+        let input = "<script>for(var i=0;i<10;i++){}</script>";
+        let output = minify_html(input);
+        assert_eq!(output, input);
     }
 
     #[test]
