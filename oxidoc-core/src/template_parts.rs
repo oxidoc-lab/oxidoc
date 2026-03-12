@@ -32,7 +32,7 @@ gtag('config', '{}');
 
 /// Render the site footer from config, with optional attribution.
 pub fn render_footer(config: &OxidocConfig, theme: &crate::theme::ResolvedTheme) -> String {
-    let has_copyright = config.footer.copyright.is_some();
+    let has_copyright = config.footer.copyright_owner.is_some();
     let has_links = !config.footer.links.is_empty();
     let attribution = &config.attribution;
     let has_attribution = attribution.oxidoc || attribution.theme;
@@ -56,22 +56,30 @@ pub fn render_footer(config: &OxidocConfig, theme: &crate::theme::ResolvedTheme)
         html.push_str("</ul></nav>");
     }
 
-    if let Some(ref copyright) = config.footer.copyright {
-        let _ = write!(
-            html,
-            r#"<p class="oxidoc-footer-copyright">{}</p>"#,
-            crate::utils::html_escape(copyright)
-        );
-    }
-
-    // Attribution line
-    if has_attribution {
-        html.push_str(r#"<p class="oxidoc-footer-attribution">"#);
+    // Combined copyright + attribution line (Docusaurus-style)
+    // e.g., "Copyright © 2026 Oxidoc. Built with Oxidoc."
+    if has_copyright || has_attribution {
+        html.push_str(r#"<p class="oxidoc-footer-copyright">"#);
         let mut parts = Vec::new();
+
+        if let Some(ref owner) = config.footer.copyright_owner {
+            let year = chrono::Utc::now().format("%Y");
+            let owner_html = if let Some(ref url) = config.footer.copyright_owner_url {
+                format!(
+                    r#"<a href="{}">{}</a>"#,
+                    crate::utils::html_escape(url),
+                    crate::utils::html_escape(owner)
+                )
+            } else {
+                crate::utils::html_escape(owner)
+            };
+            parts.push(format!("Copyright \u{00a9} {year} {owner_html}."));
+        }
 
         if attribution.oxidoc {
             parts.push(
-                r#"Built with <a href="https://github.com/oxidoc/oxidoc">Oxidoc</a>"#.to_string(),
+                r#"Built with <a href="https://github.com/oxidoc-lab/oxidoc">Oxidoc</a>."#
+                    .to_string(),
             );
         }
 
@@ -81,28 +89,125 @@ pub fn render_footer(config: &OxidocConfig, theme: &crate::theme::ResolvedTheme)
                 (Some(url), Some(author)) => {
                     let safe_url = crate::utils::html_escape(url);
                     let safe_author = crate::utils::html_escape(author);
-                    format!(r#"Theme: <a href="{safe_url}">{theme_name}</a> by {safe_author}"#)
+                    format!(r#"Theme: <a href="{safe_url}">{theme_name}</a> by {safe_author}."#)
                 }
                 (Some(url), None) => {
                     let safe_url = crate::utils::html_escape(url);
-                    format!(r#"Theme: <a href="{safe_url}">{theme_name}</a>"#)
+                    format!(r#"Theme: <a href="{safe_url}">{theme_name}</a>."#)
                 }
                 (None, Some(author)) => {
                     let safe_author = crate::utils::html_escape(author);
-                    format!(r#"Theme: {theme_name} by {safe_author}"#)
+                    format!(r#"Theme: {theme_name} by {safe_author}."#)
                 }
                 (None, None) => {
-                    format!(r#"Theme: {theme_name}"#)
+                    format!(r#"Theme: {theme_name}."#)
                 }
             };
             parts.push(theme_part);
         }
 
-        let _ = write!(html, "{}", parts.join(" · "));
+        let _ = write!(html, "{}", parts.join(" "));
         html.push_str("</p>");
     }
 
     html.push_str("</footer>");
+    html
+}
+
+/// Info about adjacent pages for prev/next navigation.
+#[derive(Debug, Default)]
+pub struct PageNav {
+    pub prev: Option<(String, String)>, // (slug, title)
+    pub next: Option<(String, String)>,
+}
+
+/// Git metadata for a page.
+#[derive(Debug, Default)]
+pub struct PageGitMeta {
+    pub last_updated: Option<String>, // formatted date like "Mar 6, 2026"
+    pub last_author: Option<String>,
+}
+
+/// Render the page-bottom meta bar: "Edit this page" link, last-updated, and prev/next nav.
+pub fn render_page_meta(
+    config: &OxidocConfig,
+    slug: &str,
+    nav: &PageNav,
+    git_meta: &PageGitMeta,
+    homepage_slug: Option<&str>,
+) -> String {
+    let has_edit = config.project.edit_url.is_some();
+    let has_git = git_meta.last_updated.is_some();
+    let has_nav = nav.prev.is_some() || nav.next.is_some();
+
+    if !has_edit && !has_git && !has_nav {
+        return String::new();
+    }
+
+    let mut html = String::from(r#"<div class="oxidoc-page-meta">"#);
+
+    // Edit link + last updated row
+    if has_edit || has_git {
+        html.push_str(r#"<div class="oxidoc-page-meta-row">"#);
+        if let Some(ref base) = config.project.edit_url {
+            let view_href = format!("{}/{}.rdx?plain=1", base.trim_end_matches('/'), slug);
+            let _ = write!(
+                html,
+                r#"<a href="{}" class="oxidoc-edit-link" target="_blank" rel="noopener">{}</a>"#,
+                crate::utils::html_escape(&view_href),
+                crate::utils::html_escape(&config.project.edit_label)
+            );
+        } else {
+            html.push_str("<span></span>");
+        }
+        if let Some(ref date) = git_meta.last_updated {
+            html.push_str(r#"<span class="oxidoc-last-updated">Last updated on <strong>"#);
+            html.push_str(&crate::utils::html_escape(date));
+            html.push_str("</strong>");
+            if let Some(ref author) = git_meta.last_author {
+                html.push_str(" by ");
+                html.push_str(&crate::utils::html_escape(author));
+            }
+            html.push_str("</span>");
+        }
+        html.push_str("</div>");
+    }
+
+    // Prev/Next navigation
+    if has_nav {
+        html.push_str(r#"<nav class="oxidoc-page-nav" aria-label="Page navigation">"#);
+        if let Some((ref slug, ref title)) = nav.prev {
+            let href = if homepage_slug == Some(slug.as_str()) {
+                "/".to_string()
+            } else {
+                format!("/{}", crate::utils::html_escape(slug))
+            };
+            let _ = write!(
+                html,
+                r#"<a href="{href}" class="oxidoc-page-nav-prev"><span class="oxidoc-page-nav-label">Previous</span><span class="oxidoc-page-nav-title">&laquo; {}</span></a>"#,
+                crate::utils::html_escape(title)
+            );
+        } else {
+            html.push_str(r#"<span></span>"#);
+        }
+        if let Some((ref slug, ref title)) = nav.next {
+            let href = if homepage_slug == Some(slug.as_str()) {
+                "/".to_string()
+            } else {
+                format!("/{}", crate::utils::html_escape(slug))
+            };
+            let _ = write!(
+                html,
+                r#"<a href="{href}" class="oxidoc-page-nav-next"><span class="oxidoc-page-nav-label">Next</span><span class="oxidoc-page-nav-title">{} &raquo;</span></a>"#,
+                crate::utils::html_escape(title)
+            );
+        } else {
+            html.push_str(r#"<span></span>"#);
+        }
+        html.push_str("</nav>");
+    }
+
+    html.push_str("</div>");
     html
 }
 
@@ -193,7 +298,7 @@ mod tests {
 name = "T"
 
 [footer]
-copyright = "2024 Acme"
+copyright_owner = "Acme"
 
 [[footer.links]]
 label = "GitHub"
@@ -201,7 +306,8 @@ href = "https://github.com""#,
         )
         .unwrap();
         let html = render_footer(&config, &test_theme());
-        assert!(html.contains("2024 Acme"));
+        assert!(html.contains("Acme"));
+        assert!(html.contains("Copyright ©"));
         assert!(html.contains("GitHub"));
         assert!(html.contains("oxidoc-footer"));
     }

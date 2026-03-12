@@ -39,6 +39,12 @@ pub struct ProjectConfig {
     pub base_url: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Base URL for source/edit links, e.g. "https://github.com/org/repo/blob/main/docs"
+    #[serde(default)]
+    pub edit_url: Option<String>,
+    /// Label for the source link (default: "View page source")
+    #[serde(default = "default_edit_label")]
+    pub edit_label: String,
     /// When true, each statically-rendered component shows a debug outline
     /// so you can visually identify which components are static vs wasm-hydrated.
     #[serde(default)]
@@ -203,8 +209,12 @@ pub struct ComponentsConfig {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct FooterConfig {
+    /// Copyright owner name (e.g., "Oxidoc"). Auto-generates "Copyright © {year} {owner}."
     #[serde(default)]
-    pub copyright: Option<String>,
+    pub copyright_owner: Option<String>,
+    /// Optional URL for the copyright owner name.
+    #[serde(default)]
+    pub copyright_owner_url: Option<String>,
     #[serde(default)]
     pub links: Vec<FooterLink>,
 }
@@ -258,6 +268,10 @@ impl Default for AttributionConfig {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_edit_label() -> String {
+    "View page source".to_string()
 }
 
 /// Load and validate `oxidoc.toml` from a project root.
