@@ -1,8 +1,11 @@
 pub mod accordion;
+pub mod badge;
 pub mod callout;
 pub mod card_grid;
 pub mod code_block;
+pub mod steps;
 pub mod tabs;
+pub mod themed_image;
 
 use oxidoc_island::IslandError;
 use serde::de::DeserializeOwned;

@@ -4,8 +4,11 @@ use std::fmt::Write;
 
 use crate::island_props::build_hydration_props;
 use crate::static_render::{
-    debug_wrap, render_static_accordion, render_static_callout, render_static_card,
-    render_static_card_grid, render_static_code_block, render_static_tab, render_static_tabs,
+    debug_wrap, render_static_accordion, render_static_badge, render_static_banner,
+    render_static_callout, render_static_card, render_static_card_grid, render_static_code_block,
+    render_static_feature, render_static_feature_grid, render_static_head, render_static_hero,
+    render_static_hero_action, render_static_step, render_static_steps, render_static_tab,
+    render_static_tabs, render_static_tag, render_static_themed_image, render_static_tooltip,
 };
 
 /// Rendering context threaded through all render functions.
@@ -236,6 +239,18 @@ fn render_island_component(
         "Callout" => render_static_callout(&props, children, out, ctx),
         "CardGrid" => render_static_card_grid(children, out, ctx),
         "Card" => render_static_card(&props, children, out, ctx),
+        "Steps" => render_static_steps(children, out, ctx),
+        "Step" => render_static_step(&props, children, out, ctx),
+        "Badge" => render_static_badge(&props, children, out, ctx),
+        "ThemedImage" => render_static_themed_image(&props, out),
+        "Tooltip" => render_static_tooltip(&props, children, out, ctx),
+        "Banner" => render_static_banner(&props, children, out, ctx),
+        "Tag" => render_static_tag(&props, children, out, ctx),
+        "Hero" => render_static_hero(&props, children, out, ctx),
+        "HeroAction" => render_static_hero_action(&props, children, out, ctx),
+        "FeatureGrid" => render_static_feature_grid(children, out, ctx),
+        "Feature" => render_static_feature(&props, children, out, ctx),
+        "Head" => render_static_head(&props, children, out, ctx),
         // Hydration-required components — SSR inside <oxidoc-island> for wasm to hydrate
         "Tabs" | "Tab" | "Accordion" | "CodeBlock" => {
             let hydration_props = build_hydration_props(name, &props, children, raw_content, ctx);
