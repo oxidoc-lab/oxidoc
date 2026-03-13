@@ -1,24 +1,28 @@
-# Welcome
+---
+title: Welcome to Oxidoc
+---
 
-Welcome to your new documentation site, powered by **Oxidoc**.
+<Hero>
+<HeroAction label="Get Started" href="/quickstart" variant="primary" />
+<HeroAction label="View on GitHub" href="https://github.com/oxidoc/oxidoc" variant="secondary" />
 
-<Callout kind="info" title="What is Oxidoc?">
 Oxidoc is a documentation engine written in Rust. It generates fast static sites with interactive WebAssembly components.
-</Callout>
+</Hero>
 
-## Features
-
-<CardGrid>
-<Card title="Fast Builds">
+<FeatureGrid>
+<Feature icon="⚡" title="Fast Builds">
 Sub-second builds for thousands of pages with incremental rebuilds.
-</Card>
-<Card title="Interactive Islands">
+</Feature>
+<Feature icon="🧩" title="Interactive Islands">
 Wasm-powered components like tabs, code blocks, and API playgrounds.
-</Card>
-<Card title="Search Built-in">
+</Feature>
+<Feature icon="🔍" title="Search Built-in">
 Hybrid lexical + semantic search with zero external dependencies.
-</Card>
-</CardGrid>
+</Feature>
+<Feature icon="📦" title="Zero Config">
+Works out of the box with sensible defaults. Customize when you need to.
+</Feature>
+</FeatureGrid>
 
 ## Next Steps
 

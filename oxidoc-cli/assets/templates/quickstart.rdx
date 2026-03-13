@@ -1,54 +1,38 @@
+---
+title: Quickstart
+---
+
 # Quickstart
 
 ## Writing Content
 
-Create `.rdx` files in the `docs/` directory. RDX is Markdown with embedded components:
-
-```rdx
-<Callout kind="warning" title="Heads up">
-  Components are embedded directly in your Markdown content.
-</Callout>
-```
+Create `.rdx` files in the `docs/` directory. RDX is Markdown with embedded components.
 
 <Callout kind="warning" title="Heads up">
-Components are embedded directly in your Markdown content.
+Components are embedded directly in your Markdown content. View the source of this page for examples.
 </Callout>
 
-## Available Components
+## Components
 
 ### Callout
 
-Display info, warnings, errors, or tips:
+Highlighted blocks for notes, warnings, tips, and errors. Use `title` for the header and `kind` for the style: `info`, `warning`, `error`, `tip`.
 
-```rdx
-<Callout kind="info" title="Note">
-  Your message here.
-</Callout>
-```
-
-<Callout kind="info" title="Note">
-Your message here.
+<Callout kind="info" title="Info">
+This is an informational callout.
 </Callout>
 
-Variants: `info`, `warning`, `error`, `tip`
+<Callout kind="tip" title="Tip">
+This is a helpful tip.
+</Callout>
+
+<Callout kind="error" title="Error">
+This highlights an error or danger.
+</Callout>
 
 ### Tabs
 
-Group content into switchable tabs:
-
-```rdx
-<Tabs>
-  <Tab title="npm">
-    npm install oxidoc
-  </Tab>
-  <Tab title="yarn">
-    yarn add oxidoc
-  </Tab>
-  <Tab title="pnpm">
-    pnpm add oxidoc
-  </Tab>
-</Tabs>
-```
+Switchable content panels. Each `Tab` needs a `title`. Selection persists via localStorage when a `group` is set.
 
 <Tabs>
 <Tab title="npm">
@@ -64,15 +48,7 @@ pnpm add oxidoc
 
 ### CodeBlock
 
-Code with syntax highlighting, filename header, and copy button:
-
-```rdx
-<CodeBlock language="rust" filename="main.rs" highlight="2">
-  fn main() {
-      println!("Hello, Oxidoc!");
-  }
-</CodeBlock>
-```
+Syntax-highlighted code with optional `filename` header, `language` tag, and line `highlight`.
 
 <CodeBlock language="rust" filename="main.rs" highlight="2">
 fn main() {
@@ -82,52 +58,94 @@ fn main() {
 
 ### Accordion
 
-Collapsible content sections:
+Collapsible sections. Use `title` for the trigger text. Multiple accordions are independent by default.
 
-```rdx
 <Accordion title="Click to expand">
-  Hidden content goes here.
+Hidden content goes here. You can put any content inside an accordion.
 </Accordion>
-```
 
-<Accordion title="Click to expand">
-Hidden content goes here.
+<Accordion title="Another section">
+More hidden content.
 </Accordion>
 
 ### CardGrid
 
-Responsive grid of linked cards:
-
-```rdx
-<CardGrid>
-  <Card title="First" href="/page-1">
-    Description here.
-  </Card>
-  <Card title="Second" href="/page-2">
-    Another card.
-  </Card>
-</CardGrid>
-```
+Responsive grid of cards. Each `Card` supports `title`, `icon`, `href` (makes it a link), and body content.
 
 <CardGrid>
-<Card title="First">Description here.</Card>
-<Card title="Second">Another card.</Card>
+<Card title="Getting Started" icon="🚀" href="/quickstart">
+Learn the basics of Oxidoc.
+</Card>
+<Card title="Components" icon="🧩">
+Explore all available components.
+</Card>
+<Card title="Configuration" icon="⚙️">
+Customize your documentation site.
+</Card>
 </CardGrid>
+
+### Steps
+
+Numbered step-by-step instructions with a connecting line. Each `Step` takes a `title`.
+
+<Steps>
+<Step title="Install Oxidoc">
+Run `cargo install oxidoc-cli` or use your package manager.
+</Step>
+<Step title="Initialize a project">
+Run `oxidoc init my-docs` to scaffold a new documentation site.
+</Step>
+<Step title="Start writing">
+Create `.rdx` files in the `docs/` directory and run `oxidoc dev`.
+</Step>
+</Steps>
+
+### Badge
+
+Inline status pill. Use `variant` to set the color: `info`, `tip`, `warning`, `danger`, `new`, `deprecated`.
+
+This feature is <Badge variant="new">New</Badge> in v2.0.
+
+The old API is <Badge variant="deprecated">Deprecated</Badge>.
+
+Status: <Badge variant="tip">Stable</Badge> <Badge variant="warning">Beta</Badge> <Badge variant="danger">Experimental</Badge>
+
+### Tooltip
+
+Hover/focus popup for definitions or abbreviations. Set the tooltip content with the `text` prop.
+
+Oxidoc uses <Tooltip text="WebAssembly — a binary instruction format for stack-based virtual machines">Wasm</Tooltip> for interactive components.
+
+### Tag
+
+Uppercase inline label for categorization. Use `variant` to set the color: `info`, `tip`, `warning`, `danger`, `new`, `experimental`, `deprecated`.
+
+<Tag variant="new">new</Tag> <Tag variant="experimental">experimental</Tag> <Tag variant="deprecated">deprecated</Tag>
+
+### ThemedImage
+
+Swaps images based on the user's color scheme. Use `light` and `dark` for the two sources. Supports `width`, `height`, and `alt`.
+
+<ThemedImage light="/assets/logo.svg" dark="/assets/logo.svg" alt="Logo" width="120" />
+
+### Banner
+
+Dismissible announcement bar. The `persist` prop controls what happens after dismissing:
+
+- `none` (default) — reappears on every page load
+- `session` — stays dismissed for the browser session
+- `forever` — stays dismissed permanently
+
+Set `dismissible` to `false` to remove the close button entirely.
+
+<Banner id="welcome-banner">
+Welcome to the Oxidoc documentation! Star us on GitHub.
+</Banner>
 
 ## Development Server
 
-Run `oxidoc dev` to start a local server with hot reload:
-
-```bash
-oxidoc dev
-```
-
-Edit any `.rdx` file and the browser refreshes automatically.
+Run `oxidoc dev` to start a local server with hot reload. Edit any `.rdx` file and the browser refreshes automatically.
 
 ## Building for Production
 
-```bash
-oxidoc build
-```
-
-Your site is generated in `dist/` — deploy it anywhere.
+Run `oxidoc build` and your site is generated in `dist/` — deploy it anywhere.
