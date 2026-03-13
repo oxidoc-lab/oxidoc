@@ -1,4 +1,22 @@
 /* Typography */
+.oxidoc-heading { position: relative; }
+.oxidoc-heading-anchor {
+    position: absolute;
+    left: -1.5em;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    color: var(--oxidoc-text-muted);
+    text-decoration: none !important;
+    transition: opacity 0.15s;
+    padding: 0.25em;
+}
+.oxidoc-heading:hover .oxidoc-heading-anchor { opacity: 1; }
+.oxidoc-heading-anchor:hover { color: var(--oxidoc-primary); }
+@media (hover: none) and (pointer: coarse) {
+    .oxidoc-heading-anchor { opacity: 0.6; }
+}
+
 article h1 { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; line-height: 1.2; }
 article h2 {
     font-size: 1.5rem;

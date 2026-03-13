@@ -48,7 +48,11 @@ pub(crate) fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
             let id = h.id.clone().unwrap_or_else(|| {
                 crate::utils::heading_anchor(&crate::utils::extract_plain_text(node))
             });
-            let _ = write!(out, r#"<h{level} id="{id}">"#);
+            let _ = write!(out, "<h{level} id=\"{id}\" class=\"oxidoc-heading\">");
+            let _ = write!(
+                out,
+                "<a href=\"#{id}\" class=\"oxidoc-heading-anchor\" aria-label=\"Link to this section\"><iconify-icon icon=\"lucide:link\" width=\"0.75em\" height=\"0.75em\"></iconify-icon></a>"
+            );
             render_children(&h.children, out, ctx);
             let _ = write!(out, "</h{level}>");
         }
@@ -363,8 +367,10 @@ mod tests {
     fn render_heading_with_anchor() {
         let root = rdx_parser::parse("# Getting Started");
         let html = render_document(&root, &HashMap::new(), false);
-        assert!(html.contains(r#"<h1 id="getting-started">"#));
+        assert!(html.contains(r#"<h1 id="getting-started" class="oxidoc-heading">"#));
         assert!(html.contains("Getting Started"));
+        assert!(html.contains(r#"class="oxidoc-heading-anchor""#));
+        assert!(html.contains("href=\"#getting-started\""));
     }
 
     #[test]
