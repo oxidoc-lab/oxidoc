@@ -1,0 +1,57 @@
+---
+title: Library API Documentation
+---
+
+# Library API Documentation
+
+This section demonstrates how to write **manual API documentation** using Oxidoc. Unlike the auto-generated [API Reference](/api) which parses an OpenAPI spec, manual API docs give you full control over the content and layout.
+
+<Callout kind="info" title="When to use manual API docs">
+Manual API docs are ideal for:
+- Libraries and packages (Rust crates, npm packages, Python modules)
+- Projects with only a few endpoints that don't need a full OpenAPI spec
+- Internal tools where you want richer explanations than a spec provides
+- SDK documentation with code examples in multiple languages
+</Callout>
+
+## How It Works
+
+This entire `/lib` section lives in a separate `lib/` content directory — independent from the main `docs/` directory. Oxidoc supports multiple content directories, each with its own sidebar and URL path.
+
+Here is the config that powers this section:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[routing]
+header_links = [
+  { label = "Docs", href = "/" },
+  { label = "Lib", href = "/lib" },
+  { label = "API", href = "/api" },
+]
+navigation = [
+  { path = "/", dir = "docs", groups = [...] },
+  { path = "/lib", dir = "lib", groups = [
+    { group = "Library API", pages = [
+      "index",
+      "manual-api",
+      "library-example",
+    ] },
+  ] },
+  { path = "/api", openapi = "./openapi.yaml" },
+]
+</CodeBlock>
+
+Key points:
+
+- `dir = "lib"` tells Oxidoc to scan the `lib/` directory for `.rdx` files
+- Each content directory gets its own sidebar navigation
+- Search works across **all** sections — docs, lib, and API pages are all searchable together
+- You can add as many content directories as you need
+
+<CardGrid>
+<Card title="Manual API Guide" icon="📝" href="/lib/manual-api">
+Learn how to write API documentation manually in RDX.
+</Card>
+<Card title="Library Example" icon="📦" href="/lib/library-example">
+A complete example documenting a library's public API.
+</Card>
+</CardGrid>

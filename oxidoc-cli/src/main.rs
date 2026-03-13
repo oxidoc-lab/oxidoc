@@ -211,9 +211,14 @@ fn run_init(
 
     // Create directories
     let docs_dir = target.join("docs");
+    let lib_dir = target.join("lib");
     let assets_dir = target.join("assets");
+    let deploy_dir = docs_dir.join("deployment");
     std::fs::create_dir_all(&docs_dir)
         .map_err(|e| miette::miette!("Failed to create docs/: {e}"))?;
+    std::fs::create_dir_all(&deploy_dir)
+        .map_err(|e| miette::miette!("Failed to create docs/deployment/: {e}"))?;
+    std::fs::create_dir_all(&lib_dir).map_err(|e| miette::miette!("Failed to create lib/: {e}"))?;
     std::fs::create_dir_all(&assets_dir)
         .map_err(|e| miette::miette!("Failed to create assets/: {e}"))?;
 
@@ -248,6 +253,34 @@ fn run_init(
         include_str!("../assets/templates/advanced.rdx"),
     )?;
     write_file(
+        &docs_dir.join("deployment.rdx"),
+        include_str!("../assets/templates/deployment.rdx"),
+    )?;
+    write_file(
+        &deploy_dir.join("github-pages.rdx"),
+        include_str!("../assets/templates/deployment-github-pages.rdx"),
+    )?;
+    write_file(
+        &deploy_dir.join("vercel.rdx"),
+        include_str!("../assets/templates/deployment-vercel.rdx"),
+    )?;
+    write_file(
+        &deploy_dir.join("netlify.rdx"),
+        include_str!("../assets/templates/deployment-netlify.rdx"),
+    )?;
+    write_file(
+        &lib_dir.join("index.rdx"),
+        include_str!("../assets/templates/lib-index.rdx"),
+    )?;
+    write_file(
+        &lib_dir.join("manual-api.rdx"),
+        include_str!("../assets/templates/lib-manual-api.rdx"),
+    )?;
+    write_file(
+        &lib_dir.join("library-example.rdx"),
+        include_str!("../assets/templates/lib-library-example.rdx"),
+    )?;
+    write_file(
         &target.join("openapi.yaml"),
         &include_str!("../assets/templates/openapi.yaml").replace("{project_name}", project_name),
     )?;
@@ -272,12 +305,13 @@ fn run_init(
         eprintln!("Initialized Oxidoc project");
     }
     eprintln!();
-    eprintln!("  oxidoc.toml            — site configuration");
-    eprintln!("  openapi.yaml           — sample API spec (replace with your own)");
-    eprintln!("  assets/logo.svg        — default logo (replace with your own)");
-    eprintln!("  docs/intro.rdx         — landing page");
-    eprintln!("  docs/quickstart.rdx    — getting started guide");
-    eprintln!("  docs/api-reference.rdx — API documentation guide");
+    eprintln!("  oxidoc.toml              — site configuration");
+    eprintln!("  openapi.yaml             — sample API spec (replace with your own)");
+    eprintln!("  assets/logo.svg          — default logo (replace with your own)");
+    eprintln!("  docs/                    — main documentation pages");
+    eprintln!("  docs/deployment.rdx      — deployment guide (GitHub Pages, Vercel, Netlify)");
+    eprintln!("  lib/                     — library API documentation (separate section)");
+    eprintln!("  lib/library-example.rdx  — example: documenting a library API");
     eprintln!();
     if let Some(n) = name {
         eprintln!("Get started:");

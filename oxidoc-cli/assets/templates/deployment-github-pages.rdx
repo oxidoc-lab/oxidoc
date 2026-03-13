@@ -1,0 +1,83 @@
+---
+title: GitHub Pages
+---
+
+# GitHub Pages
+
+GitHub Pages is free for public repositories and supports custom domains. It integrates directly with GitHub Actions for automated deployments.
+
+<Steps>
+<Step title="Create a GitHub Actions workflow">
+
+Create `.github/workflows/deploy.yml` in your repository:
+
+<CodeBlock language="yaml" filename=".github/workflows/deploy.yml">
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Oxidoc
+        run: cargo install oxidoc-cli
+
+      - name: Build site
+        run: oxidoc build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+</CodeBlock>
+
+</Step>
+<Step title="Enable GitHub Pages">
+
+Go to your repository **Settings > Pages**. Under **Source**, select **GitHub Actions**.
+
+</Step>
+<Step title="Push and deploy">
+
+Push to `main` and the workflow will build and deploy your site automatically.
+
+</Step>
+</Steps>
+
+<Callout kind="tip" title="Custom domain">
+To use a custom domain, add a `CNAME` file in your `assets/` directory with your domain name. Oxidoc copies everything in `assets/` to the output, so it will end up in `dist/` automatically.
+</Callout>
+
+<Callout kind="info" title="Base URL">
+If your site is hosted at a subpath (e.g., `https://user.github.io/repo-name/`), set `base_url` in your `oxidoc.toml`:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[project]
+base_url = "https://user.github.io/repo-name"
+</CodeBlock>
+</Callout>

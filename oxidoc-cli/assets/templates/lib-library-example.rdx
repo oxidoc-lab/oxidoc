@@ -1,0 +1,186 @@
+---
+title: Library API Example
+---
+
+# Library API Example
+
+This page shows a complete example of documenting a library's public API using manual RDX documentation. We'll document a fictional `oxidoc-store` key-value storage library.
+
+---
+
+## oxidoc-store
+
+A fast, typed key-value store for Rust applications.
+
+<CodeBlock language="bash">
+cargo add oxidoc-store
+</CodeBlock>
+
+---
+
+## `Store::new`
+
+Create a new in-memory store.
+
+<CodeBlock language="rust" filename="lib.rs">
+use oxidoc_store::Store;
+
+let store = Store::new();
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| _(none)_ | — | Creates an empty store with default settings |
+
+**Returns:** `Store` — A new store instance.
+
+---
+
+## `Store::with_capacity`
+
+Create a store with pre-allocated capacity.
+
+<CodeBlock language="rust" filename="lib.rs">
+let store = Store::with_capacity(1000);
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `capacity` | `usize` | Number of entries to pre-allocate |
+
+**Returns:** `Store` — A new store with the given capacity.
+
+<Callout kind="tip" title="Performance">
+Use `with_capacity` when you know the approximate number of entries to avoid reallocations.
+</Callout>
+
+---
+
+## `Store::set` <Badge variant="tip">Stable</Badge>
+
+Insert or update a key-value pair.
+
+<CodeBlock language="rust" filename="lib.rs">
+store.set("user:1", User { name: "Alice", age: 30 });
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `key` | `&str` | The key to store under |
+| `value` | `impl Serialize` | The value to store (must implement `serde::Serialize`) |
+
+**Returns:** `Option<Value>` — The previous value if the key already existed, or `None`.
+
+---
+
+## `Store::get` <Badge variant="tip">Stable</Badge>
+
+Retrieve a value by key.
+
+<CodeBlock language="rust" filename="lib.rs">
+let user: Option<User> = store.get("user:1");
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `key` | `&str` | The key to look up |
+
+**Returns:** `Option<T>` — The value deserialized to type `T`, or `None` if not found.
+
+---
+
+## `Store::delete`
+
+Remove a key-value pair.
+
+<CodeBlock language="rust" filename="lib.rs">
+let removed: bool = store.delete("user:1");
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `key` | `&str` | The key to remove |
+
+**Returns:** `bool` — `true` if the key existed and was removed.
+
+---
+
+## `Store::list` <Badge variant="warning">Beta</Badge>
+
+List all keys matching a prefix.
+
+<CodeBlock language="rust" filename="lib.rs">
+let user_keys: Vec<String> = store.list("user:");
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `prefix` | `&str` | Key prefix to filter by |
+
+**Returns:** `Vec<String>` — All keys starting with the given prefix.
+
+---
+
+## `Store::persist` <Badge variant="new">New</Badge>
+
+Save the store to disk.
+
+<CodeBlock language="rust" filename="lib.rs">
+store.persist("./data/store.bin")?;
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `path` | `impl AsRef<Path>` | File path to write to |
+
+**Returns:** `Result<()>` — Error if the file cannot be written.
+
+<Callout kind="warning" title="File locking">
+`persist` acquires an exclusive file lock. Do not call from multiple processes simultaneously.
+</Callout>
+
+---
+
+## `Store::load`
+
+Load a store from a previously persisted file.
+
+<CodeBlock language="rust" filename="lib.rs">
+let store = Store::load("./data/store.bin")?;
+</CodeBlock>
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `path` | `impl AsRef<Path>` | File path to read from |
+
+**Returns:** `Result<Store>` — The restored store, or an error if the file is missing or corrupt.
+
+---
+
+## Full Example
+
+<CodeBlock language="rust" filename="main.rs" highlight="5,8,11">
+use oxidoc_store::Store;
+use serde::{Serialize, Deserialize};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let store = Store::new();
+
+    // Insert data
+    store.set("config:theme", "dark");
+    store.set("config:lang", "en");
+
+    // Retrieve
+    let theme: Option<String> = store.get("config:theme");
+    println!("Theme: {:?}", theme);
+
+    // List by prefix
+    let configs = store.list("config:");
+    println!("Config keys: {:?}", configs);
+
+    // Persist to disk
+    store.persist("./app.store")?;
+
+    Ok(())
+}
+</CodeBlock>

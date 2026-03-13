@@ -1,0 +1,40 @@
+---
+title: Netlify
+---
+
+# Netlify
+
+Netlify offers continuous deployment with branch previews and form handling.
+
+<Steps>
+<Step title="Connect your repository">
+
+Go to [netlify.com](https://netlify.com), click **Add new site > Import an existing project**, and select your repository.
+
+</Step>
+<Step title="Configure build settings">
+
+Set the following:
+
+| Setting | Value |
+|:--------|:------|
+| **Build Command** | `cargo install oxidoc-cli && oxidoc build` |
+| **Publish Directory** | `dist` |
+
+</Step>
+<Step title="Deploy">
+
+Click **Deploy site**. Netlify builds and deploys on every push. Branch deploys and deploy previews are enabled by default.
+
+</Step>
+</Steps>
+
+<Callout kind="tip" title="netlify.toml">
+You can also configure builds with a `netlify.toml` file in your repository root:
+
+<CodeBlock language="toml" filename="netlify.toml">
+[build]
+  command = "cargo install oxidoc-cli && oxidoc build"
+  publish = "dist"
+</CodeBlock>
+</Callout>

@@ -1,0 +1,25 @@
+---
+title: Deployment
+---
+
+# Deployment
+
+Oxidoc generates a fully static site in the `dist/` directory. Run the build command:
+
+<CodeBlock language="bash">
+oxidoc build
+</CodeBlock>
+
+This produces a `dist/` folder with all HTML, CSS, JS, and Wasm files ready to serve. Deploy it to any static hosting provider.
+
+<CardGrid>
+<Card title="GitHub Pages" icon="🐙" href="/deployment/github-pages">
+Free hosting for public repos with GitHub Actions CI/CD.
+</Card>
+<Card title="Vercel" icon="▲" href="/deployment/vercel">
+Instant deployments with preview URLs for every pull request.
+</Card>
+<Card title="Netlify" icon="🌐" href="/deployment/netlify">
+Continuous deployment with branch previews and form handling.
+</Card>
+</CardGrid>

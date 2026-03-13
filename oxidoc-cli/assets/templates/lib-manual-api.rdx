@@ -1,0 +1,121 @@
+---
+title: Writing Manual API Docs
+---
+
+# Writing Manual API Docs
+
+When your project doesn't have an OpenAPI spec — or when you want more control over how your API is presented — you can write API documentation manually using RDX components. This page shows the patterns you can use.
+
+## Documenting an Endpoint
+
+Use a combination of headings, code blocks, tables, and callouts to describe each endpoint clearly. Here is a complete example of a single endpoint documented manually:
+
+---
+
+### `POST /api/users` <Badge variant="tip">Stable</Badge>
+
+Create a new user account.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|:----------|:-----|:---------|:------------|
+| `name` | string | Yes | The user's display name |
+| `email` | string | Yes | Email address |
+| `role` | string | No | Role assignment (default: `"member"`) |
+
+**Request body**
+
+```json
+{
+  "name": "Alice",
+  "email": "alice@example.com",
+  "role": "admin"
+}
+```
+
+**Response (201 Created)**
+
+```json
+{
+  "id": 42,
+  "name": "Alice",
+  "email": "alice@example.com",
+  "role": "admin",
+  "created_at": "2025-01-15T10:30:00Z"
+}
+```
+
+**Code examples**
+
+<Tabs>
+<Tab title="curl">
+```bash
+curl -X POST https://api.example.com/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Alice", "email": "alice@example.com"}'
+```
+</Tab>
+<Tab title="JavaScript">
+```javascript
+const response = await fetch("https://api.example.com/api/users", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: "Alice", email: "alice@example.com" }),
+});
+```
+</Tab>
+<Tab title="Python">
+```python
+import requests
+
+response = requests.post(
+    "https://api.example.com/api/users",
+    json={"name": "Alice", "email": "alice@example.com"},
+)
+```
+</Tab>
+</Tabs>
+
+<Callout kind="info" title="Authentication">
+This endpoint requires a valid API key in the `Authorization` header.
+</Callout>
+
+---
+
+## Patterns Used Above
+
+The example above uses these RDX features — all of which you can see in action on this page:
+
+- **Headings** with inline code for the method and path
+- **Badge** component to show endpoint status (Stable, Beta, Deprecated)
+- **Tables** for parameters
+- **Fenced code blocks** for request/response JSON
+- **Tabs** for multi-language code examples
+- **Callout** for authentication notes
+
+## Organizing API Docs
+
+For larger APIs, use sidebar groups to organize endpoints by resource:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+{ path = "/lib", dir = "lib", groups = [
+  { group = "Overview", pages = ["index"] },
+  { group = "Users", pages = ["users/create", "users/list", "users/get"] },
+  { group = "Projects", pages = ["projects/create", "projects/list"] },
+] }
+</CodeBlock>
+
+Each page in `lib/users/create.rdx` documents one endpoint or a closely related set of endpoints.
+
+## Tips
+
+<Callout kind="tip" title="Badges for status">
+Use Badge components to mark endpoint status:
+
+<Badge variant="tip">Stable</Badge> <Badge variant="warning">Beta</Badge> <Badge variant="deprecated">Deprecated</Badge>
+</Callout>
+
+<Callout kind="tip" title="Callouts for auth">
+Use Callout blocks to highlight authentication requirements, rate limits, or other important notes that apply to specific endpoints.
+</Callout>

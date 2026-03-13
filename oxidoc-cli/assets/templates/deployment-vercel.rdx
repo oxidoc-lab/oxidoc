@@ -1,0 +1,35 @@
+---
+title: Vercel
+---
+
+# Vercel
+
+Vercel provides instant deployments with preview URLs for every pull request.
+
+<Steps>
+<Step title="Import your repository">
+
+Go to [vercel.com](https://vercel.com), click **Add New Project**, and import your GitHub repository.
+
+</Step>
+<Step title="Configure build settings">
+
+Set the following in the project settings:
+
+| Setting | Value |
+|:--------|:------|
+| **Build Command** | `cargo install oxidoc-cli && oxidoc build` |
+| **Output Directory** | `dist` |
+| **Install Command** | _(leave empty)_ |
+
+</Step>
+<Step title="Deploy">
+
+Click **Deploy**. Vercel will build and deploy your site. Every push to `main` triggers a production deploy, and pull requests get preview URLs.
+
+</Step>
+</Steps>
+
+<Callout kind="info" title="Build cache">
+Vercel caches the Cargo install. Subsequent builds are faster since `oxidoc-cli` is already compiled.
+</Callout>

@@ -13,6 +13,7 @@ dark_mode = "system"
 homepage = "intro"
 header_links = [
   { label = "Docs", href = "/" },
+  { label = "Lib", href = "/lib" },
   { label = "API", href = "/api" },
 ]
 navigation = [
@@ -23,9 +24,25 @@ navigation = [
       "api-reference",
       "advanced",
     ] },
+    { group = "Deployment", pages = [
+      "deployment",
+      "deployment/github-pages",
+      "deployment/vercel",
+      "deployment/netlify",
+    ] },
+  ] },
+  { path = "/lib", dir = "lib", groups = [
+    { group = "Library API", pages = [
+      "index",
+      "manual-api",
+      "library-example",
+    ] },
   ] },
   { path = "/api", openapi = "./openapi.yaml" },
 ]
+
+[search]
+semantic = true
 
 [social]
 github = "https://github.com/oxidoc-lab/oxidoc"
