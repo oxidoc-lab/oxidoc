@@ -379,8 +379,17 @@ pub fn build_site_with_model(
     }
     generate_seo_files(&nav_groups, &config, output_dir)?;
 
-    // Generate folder index redirects for directories with child pages but no index.rdx
-    generate_folder_redirects(&nav_groups, output_dir)?;
+    // Generate category index pages for folders with children but no index.rdx
+    let folder_ctx = FolderIndexContext {
+        config: &config,
+        assets: &assets,
+        search_provider: &search_provider,
+        theme: &resolved_theme,
+        i18n_state: &i18n_state,
+        homepage_slug: homepage_slug.as_deref(),
+        section_nav_map: &section_nav_map,
+    };
+    generate_folder_index_pages(&nav_groups, output_dir, &folder_ctx)?;
 
     // Generate 404 page for each locale
     for locale in &build_locales {
@@ -441,9 +450,18 @@ pub fn build_site_with_model(
     })
 }
 
-/// Generate redirect index.html files for directories that have child pages but no index page.
-/// For example, if `deployment/github-pages` exists but `deployment/index` doesn't,
-/// generate `deployment/index.html` that redirects to the first child page.
+/// Context for generating folder index/category pages.
+struct FolderIndexContext<'a> {
+    config: &'a Arc<crate::config::OxidocConfig>,
+    assets: &'a AssetConfig<'a>,
+    search_provider: &'a Arc<SearchProvider>,
+    theme: &'a Arc<crate::theme::ResolvedTheme>,
+    i18n_state: &'a Arc<crate::i18n::I18nState>,
+    homepage_slug: Option<&'a str>,
+    section_nav_map: &'a Arc<HashMap<String, Vec<crate::crawler::NavGroup>>>,
+}
+
+/// Write a redirect HTML page at `index_path` pointing to `target_url`.
 fn write_redirect_page(index_path: &Path, target_url: &str) -> Result<()> {
     if index_path.is_file() {
         return Ok(());
@@ -464,48 +482,132 @@ fn write_redirect_page(index_path: &Path, target_url: &str) -> Result<()> {
     Ok(())
 }
 
-fn generate_folder_redirects(
+/// Convert a hyphenated basename to title case (e.g. "getting-started" → "Getting Started").
+fn title_case(basename: &str) -> String {
+    basename
+        .split('-')
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                Some(ch) => {
+                    let upper: String = ch.to_uppercase().collect();
+                    format!("{upper}{}", chars.as_str())
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Generate category index pages for folders that have child pages but no dedicated index.rdx.
+/// These pages list all child pages in the folder as a proper navigable page.
+fn generate_folder_index_pages(
     nav_groups: &[crate::crawler::NavGroup],
     output_dir: &Path,
+    ctx: &FolderIndexContext<'_>,
 ) -> Result<()> {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashSet;
 
-    let all_slugs: Vec<&str> = nav_groups
-        .iter()
-        .flat_map(|g| g.pages.iter().map(|p| p.slug.as_str()))
-        .collect();
+    let all_pages: Vec<_> = nav_groups.iter().flat_map(|g| g.pages.iter()).collect();
 
-    // Collect all slugs that are "index" pages (either explicit index.rdx or standalone like "deployment")
+    let all_slugs: Vec<&str> = all_pages.iter().map(|p| p.slug.as_str()).collect();
+
+    // Folders that have an explicit index page
     let has_index: HashSet<&str> = all_slugs
         .iter()
         .filter(|s| s.ends_with("/index"))
         .map(|s| &s[..s.len() - "/index".len()])
         .collect();
 
-    // Find directories that have children but no index
-    let mut folder_first_child: HashMap<&str, &str> = HashMap::new();
-    for slug in &all_slugs {
-        if let Some(pos) = slug.rfind('/') {
-            let parent = &slug[..pos];
-            // Only set first child (pages are in navigation order)
-            folder_first_child.entry(parent).or_insert(slug);
+    // Collect children per folder (preserving navigation order)
+    let mut folder_children: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
+    for page in &all_pages {
+        if let Some(pos) = page.slug.rfind('/') {
+            let parent = &page.slug[..pos];
+            folder_children
+                .entry(parent)
+                .or_default()
+                .push((&page.slug, &page.title));
         }
     }
 
-    for (folder, first_child) in &folder_first_child {
-        // Skip if this folder already has an index page
+    for (folder, children) in &folder_children {
         if has_index.contains(folder) {
             continue;
         }
+
         let index_path = output_dir.join(folder).join("index.html");
-        // If the folder itself is a page (e.g., deployment.html exists), redirect to /folder
+        if index_path.is_file() {
+            continue;
+        }
+
+        // If the folder itself is a page (e.g., deployment.html), redirect trailing slash
         let folder_html = output_dir.join(format!("{folder}.html"));
         if folder_html.is_file() {
             write_redirect_page(&index_path, folder)?;
-        } else {
-            // No page at /folder and no index — redirect to first child
-            write_redirect_page(&index_path, first_child)?;
+            continue;
         }
+
+        // Generate a real category page
+        let basename = folder.rsplit('/').next().unwrap_or(folder);
+        let folder_title = title_case(basename);
+        let folder_title_escaped = crate::utils::html_escape(&folder_title);
+
+        // Build content HTML: list of child pages as cards
+        let mut content_html = format!(
+            "<h1 class=\"oxidoc-heading\">{folder_title_escaped}</h1><p>Browse the pages in this section:</p>"
+        );
+        content_html.push_str("<div class=\"oxidoc-card-grid\">");
+        for (slug, title) in children {
+            let slug_escaped = crate::utils::html_escape(slug);
+            let title_escaped = crate::utils::html_escape(title);
+            content_html.push_str(&format!(
+                "<a href=\"/{slug_escaped}\" class=\"oxidoc-card\"><div class=\"oxidoc-card-title\">{title_escaped}</div></a>"
+            ));
+        }
+        content_html.push_str("</div>");
+
+        // Get the sidebar for this folder's section
+        let sample_slug = children.first().map(|(s, _)| *s).unwrap_or(folder);
+        let sidebar_groups = ctx
+            .section_nav_map
+            .get(sample_slug)
+            .map(|g| g.as_slice())
+            .unwrap_or(nav_groups);
+        let sidebar_html = render_sidebar_with_homepage(sidebar_groups, "", ctx.homepage_slug);
+
+        let full_html = render_page(
+            ctx.config,
+            &folder_title,
+            &content_html,
+            "",
+            &sidebar_html,
+            "",
+            folder,
+            Some(&format!("Pages in the {folder_title} section")),
+            "",
+            ctx.assets,
+            "en",
+            ctx.i18n_state,
+            ctx.search_provider,
+            ctx.theme,
+        );
+
+        if let Some(parent) = index_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
+                path: parent.display().to_string(),
+                source: e,
+            })?;
+        }
+
+        let minified = minify_html(&full_html);
+        std::fs::write(&index_path, minified).map_err(|e| OxidocError::FileWrite {
+            path: index_path.display().to_string(),
+            source: e,
+        })?;
+
+        tracing::info!(folder = %folder, "Generated category index");
     }
 
     Ok(())
