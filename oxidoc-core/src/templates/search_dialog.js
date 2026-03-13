@@ -11,10 +11,14 @@
 
   var wasmModule = null;
   var indexLoaded = false;
+  var semanticReady = false;
+  var semanticLoading = false;
+  var semanticEnabled = false; // set true when search-vectors.json exists (semantic=true in config)
   var activeIdx = -1;
   var debounceTimer = null;
   var lastResultKey = "";
   var loadedChunks = {};
+  var aiMode = false; // true when user clicked "Ask AI"
 
   // Preload search result icons so they're cached before results render
   var searchIcons = ["material-symbols:tag-rounded", "material-symbols:description-rounded"];
@@ -27,14 +31,34 @@
     document.body.appendChild(el);
   });
 
+  // Probe whether semantic assets exist (non-blocking HEAD request)
+  function detectSemantic() {
+    var x = new XMLHttpRequest();
+    x.open("HEAD", "/search-vectors.json", true);
+    x.onload = function () {
+      if (x.status === 200) {
+        semanticEnabled = true;
+        // Re-render current results to show "Ask AI" row if query is active
+        var q = input.value.trim();
+        if (q && !aiMode) {
+          lastResultKey = ""; // force re-render
+          ensureSearch(function () {
+            ensureChunks(q, function () {
+              render(searchLexical(q), q);
+            });
+          });
+        }
+      }
+    };
+    x.send();
+  }
+
   // Load the Wasm search module and initialize with the metadata
   function ensureSearch(cb) {
     if (indexLoaded) return cb();
-    // Load wasm module
     var loadWasm = window.__oxidoc_search ? window.__oxidoc_search() : Promise.reject("no loader");
     loadWasm.then(function (mod) {
       wasmModule = mod;
-      // Fetch metadata binary
       var x = new XMLHttpRequest();
       x.open("GET", "/search-meta.bin", true);
       x.responseType = "arraybuffer";
@@ -44,6 +68,7 @@
             var data = new Uint8Array(x.response);
             wasmModule.oxidoc_search_init(data);
             indexLoaded = true;
+            detectSemantic();
           } catch (e) {
             console.error("[oxidoc-search] init failed:", e);
           }
@@ -96,6 +121,58 @@
     }
   }
 
+  // Load semantic resources (model + vectors). Called on demand when user clicks "Ask AI".
+  function loadSemantic(cb) {
+    if (semanticReady) return cb();
+    if (semanticLoading) {
+      // Already loading — queue callback
+      var check = setInterval(function () {
+        if (semanticReady) { clearInterval(check); cb(); }
+      }, 100);
+      return;
+    }
+    semanticLoading = true;
+
+    var vectorsReq = new XMLHttpRequest();
+    vectorsReq.open("GET", "/search-vectors.json", true);
+
+    var modelReq = new XMLHttpRequest();
+    modelReq.open("GET", "/search-model.gguf", true);
+    modelReq.responseType = "arraybuffer";
+
+    var vectorsText = null;
+    var modelData = null;
+    var done = 0;
+
+    function tryInit() {
+      done++;
+      if (done < 2) return;
+      if (!vectorsText || !modelData) { cb(); return; }
+      try {
+        wasmModule.oxidoc_search_load_semantic(new Uint8Array(modelData), vectorsText);
+        semanticReady = true;
+        console.log("[oxidoc-search] Semantic search enabled");
+      } catch (e) {
+        console.warn("[oxidoc-search] Semantic init failed:", e);
+      }
+      cb();
+    }
+
+    vectorsReq.onload = function () {
+      if (vectorsReq.status === 200) vectorsText = vectorsReq.responseText;
+      tryInit();
+    };
+    vectorsReq.onerror = function () { done++; tryInit(); };
+    modelReq.onload = function () {
+      if (modelReq.status === 200) modelData = modelReq.response;
+      tryInit();
+    };
+    modelReq.onerror = function () { done++; tryInit(); };
+
+    vectorsReq.send();
+    modelReq.send();
+  }
+
   function open() {
     overlay.hidden = false;
     document.body.style.overflow = "hidden";
@@ -105,6 +182,7 @@
     noResultsEl.classList.remove("visible");
     emptyEl.hidden = false;
     activeIdx = -1;
+    aiMode = false;
     setTimeout(function () {
       input.focus();
     }, 50);
@@ -116,8 +194,8 @@
     document.body.style.overflow = "";
   }
 
-  // Search via Wasm engine
-  function search(query) {
+  // Lexical-only search
+  function searchLexical(query) {
     if (!indexLoaded || !wasmModule) return [];
     try {
       var json = wasmModule.oxidoc_search_query(query, 20);
@@ -127,10 +205,23 @@
     }
   }
 
+  // Hybrid AI search (lexical + semantic via RRF)
+  function searchAI(query) {
+    if (!indexLoaded || !wasmModule) return [];
+    try {
+      var json = wasmModule.oxidoc_search_query_ai(query, 20);
+      return JSON.parse(json);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function highlight(text, query, highlightTerms) {
     if (!query) return text;
-    // Use matched terms from the search engine (includes fuzzy matches)
-    // plus the raw query terms as fallback
     var terms = query
       .toLowerCase()
       .split(/\s+/)
@@ -140,7 +231,6 @@
     if (highlightTerms && highlightTerms.length) {
       terms = terms.concat(highlightTerms);
     }
-    // Deduplicate
     var seen = {};
     terms = terms.filter(function (t) {
       if (seen[t]) return false;
@@ -150,7 +240,8 @@
     var escaped = terms.map(function (t) {
       return t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     });
-    if (!escaped.length) return text;
+    if (!escaped.length) return escapeHtml(text);
+    text = escapeHtml(text);
     var patterns = [];
     if (escaped.length > 1) {
       patterns.push(escaped.join("\\s*"));
@@ -178,25 +269,75 @@
     }
   }
 
-  function render(results, query) {
-    // Skip re-render if results haven't changed (prevents icon blink)
-    var key = results.map(function (r) { return r.path; }).join("|");
-    if (key === lastResultKey && query) {
-      // Same results, different query — update highlights in-place
-      updateHighlights(results, query);
-      return;
-    }
-    lastResultKey = key;
+  // Create the "Ask AI" row element
+  function createAskAIRow(query) {
+    var row = document.createElement("button");
+    row.className = "oxidoc-search-ask-ai";
+    row.type = "button";
+    row.innerHTML =
+      '<iconify-icon icon="material-symbols:auto-awesome" width="18" height="18" class="oxidoc-search-ask-ai-icon"></iconify-icon>' +
+      '<span class="oxidoc-search-ask-ai-label">Search using AI:</span> ' +
+      '<span class="oxidoc-search-ask-ai-query">' + escapeHtml(query) + '</span>';
+    row.addEventListener("click", function () {
+      activateAI(query);
+    });
+    return row;
+  }
 
+  // Activate AI search mode
+  function activateAI(query) {
+    aiMode = true;
+    lastResultKey = "";
+    resultsEl.innerHTML = "";
+    noResultsEl.classList.remove("visible");
+    emptyEl.classList.add("hidden");
+
+    // Show loading state
+    var loading = document.createElement("div");
+    loading.className = "oxidoc-search-ai-loading";
+    loading.innerHTML =
+      '<iconify-icon icon="material-symbols:auto-awesome" width="18" height="18" class="oxidoc-search-ask-ai-icon"></iconify-icon>' +
+      '<span>Loading AI search...</span>';
+    resultsEl.appendChild(loading);
+
+    ensureChunks(query, function () {
+      loadSemantic(function () {
+        if (!semanticReady) {
+          loading.querySelector("span").textContent = "AI search unavailable";
+          return;
+        }
+        var results = searchAI(query);
+        renderAIResults(results, query);
+      });
+    });
+  }
+
+  // Render AI search results (no "Ask AI" row, show "back to results" instead)
+  function renderAIResults(results, query) {
     resultsEl.innerHTML = "";
     activeIdx = -1;
 
-    if (!query) {
-      emptyEl.classList.remove("hidden");
-      noResultsEl.classList.remove("visible");
-      return;
-    }
-    emptyEl.classList.add("hidden");
+    // AI results banner
+    var banner = document.createElement("div");
+    banner.className = "oxidoc-search-ai-banner";
+    banner.innerHTML =
+      '<button type="button" class="oxidoc-search-ai-banner-back">' +
+        '<iconify-icon icon="material-symbols:arrow-back-rounded" width="14" height="14"></iconify-icon>' +
+      '</button>' +
+      '<div class="oxidoc-search-ai-banner-label">' +
+        '<iconify-icon icon="material-symbols:auto-awesome" width="16" height="16"></iconify-icon>' +
+        '<span>AI search results</span>' +
+      '</div>';
+    banner.querySelector(".oxidoc-search-ai-banner-back").addEventListener("click", function () {
+      aiMode = false;
+      lastResultKey = "";
+      var q = input.value.trim();
+      ensureChunks(q, function () {
+        render(searchLexical(q), q);
+      });
+      input.focus();
+    });
+    resultsEl.appendChild(banner);
 
     if (!results.length) {
       noResultsEl.classList.add("visible");
@@ -215,15 +356,83 @@
       var bc = doc.breadcrumb || [];
       var inner = "";
       if (bc.length > 1) {
-        // Design A: breadcrumb trail (small) → closest heading (large) → snippet
-        var trail = bc.slice(0, bc.length - 1).join(" › ");
+        var trail = bc.slice(0, bc.length - 1).map(escapeHtml).join(" \u203A ");
         var heading = bc[bc.length - 1];
         inner =
           '<div class="oxidoc-search-result-page">' + trail + "</div>" +
           '<div class="oxidoc-search-result-title">' + highlight(heading, query, ht) + "</div>" +
           '<div class="oxidoc-search-result-snippet">' + highlight(doc.snippet || "", query, ht) + "</div>";
       } else {
-        // Design B: page title (large) → snippet
+        var title = bc.length === 1 ? bc[0] : doc.title;
+        inner =
+          '<div class="oxidoc-search-result-title">' + highlight(title, query, ht) + "</div>" +
+          '<div class="oxidoc-search-result-snippet">' + highlight(doc.snippet || "", query, ht) + "</div>";
+      }
+      var icon = bc.length > 1
+        ? "material-symbols:tag-rounded"
+        : "material-symbols:description-rounded";
+      a.innerHTML =
+        '<iconify-icon icon="' + icon + '" width="18" height="18" class="oxidoc-search-result-icon"></iconify-icon>' +
+        '<div class="oxidoc-search-result-content">' + inner + "</div>";
+      resultsEl.appendChild(a);
+    }
+  }
+
+  function render(results, query) {
+    if (aiMode) return; // don't overwrite AI results
+
+    var key = results.map(function (r) { return r.path; }).join("|");
+    if (key === lastResultKey && query) {
+      // Update AI row query text
+      var aiRow = resultsEl.querySelector(".oxidoc-search-ask-ai");
+      if (aiRow) {
+        aiRow.querySelector(".oxidoc-search-ask-ai-query").textContent = query;
+        aiRow.onclick = function () { activateAI(query); };
+      }
+      updateHighlights(results, query);
+      return;
+    }
+    lastResultKey = key;
+
+    resultsEl.innerHTML = "";
+    activeIdx = -1;
+
+    if (!query) {
+      emptyEl.classList.remove("hidden");
+      noResultsEl.classList.remove("visible");
+      return;
+    }
+    emptyEl.classList.add("hidden");
+
+    // "Ask AI" row at top (only if semantic is enabled)
+    if (semanticEnabled) {
+      resultsEl.appendChild(createAskAIRow(query));
+    }
+
+    if (!results.length) {
+      noResultsEl.classList.add("visible");
+      return;
+    }
+    noResultsEl.classList.remove("visible");
+
+    for (var i = 0; i < results.length; i++) {
+      var doc = results[i];
+      var a = document.createElement("a");
+      a.href = doc.path;
+      a.className = "oxidoc-search-result";
+      a.addEventListener("click", function () { close(); });
+      a.setAttribute("data-idx", i);
+      var ht = doc.highlight_terms || [];
+      var bc = doc.breadcrumb || [];
+      var inner = "";
+      if (bc.length > 1) {
+        var trail = bc.slice(0, bc.length - 1).map(escapeHtml).join(" \u203A ");
+        var heading = bc[bc.length - 1];
+        inner =
+          '<div class="oxidoc-search-result-page">' + trail + "</div>" +
+          '<div class="oxidoc-search-result-title">' + highlight(heading, query, ht) + "</div>" +
+          '<div class="oxidoc-search-result-snippet">' + highlight(doc.snippet || "", query, ht) + "</div>";
+      } else {
         var title = bc.length === 1 ? bc[0] : doc.title;
         inner =
           '<div class="oxidoc-search-result-title">' + highlight(title, query, ht) + "</div>" +
@@ -240,7 +449,7 @@
   }
 
   function setActive(idx) {
-    var items = resultsEl.querySelectorAll(".oxidoc-search-result");
+    var items = resultsEl.querySelectorAll(".oxidoc-search-result, .oxidoc-search-ask-ai");
     if (activeIdx >= 0 && activeIdx < items.length) {
       items[activeIdx].classList.remove("active");
     }
@@ -255,11 +464,12 @@
   input.addEventListener("input", function () {
     var q = input.value.trim();
     clearBtn.style.display = q ? "" : "none";
+    aiMode = false;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(function () {
       ensureSearch(function () {
         ensureChunks(q, function () {
-          var results = search(q);
+          var results = searchLexical(q);
           render(results, q);
         });
       });
@@ -273,6 +483,7 @@
     noResultsEl.classList.remove("visible");
     emptyEl.hidden = false;
     activeIdx = -1;
+    aiMode = false;
     input.focus();
   });
 
@@ -283,7 +494,7 @@
 
   // Keyboard navigation
   input.addEventListener("keydown", function (e) {
-    var items = resultsEl.querySelectorAll(".oxidoc-search-result");
+    var items = resultsEl.querySelectorAll(".oxidoc-search-result, .oxidoc-search-ask-ai");
     if (e.key === "ArrowDown") {
       e.preventDefault();
       if (activeIdx < items.length - 1) setActive(activeIdx + 1);

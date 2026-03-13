@@ -172,6 +172,88 @@
     line-height: 1.4;
     background: var(--oxidoc-bg-secondary);
 }
+/* Ask AI row */
+.oxidoc-search-ask-ai {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    border: none;
+    background: color-mix(in srgb, var(--oxidoc-primary) 8%, transparent);
+    color: var(--oxidoc-primary);
+    font-size: 0.9375rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    margin-bottom: 2px;
+    transition: background 0.1s;
+}
+.oxidoc-search-ask-ai:hover,
+.oxidoc-search-ask-ai.active {
+    background: color-mix(in srgb, var(--oxidoc-primary) 16%, transparent);
+}
+.oxidoc-search-ask-ai-icon {
+    flex-shrink: 0;
+    color: var(--oxidoc-primary);
+}
+.oxidoc-search-ask-ai-label {
+    font-weight: 600;
+}
+.oxidoc-search-ask-ai-query {
+    font-weight: 400;
+    opacity: 0.85;
+}
+/* AI loading state */
+.oxidoc-search-ai-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    color: var(--oxidoc-primary);
+    font-size: 0.9375rem;
+}
+.oxidoc-search-ai-loading .oxidoc-search-ask-ai-icon {
+    animation: oxidoc-pulse 1.5s ease-in-out infinite;
+}
+@keyframes oxidoc-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+/* AI results banner */
+.oxidoc-search-ai-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 4px;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--oxidoc-primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--oxidoc-primary) 20%, transparent);
+}
+.oxidoc-search-ai-banner-back {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem;
+    border: none;
+    background: none;
+    color: var(--oxidoc-primary);
+    cursor: pointer;
+    border-radius: 0.375rem;
+    transition: background 0.1s;
+}
+.oxidoc-search-ai-banner-back:hover {
+    background: color-mix(in srgb, var(--oxidoc-primary) 16%, transparent);
+}
+.oxidoc-search-ai-banner-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--oxidoc-primary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
 @media (max-width: 640px) {
     .oxidoc-search-dialog {
         max-width: 100%;
