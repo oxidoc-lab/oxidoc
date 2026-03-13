@@ -8,6 +8,7 @@ members = [
     "oxidoc-registry",
     "oxidoc-openapi",
     "oxidoc-search",
+    "oxidoc-text",
 ]
 
 [workspace.package]
@@ -24,6 +25,7 @@ oxidoc-components = { version = "0.1.0", path = "oxidoc-components" }
 oxidoc-registry = { version = "0.1.0", path = "oxidoc-registry" }
 oxidoc-openapi = { version = "0.1.0", path = "oxidoc-openapi" }
 oxidoc-search = { version = "0.1.0", path = "oxidoc-search" }
+oxidoc-text = { version = "0.1.0", path = "oxidoc-text" }
 
 # RDX (published crate references — local override via .cargo/config.toml)
 rdx-parser = "0.1"
@@ -32,6 +34,7 @@ rdx-ast = "0.1"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rkyv = "0.8"
 toml = "1"
 serde-saphyr = "0.0.21"
 

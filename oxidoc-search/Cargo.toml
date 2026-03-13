@@ -17,6 +17,8 @@ wasm-bindgen.workspace = true
 web-sys.workspace = true
 js-sys.workspace = true
 thiserror.workspace = true
+oxidoc-text.workspace = true
+rkyv.workspace = true
 
 # ML-Rust ecosystem for semantic search
 boostr = "0.1.0"
