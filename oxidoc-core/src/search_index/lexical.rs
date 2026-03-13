@@ -121,10 +121,10 @@ pub fn write_lexical_index(index: &LexicalIndex, output_dir: &Path) -> Result<()
     // Partition postings by first 2 chars of key.
     let mut prefix_groups: HashMap<String, HashMap<String, Vec<Posting>>> = HashMap::new();
     for (key, postings) in &index.postings {
-        let prefix = if key.len() >= 2 {
+        let prefix = if key.len() >= 2 && key.is_char_boundary(2) {
             key[..2].to_string()
         } else {
-            key.to_string()
+            key.chars().take(2).collect()
         };
         prefix_groups
             .entry(prefix)
