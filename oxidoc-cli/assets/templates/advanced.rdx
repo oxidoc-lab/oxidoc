@@ -1,0 +1,87 @@
+---
+title: Advanced Configuration
+---
+
+# Advanced Configuration
+
+## Site Sections
+
+Oxidoc supports multiple independent site sections, each with its own base URL, content directory, and sidebar. This lets you separate docs, API reference, internal guides, or any other content into distinct areas.
+
+Each entry in `navigation` is a section:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[routing]
+navigation = [
+  { path = "/", dir = "docs", groups = [
+    { group = "Getting Started", pages = ["intro", "quickstart"] },
+  ]},
+  { path = "/api", openapi = "./openapi.yaml" },
+]
+</CodeBlock>
+
+| Key | Description |
+|:----|:-----------|
+| `path` | Base URL for this section (e.g., `/`, `/api`, `/internal`) |
+| `dir` | Directory containing `.rdx` files, relative to project root |
+| `groups` | Sidebar groups, each with a `group` name and `pages` list |
+| `openapi` | Path to an OpenAPI spec — auto-generates endpoint pages |
+
+Sections are fully independent. Navigating between them switches the sidebar. You can mix `.rdx` content sections with OpenAPI sections:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+navigation = [
+  { path = "/", dir = "docs", groups = [
+    { group = "Guides", pages = ["intro", "quickstart"] },
+    { group = "Advanced", pages = ["plugins", "theming"] },
+  ]},
+  { path = "/api", openapi = "./openapi.yaml" },
+  { path = "/internal", dir = "internal-docs", groups = [
+    { group = "Team", pages = ["onboarding", "runbooks"] },
+  ]},
+]
+</CodeBlock>
+
+<Callout kind="info" title="Content directories">
+Each section's `dir` is resolved relative to the project root. You can have as many content directories as you need — they don't have to be called `docs`.
+</Callout>
+
+## Header Links
+
+Use `header_links` to add navigation links in the top bar. These appear between the logo and the search/theme controls.
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[routing]
+header_links = [
+  { label = "Docs", href = "/" },
+  { label = "API", href = "/api" },
+  { label = "GitHub", href = "https://github.com/your-org/your-repo" },
+]
+</CodeBlock>
+
+Links can point to internal sections or external URLs. They're fully configurable — add, remove, or reorder as needed.
+
+## Multiple Sidebar Groups
+
+A single section can have multiple sidebar groups. Each group gets its own title in the sidebar:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+{ path = "/", dir = "docs", groups = [
+  { group = "Getting Started", pages = ["intro", "quickstart"] },
+  { group = "Components", pages = ["components/callout", "components/tabs"] },
+  { group = "Deployment", pages = ["deploy/vercel", "deploy/netlify"] },
+]}
+</CodeBlock>
+
+Pages can use subdirectories — just put the `.rdx` file in the matching path under the content directory (e.g., `docs/components/callout.rdx`).
+
+## Homepage
+
+Set `homepage` to control which page is served at the section root (`/`):
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[routing]
+homepage = "intro"
+</CodeBlock>
+
+If not set, the first page in the first navigation group is used.

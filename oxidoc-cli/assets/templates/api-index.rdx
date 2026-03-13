@@ -1,0 +1,29 @@
+---
+title: API Overview
+---
+
+# API Overview
+
+This is the API reference for the project, auto-generated from the OpenAPI spec. Browse the endpoints in the sidebar under **API Reference**, or select one below.
+
+<Callout kind="tip" title="Interactive Playground">
+Every endpoint page includes an interactive API Playground — fill in parameters and send real requests.
+</Callout>
+
+## Configuration
+
+The API pages are generated from `openapi.yaml` at the project root. To use your own spec, replace the file and update `oxidoc.toml`:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[routing]
+navigation = [
+  { group = "Getting Started", pages = ["intro", "quickstart", "api-reference"] },
+  { group = "API Reference", pages = ["api/index"], openapi = "./openapi.yaml" },
+]
+</CodeBlock>
+
+The `openapi` key points to your spec file (YAML or JSON). Oxidoc parses it, generates a page per endpoint, and groups them by tag in the sidebar.
+
+<Callout kind="info" title="Base URL">
+Set `servers` in your OpenAPI spec to configure the target URL for the playground.
+</Callout>

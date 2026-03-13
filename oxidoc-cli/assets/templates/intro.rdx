@@ -2,7 +2,7 @@
 title: Welcome to Oxidoc
 ---
 
-<Hero>
+<Hero title="Oxidoc">
 <HeroAction label="Get Started" href="/quickstart" variant="primary" />
 <HeroAction label="View on GitHub" href="https://github.com/oxidoc/oxidoc" variant="secondary" />
 

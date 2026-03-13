@@ -1,0 +1,81 @@
+---
+title: API Reference
+---
+
+# API Reference
+
+Oxidoc generates interactive API documentation directly from your OpenAPI specification. Drop a YAML or JSON spec into your project and Oxidoc does the rest — parameter tables, request/response schemas, and a live API playground on every endpoint page.
+
+<Callout kind="tip" title="Try the sample">
+Click **API** in the header or go to [/api](/api) to see the generated pages with the interactive playground.
+</Callout>
+
+## Setup
+
+Add a navigation entry with `openapi` pointing to your spec:
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[routing]
+navigation = [
+  { path = "/api", openapi = "./openapi.yaml" },
+]
+</CodeBlock>
+
+Run `oxidoc dev` or `oxidoc build`. Oxidoc parses the spec, generates a page for every endpoint, groups them by tag in the sidebar, and creates an index page at `/api/`.
+
+## What Gets Generated
+
+For each endpoint in the spec, Oxidoc creates a page with:
+
+<CardGrid>
+<Card title="Method & Path" icon="🔗">
+Color-coded HTTP method badge with the endpoint path.
+</Card>
+<Card title="Parameters Table" icon="📋">
+Auto-generated table of query, path, and header parameters with types and descriptions.
+</Card>
+<Card title="Request Body" icon="📤">
+Schema display for endpoints that accept a request body, with content type.
+</Card>
+<Card title="Response Schemas" icon="📥">
+All documented response codes with their descriptions and schemas.
+</Card>
+<Card title="API Playground" icon="⚡">
+Interactive Wasm-powered playground to fill in parameters and test the endpoint live.
+</Card>
+</CardGrid>
+
+## Endpoint Grouping
+
+Endpoints are grouped by their OpenAPI `tags`. Each tag becomes its own sidebar section. Untagged endpoints appear under a default group.
+
+## The API Playground
+
+Every endpoint page includes an interactive playground powered by WebAssembly:
+
+- Pre-fills parameters from the spec (name, type, required)
+- Supports path, query, and header parameters
+- Sends real HTTP requests to your configured base URL
+- Shows response status, headers, and body
+- Generates code snippets for `curl`, `fetch`, and other clients
+
+<Callout kind="info" title="Base URL">
+Set `servers` in your OpenAPI spec to configure the target URL for the playground. The first server entry is used by default.
+</Callout>
+
+## Supported Features
+
+| Feature | Status |
+|:--------|:-------|
+| OpenAPI 3.0 | <Badge variant="tip">Supported</Badge> |
+| OpenAPI 3.1 | <Badge variant="tip">Supported</Badge> |
+| Path parameters | <Badge variant="tip">Supported</Badge> |
+| Query parameters | <Badge variant="tip">Supported</Badge> |
+| Header parameters | <Badge variant="tip">Supported</Badge> |
+| Request body schemas | <Badge variant="tip">Supported</Badge> |
+| Response schemas | <Badge variant="tip">Supported</Badge> |
+| Multiple tags | <Badge variant="tip">Supported</Badge> |
+| `$ref` references | <Badge variant="tip">Supported</Badge> |
+| Deprecation notices | <Badge variant="tip">Supported</Badge> |
+| Authentication schemes | <Badge variant="new">Coming soon</Badge> |
+| Webhook endpoints | <Badge variant="new">Coming soon</Badge> |

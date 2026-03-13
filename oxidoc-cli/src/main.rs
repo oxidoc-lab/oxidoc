@@ -103,9 +103,25 @@ fn main() -> ExitCode {
     }
 }
 
+fn build_wasm_once(output_dir: &std::path::Path) {
+    match oxidoc_core::wasm::build_wasm(output_dir) {
+        Ok(()) => {}
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("locate") {
+                tracing::debug!("Skipping wasm build (not in oxidoc workspace)");
+            } else {
+                tracing::warn!("Wasm build failed: {e}");
+            }
+        }
+    }
+}
+
 fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()> {
     let output_dir = project_root.join(output);
     tracing::info!("Building site to {}/", output_dir.display());
+
+    build_wasm_once(&output_dir);
 
     let start = std::time::Instant::now();
     let result = oxidoc_core::builder::build_site(project_root, &output_dir)?;
@@ -216,6 +232,18 @@ fn run_init(
         &docs_dir.join("quickstart.rdx"),
         include_str!("../assets/templates/quickstart.rdx"),
     )?;
+    write_file(
+        &docs_dir.join("api-reference.rdx"),
+        include_str!("../assets/templates/api-reference.rdx"),
+    )?;
+    write_file(
+        &docs_dir.join("advanced.rdx"),
+        include_str!("../assets/templates/advanced.rdx"),
+    )?;
+    write_file(
+        &target.join("openapi.yaml"),
+        &include_str!("../assets/templates/openapi.yaml").replace("{project_name}", project_name),
+    )?;
 
     // Initialize git repo if not already inside one
     let in_git = std::process::Command::new("git")
@@ -237,10 +265,12 @@ fn run_init(
         eprintln!("Initialized Oxidoc project");
     }
     eprintln!();
-    eprintln!("  oxidoc.toml          — site configuration");
-    eprintln!("  assets/logo.svg      — default logo (replace with your own)");
-    eprintln!("  docs/intro.rdx       — landing page");
-    eprintln!("  docs/quickstart.rdx  — getting started guide");
+    eprintln!("  oxidoc.toml            — site configuration");
+    eprintln!("  openapi.yaml           — sample API spec (replace with your own)");
+    eprintln!("  assets/logo.svg        — default logo (replace with your own)");
+    eprintln!("  docs/intro.rdx         — landing page");
+    eprintln!("  docs/quickstart.rdx    — getting started guide");
+    eprintln!("  docs/api-reference.rdx — API documentation guide");
     eprintln!();
     if let Some(n) = name {
         eprintln!("Get started:");
