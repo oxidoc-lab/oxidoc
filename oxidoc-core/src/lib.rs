@@ -1,8 +1,10 @@
 pub mod asset_hash;
 pub mod assets;
 pub mod breadcrumb;
+pub mod build_result;
 pub mod builder;
 pub mod config;
+pub mod config_social;
 pub mod config_validate;
 pub mod crawler;
 pub mod css;
