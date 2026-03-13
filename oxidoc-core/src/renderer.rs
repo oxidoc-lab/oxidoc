@@ -41,7 +41,7 @@ pub fn render_document(
     html
 }
 
-fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
+pub(crate) fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
     match node {
         Node::Heading(h) => {
             let level = h.depth.unwrap_or(1).clamp(1, 6);

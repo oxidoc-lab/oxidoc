@@ -21,3 +21,24 @@
     text-decoration: none;
 }
 .oxidoc-logo:hover { color: var(--oxidoc-primary); }
+
+/* Header navigation links */
+.oxidoc-header-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: 1.5rem;
+}
+.oxidoc-header-nav-link {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--oxidoc-text-muted);
+    text-decoration: none;
+    border-radius: 0.375rem;
+    transition: color 0.15s, background 0.15s;
+}
+.oxidoc-header-nav-link:hover {
+    color: var(--oxidoc-primary);
+    background: var(--oxidoc-bg-hover);
+}

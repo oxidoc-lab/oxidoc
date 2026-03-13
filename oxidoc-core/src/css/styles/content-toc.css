@@ -5,6 +5,10 @@
     padding: 2rem 2.5rem;
     width: 100%;
 }
+/* API pages: remove max-width constraint, use full width */
+.oxidoc-layout-no-toc .oxidoc-content {
+    max-width: none;
+}
 
 /* TOC sidebar */
 .oxidoc-toc-sidebar {

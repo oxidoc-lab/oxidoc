@@ -31,8 +31,8 @@ pub fn extract_endpoints(spec: &OpenAPI) -> Vec<ApiEndpoint> {
 
     for (path, method, operation) in spec.operations() {
         let parameters = extract_parameters(operation);
-        let request_body = extract_request_body(operation);
-        let responses = extract_responses(operation);
+        let request_body = extract_request_body(operation, spec);
+        let responses = extract_responses(operation, spec);
 
         endpoints.push(ApiEndpoint {
             path: path.to_string(),
@@ -129,62 +129,195 @@ fn schema_type_string(schema_ref: &openapiv3::ReferenceOr<openapiv3::Schema>) ->
     }
 }
 
-fn extract_request_body(operation: &openapiv3::Operation) -> Option<ApiRequestBody> {
+fn extract_request_body(
+    operation: &openapiv3::Operation,
+    spec: &OpenAPI,
+) -> Option<ApiRequestBody> {
     let body_ref = operation.request_body.as_ref()?;
     let openapiv3::ReferenceOr::Item(body) = body_ref else {
         return None;
     };
 
     let (content_type, media) = body.content.iter().next()?;
-    let schema_json = media
+    let (schema_type, fields) = media
         .schema
         .as_ref()
-        .map(|s| serde_json::to_string_pretty(s).unwrap_or_default())
-        .unwrap_or_default();
+        .map(|s| extract_schema_fields(s, spec))
+        .unwrap_or_else(|| ("object".to_string(), vec![]));
 
     Some(ApiRequestBody {
         required: body.required,
         description: body.description.clone(),
         content_type: content_type.clone(),
-        schema_json,
+        fields,
+        schema_type,
     })
 }
 
-fn extract_responses(operation: &openapiv3::Operation) -> Vec<ApiResponse> {
+fn extract_responses(operation: &openapiv3::Operation, spec: &OpenAPI) -> Vec<ApiResponse> {
     let mut responses = Vec::new();
 
     if let Some(openapiv3::ReferenceOr::Item(resp)) = operation.responses.default.as_ref() {
-        responses.push(response_from_item("default", resp));
+        responses.push(response_from_item("default", resp, spec));
     }
 
     for (status, resp_ref) in &operation.responses.responses {
         if let openapiv3::ReferenceOr::Item(resp) = resp_ref {
-            responses.push(response_from_item(&status.to_string(), resp));
+            responses.push(response_from_item(&status.to_string(), resp, spec));
         }
     }
 
     responses
 }
 
-fn response_from_item(status: &str, resp: &openapiv3::Response) -> ApiResponse {
-    let (content_type, schema_json) = resp
+fn response_from_item(status: &str, resp: &openapiv3::Response, spec: &OpenAPI) -> ApiResponse {
+    let (content_type, schema_type, fields) = resp
         .content
         .iter()
         .next()
         .map(|(ct, media)| {
-            let schema = media
+            let (st, f) = media
                 .schema
                 .as_ref()
-                .map(|s| serde_json::to_string_pretty(s).unwrap_or_default());
-            (Some(ct.clone()), schema)
+                .map(|s| extract_schema_fields(s, spec))
+                .unwrap_or_else(|| ("object".to_string(), vec![]));
+            (Some(ct.clone()), Some(st), f)
         })
-        .unwrap_or((None, None));
+        .unwrap_or((None, None, vec![]));
 
     ApiResponse {
         status: status.to_string(),
         description: resp.description.clone(),
         content_type,
-        schema_json,
+        fields,
+        schema_type,
+    }
+}
+
+/// Resolve a `$ref` like `#/components/schemas/Post` to a Schema from the spec.
+fn resolve_schema_ref<'a>(reference: &str, spec: &'a OpenAPI) -> Option<&'a openapiv3::Schema> {
+    let name = reference.rsplit('/').next()?;
+    let schema_ref = spec.components.as_ref()?.schemas.get(name)?;
+    match schema_ref {
+        openapiv3::ReferenceOr::Item(schema) => Some(schema),
+        _ => None,
+    }
+}
+
+/// Extract fields from a schema reference, returning (type_name, fields).
+fn extract_schema_fields(
+    schema_ref: &openapiv3::ReferenceOr<openapiv3::Schema>,
+    spec: &OpenAPI,
+) -> (String, Vec<super::SchemaField>) {
+    match schema_ref {
+        openapiv3::ReferenceOr::Reference { reference } => {
+            let name = reference.rsplit('/').next().unwrap_or("object");
+            // Resolve the $ref
+            if let Some(schema) = resolve_schema_ref(reference, spec) {
+                let (_, fields) = extract_schema_from_schema(schema, spec);
+                (name.to_string(), fields)
+            } else {
+                (name.to_string(), vec![])
+            }
+        }
+        openapiv3::ReferenceOr::Item(schema) => extract_schema_from_schema(schema, spec),
+    }
+}
+
+fn extract_schema_fields_boxed(
+    schema_ref: &openapiv3::ReferenceOr<Box<openapiv3::Schema>>,
+    spec: &OpenAPI,
+) -> (String, Vec<super::SchemaField>) {
+    match schema_ref {
+        openapiv3::ReferenceOr::Reference { reference } => {
+            let name = reference.rsplit('/').next().unwrap_or("object");
+            if let Some(schema) = resolve_schema_ref(reference, spec) {
+                let (_, fields) = extract_schema_from_schema(schema, spec);
+                (name.to_string(), fields)
+            } else {
+                (name.to_string(), vec![])
+            }
+        }
+        openapiv3::ReferenceOr::Item(schema) => extract_schema_from_schema(schema, spec),
+    }
+}
+
+fn extract_schema_from_schema(
+    schema: &openapiv3::Schema,
+    spec: &OpenAPI,
+) -> (String, Vec<super::SchemaField>) {
+    match &schema.schema_kind {
+        openapiv3::SchemaKind::Type(t) => match t {
+            openapiv3::Type::Object(obj) => {
+                let required_set: std::collections::HashSet<&str> =
+                    obj.required.iter().map(|s| s.as_str()).collect();
+                let fields = obj
+                    .properties
+                    .iter()
+                    .map(|(name, prop_ref)| {
+                        let (field_type, desc, children) = match prop_ref {
+                            openapiv3::ReferenceOr::Reference { reference } => {
+                                let t = reference.rsplit('/').next().unwrap_or("object");
+                                let ch = resolve_schema_ref(reference, spec)
+                                    .map(|s| extract_schema_from_schema(s, spec).1)
+                                    .unwrap_or_default();
+                                (t.to_string(), None, ch)
+                            }
+                            openapiv3::ReferenceOr::Item(prop) => {
+                                let t = prop_type_string(prop);
+                                let ch = match &prop.schema_kind {
+                                    openapiv3::SchemaKind::Type(openapiv3::Type::Object(_)) => {
+                                        extract_schema_from_schema(prop, spec).1
+                                    }
+                                    openapiv3::SchemaKind::Type(openapiv3::Type::Array(arr)) => arr
+                                        .items
+                                        .as_ref()
+                                        .map(|i| extract_schema_fields_boxed(i, spec).1)
+                                        .unwrap_or_default(),
+                                    _ => vec![],
+                                };
+                                (t, prop.schema_data.description.clone(), ch)
+                            }
+                        };
+                        super::SchemaField {
+                            name: name.clone(),
+                            field_type,
+                            required: required_set.contains(name.as_str()),
+                            description: desc,
+                            children,
+                        }
+                    })
+                    .collect();
+                ("object".to_string(), fields)
+            }
+            openapiv3::Type::Array(arr) => {
+                let (item_type, inner_fields) = arr
+                    .items
+                    .as_ref()
+                    .map(|i| extract_schema_fields_boxed(i, spec))
+                    .unwrap_or_else(|| ("object".to_string(), vec![]));
+                (format!("array<{item_type}>"), inner_fields)
+            }
+            openapiv3::Type::String(_) => ("string".to_string(), vec![]),
+            openapiv3::Type::Number(_) => ("number".to_string(), vec![]),
+            openapiv3::Type::Integer(_) => ("integer".to_string(), vec![]),
+            openapiv3::Type::Boolean(_) => ("boolean".to_string(), vec![]),
+        },
+        _ => ("object".to_string(), vec![]),
+    }
+}
+
+fn prop_type_string(schema: &openapiv3::Schema) -> String {
+    match &schema.schema_kind {
+        openapiv3::SchemaKind::Type(pt) => match pt {
+            openapiv3::Type::String(_) => "string".to_string(),
+            openapiv3::Type::Number(_) => "number".to_string(),
+            openapiv3::Type::Integer(_) => "integer".to_string(),
+            openapiv3::Type::Boolean(_) => "boolean".to_string(),
+            openapiv3::Type::Array(_) => "array".to_string(),
+            openapiv3::Type::Object(_) => "object".to_string(),
+        },
+        _ => "object".to_string(),
     }
 }
 

@@ -24,20 +24,42 @@ pub(crate) fn render_static_hero(
             crate::utils::html_escape(title)
         );
     }
+
+    // Separate HeroAction children from body content (tagline text)
+    let mut actions: Vec<&rdx_ast::Node> = Vec::new();
+    let mut body: Vec<&rdx_ast::Node> = Vec::new();
+    for child in children {
+        if matches!(child, rdx_ast::Node::Component(c) if c.name == "HeroAction") {
+            actions.push(child);
+        } else {
+            body.push(child);
+        }
+    }
+
+    // Render tagline: prefer prop, fall back to body content
     if !tagline.is_empty() {
         let _ = write!(
             out,
             r#"<p class="oxidoc-hero-tagline">{}</p>"#,
             crate::utils::html_escape(tagline)
         );
-    }
-    // Children render as action buttons / extra content
-    let has_children = !children.is_empty();
-    if has_children {
-        out.push_str(r#"<div class="oxidoc-hero-actions">"#);
-        render_children(children, out, ctx);
+    } else if !body.is_empty() {
+        out.push_str(r#"<div class="oxidoc-hero-tagline">"#);
+        for node in &body {
+            crate::renderer::render_node(node, out, ctx);
+        }
         out.push_str("</div>");
     }
+
+    // Render action buttons
+    if !actions.is_empty() {
+        out.push_str(r#"<div class="oxidoc-hero-actions">"#);
+        for node in &actions {
+            crate::renderer::render_node(node, out, ctx);
+        }
+        out.push_str("</div>");
+    }
+
     out.push_str("</div>");
     if let Some(img) = image {
         let _ = write!(
@@ -56,13 +78,20 @@ pub(crate) fn render_static_hero_action(
     ctx: &RenderCtx<'_>,
 ) {
     let href = prop_str(props, "href").unwrap_or("#");
-    let kind = prop_str(props, "kind").unwrap_or("primary");
+    let kind = prop_str(props, "variant")
+        .or_else(|| prop_str(props, "kind"))
+        .unwrap_or("primary");
+    let label = prop_str(props, "label");
     let _ = write!(
         out,
         r#"<a href="{}" class="oxidoc-hero-action oxidoc-hero-action-{kind}">"#,
         crate::utils::html_escape(href)
     );
-    render_children(children, out, ctx);
+    if let Some(label) = label {
+        out.push_str(&crate::utils::html_escape(label));
+    } else {
+        render_children(children, out, ctx);
+    }
     out.push_str("</a>");
 }
 

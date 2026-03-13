@@ -27,7 +27,8 @@ pub struct ApiRequestBody {
     pub required: bool,
     pub description: Option<String>,
     pub content_type: String,
-    pub schema_json: String,
+    pub fields: Vec<SchemaField>,
+    pub schema_type: String,
 }
 
 #[derive(Debug, Clone)]
@@ -35,5 +36,16 @@ pub struct ApiResponse {
     pub status: String,
     pub description: String,
     pub content_type: Option<String>,
-    pub schema_json: Option<String>,
+    pub fields: Vec<SchemaField>,
+    pub schema_type: Option<String>,
+}
+
+/// A single field extracted from a JSON schema's `properties`.
+#[derive(Debug, Clone)]
+pub struct SchemaField {
+    pub name: String,
+    pub field_type: String,
+    pub required: bool,
+    pub description: Option<String>,
+    pub children: Vec<SchemaField>,
 }

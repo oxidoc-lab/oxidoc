@@ -12,11 +12,31 @@ pub(crate) const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.
 pub(crate) const BACK_TO_TOP_JS: &str = include_str!("templates/back_to_top.js");
 pub(crate) const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
 pub(crate) const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
+pub(crate) const API_TABS_JS: &str = include_str!("templates/api_tabs.js");
 pub(crate) const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
 pub(crate) const HEADER_ACTIONS_HTML: &str = include_str!("templates/header_actions.html");
 pub(crate) const ERROR_404_HTML: &str = include_str!("templates/error_404.html");
 
 use crate::config::SocialConfig;
+
+/// Build the header navigation links HTML.
+pub(crate) fn build_header_nav(links: &[crate::config::HeaderLink]) -> String {
+    if links.is_empty() {
+        return String::new();
+    }
+    let mut html = String::from(r#"<nav class="oxidoc-header-nav">"#);
+    for link in links {
+        use std::fmt::Write;
+        let _ = write!(
+            html,
+            r#"<a href="{}" class="oxidoc-header-nav-link">{}</a>"#,
+            crate::utils::html_escape(&link.href),
+            crate::utils::html_escape(&link.label),
+        );
+    }
+    html.push_str("</nav>");
+    html
+}
 
 /// Build the header actions HTML with social links injected before the static buttons.
 pub(crate) fn build_header_actions(social: &SocialConfig) -> String {
@@ -119,6 +139,17 @@ pub fn render_page(
     let current_path = format!("/{}", active_slug);
     let locale_switcher_html = i18n_state.render_locale_switcher(locale, &current_path);
 
+    let (layout_class, toc_aside) = if toc_html.is_empty() {
+        (" oxidoc-layout-no-toc".to_string(), String::new())
+    } else {
+        (
+            String::new(),
+            format!(
+                r#"<aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents"><div class="oxidoc-toc-inner">{toc_html}</div></aside>"#
+            ),
+        )
+    };
+
     let html = format!(
         r##"<!DOCTYPE html>
 <html lang="{lang}" data-locale="{locale}">
@@ -148,10 +179,11 @@ pub fn render_page(
     <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header" role="banner">
         {logo_html}
+        {header_nav_html}
         {locale_switcher_html}
         {header_actions_html}
     </header>
-    <div class="oxidoc-layout">
+    <div class="oxidoc-layout{layout_class}">
         <aside class="oxidoc-sidebar" role="navigation" aria-label="Documentation navigation">
             <div class="oxidoc-sidebar-inner">
                 {sidebar_html}
@@ -164,11 +196,7 @@ pub fn render_page(
             </article>
             {page_meta_html}
         </main>
-        <aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents">
-            <div class="oxidoc-toc-inner">
-                {toc_html}
-            </div>
-        </aside>
+        {toc_aside}
     </div>
     {footer_html}
 {script_tag}
@@ -190,7 +218,8 @@ pub fn render_page(
         sidebar_html = sidebar_html,
         breadcrumb_html = breadcrumb_html,
         content_html = content_html,
-        toc_html = toc_html,
+        toc_aside = toc_aside,
+        layout_class = layout_class,
         page_meta_html = page_meta_html,
         footer_html = footer_html,
         css_preload = css_preload,
@@ -200,6 +229,7 @@ pub fn render_page(
         script_tag = script_tag,
         search_head_tags = search_head_tags,
         search_scripts = search_scripts,
+        header_nav_html = build_header_nav(&config.routing.header_links),
         header_actions_html = build_header_actions(&config.social),
     );
     let mut html = html;
@@ -231,8 +261,8 @@ pub fn render_page(
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, mermaid_script
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, mermaid_script
         ),
     )
 }
@@ -267,35 +297,71 @@ name = "Test Docs""#,
         crate::theme::builtin_theme("oxidoc").unwrap()
     }
 
-    #[test]
-    fn render_page_structure_and_accessibility() {
-        let config = test_config();
+    /// Render a page with test defaults; only title, content, slug, and description vary.
+    fn render_test_page(
+        config: &OxidocConfig,
+        title: &str,
+        content: &str,
+        slug: &str,
+        desc: Option<&str>,
+    ) -> String {
         let i18n = default_i18n_state();
         let provider = default_search_provider();
-        let html = render_page(
-            &config,
-            "Intro",
-            "<p>Hello</p>",
+        render_page(
+            config,
+            title,
+            content,
             "",
             "",
             "",
-            "intro",
-            None,
+            slug,
+            desc,
             "",
             &default_assets(),
             "en",
             &i18n,
             &provider,
             &test_theme(),
-        );
-        // Essential structure
+        )
+    }
+
+    /// Like `render_test_page` but with custom assets.
+    fn render_test_page_with_assets(
+        config: &OxidocConfig,
+        title: &str,
+        slug: &str,
+        assets: &AssetConfig<'_>,
+    ) -> String {
+        let i18n = default_i18n_state();
+        let provider = default_search_provider();
+        render_page(
+            config,
+            title,
+            "",
+            "",
+            "",
+            "",
+            slug,
+            None,
+            "",
+            assets,
+            "en",
+            &i18n,
+            &provider,
+            &test_theme(),
+        )
+    }
+
+    #[test]
+    fn render_page_structure_and_accessibility() {
+        let config = test_config();
+        let html = render_test_page(&config, "Intro", "<p>Hello</p>", "intro", None);
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("<title>Intro - Test Docs</title>"));
         assert!(html.contains(r#"href="/oxidoc.css""#));
         assert!(html.contains("<p>Hello</p>"));
         assert!(html.contains("oxidoc-loader.js"));
         assert!(html.contains(r#"lang="en""#));
-        // Accessibility and preload
         assert!(html.contains("oxidoc-skip-nav"));
         assert!(html.contains(r##"href="#oxidoc-main""##));
         assert!(html.contains(r##"id="oxidoc-main""##));
@@ -303,53 +369,16 @@ name = "Test Docs""#,
         assert!(html.contains(r#"rel="preload" href="/oxidoc-loader.js" as="script""#));
         assert!(html.contains("oxidoc-search-trigger"));
         assert!(html.contains("oxidoc-theme-toggle"));
-        // Footer present by default (attribution enabled)
         assert!(html.contains("oxidoc-footer"));
 
-        // Logo rendering
         let logo_cfg = parse_config("[project]\nname = \"T\"\nlogo = \"/logo.svg\"").unwrap();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let html = render_page(
-            &logo_cfg,
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            None,
-            "",
-            &default_assets(),
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page(&logo_cfg, "", "", "", None);
         assert!(html.contains(r#"src="/logo.svg""#) && html.contains("oxidoc-logo-img"));
     }
 
     #[test]
     fn render_page_seo_and_description() {
-        let config = test_config();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let html = render_page(
-            &config,
-            "Test Page",
-            "",
-            "",
-            "",
-            "",
-            "test",
-            Some("A test page"),
-            "",
-            &default_assets(),
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page(&test_config(), "Test Page", "", "test", Some("A test page"));
         assert!(html.contains(r#"<meta name="description" content="A test page">"#));
         assert!(html.contains(r#"<meta property="og:title""#));
         assert!(html.contains(r#"<meta property="og:type" content="article""#));
@@ -357,55 +386,20 @@ name = "Test Docs""#,
         assert!(html.contains(r#"<meta name="twitter:card" content="summary""#));
         assert!(html.contains("application/ld+json"));
 
-        // Description fallback from config
         let cfg = parse_config("[project]\nname = \"T\"\ndescription = \"Fallback desc\"").unwrap();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let html = render_page(
-            &cfg,
-            "P",
-            "",
-            "",
-            "",
-            "",
-            "p",
-            None,
-            "",
-            &default_assets(),
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page(&cfg, "P", "", "p", None);
         assert!(html.contains("Fallback desc"));
     }
 
     #[test]
     fn render_page_with_custom_assets_and_sri() {
         let config = test_config();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
         let assets = AssetConfig {
             css_path: Some("/oxidoc.a1b2c3d4.css"),
             js_path: Some("/oxidoc-loader.h5i6j7k8.js"),
             ..Default::default()
         };
-        let html = render_page(
-            &config,
-            "Test",
-            "",
-            "",
-            "",
-            "",
-            "test",
-            None,
-            "",
-            &assets,
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page_with_assets(&config, "Test", "test", &assets);
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
 
@@ -414,22 +408,7 @@ name = "Test Docs""#,
             js_sri: Some("sha384-def456"),
             ..assets
         };
-        let html = render_page(
-            &config,
-            "Test",
-            "",
-            "",
-            "",
-            "",
-            "test",
-            None,
-            "",
-            &sri_assets,
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page_with_assets(&config, "Test", "test", &sri_assets);
         assert!(html.contains(r#"integrity="sha384-abc123""#));
         assert!(html.contains(r#"integrity="sha384-def456""#));
         assert!(html.contains(r#"crossorigin="anonymous""#));
@@ -441,48 +420,14 @@ name = "Test Docs""#,
             "[project]\nname = \"Test\"\n\n[analytics]\ngoogle_analytics = \"G-XXXXXXXXXX\"",
         )
         .unwrap();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let html = render_page(
-            &ga_config,
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            None,
-            "",
-            &default_assets(),
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page(&ga_config, "", "", "", None);
         assert!(html.contains("googletagmanager.com") && html.contains("G-XXXXXXXXXX"));
 
         let custom_config = parse_config(
             "[project]\nname = \"Test\"\n\n[analytics]\nscript = \"<script>custom</script>\"",
         )
         .unwrap();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let html = render_page(
-            &custom_config,
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            None,
-            "",
-            &default_assets(),
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
+        let html = render_test_page(&custom_config, "", "", "", None);
         assert!(html.contains("custom"));
     }
 }

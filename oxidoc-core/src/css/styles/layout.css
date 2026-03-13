@@ -4,3 +4,7 @@
     grid-template-columns: var(--oxidoc-sidebar-width) minmax(0, 1fr) var(--oxidoc-toc-width);
     min-height: calc(100vh - var(--oxidoc-header-height));
 }
+/* 2-column layout when no TOC */
+.oxidoc-layout-no-toc {
+    grid-template-columns: var(--oxidoc-sidebar-width) minmax(0, 1fr);
+}

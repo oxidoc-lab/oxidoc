@@ -223,6 +223,9 @@ pub fn render_sidebar_with_homepage(
 ) -> String {
     let mut html = String::with_capacity(1024);
     for group in groups {
+        if group.pages.is_empty() {
+            continue;
+        }
         if !group.title.is_empty() {
             let _ = write!(
                 html,
