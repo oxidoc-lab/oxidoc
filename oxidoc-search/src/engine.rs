@@ -4,18 +4,21 @@ use crate::semantic::SemanticSearcher;
 use crate::types::{SearchQuery, SearchResult as DocResult};
 use boostr::model::encoder::EncoderClient;
 use numr::prelude::*;
+use splintr::Tokenize;
 use std::collections::HashMap;
 
-pub struct SearchEngine<R: Runtime<DType = DType>> {
-    semantic: Option<SemanticSearcher<R>>,
+pub struct SearchEngine<R: Runtime<DType = DType>, T: Tokenize> {
+    semantic: Option<SemanticSearcher<R, T>>,
     lexical: LexicalSearcher,
 }
 
-impl<R: Runtime<DType = DType>> SearchEngine<R> {
-    pub fn new(lexical: LexicalSearcher, semantic: Option<SemanticSearcher<R>>) -> Self {
+impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
+    pub fn new(lexical: LexicalSearcher, semantic: Option<SemanticSearcher<R, T>>) -> Self {
         Self { semantic, lexical }
     }
 
+    /// Hybrid search: lexical + semantic with RRF fusion.
+    /// Falls back to lexical-only if no semantic searcher is configured.
     pub fn search<C>(&self, client: &C, query: &SearchQuery) -> SearchResult<Vec<DocResult>>
     where
         C: EncoderClient<R>,
@@ -31,35 +34,35 @@ impl<R: Runtime<DType = DType>> SearchEngine<R> {
             return Ok(Vec::new());
         }
 
-        let mut all_results: HashMap<String, (DocResult, Vec<f32>)> = HashMap::new();
+        // Weighted RRF: lexical matches are more important than semantic
+        const LEXICAL_WEIGHT: f32 = 0.7;
+        const SEMANTIC_WEIGHT: f32 = 0.3;
 
+        let mut all_results: HashMap<String, (DocResult, f32)> = HashMap::new();
+
+        // Semantic results (if available)
         if let Some(ref semantic) = self.semantic {
             let semantic_results = semantic.search(client, query)?;
             for (rank, result) in semantic_results.iter().enumerate() {
-                let rrf_score = rrf_score(rank as u32);
+                let score = rrf_score(rank as u32) * SEMANTIC_WEIGHT;
                 all_results
                     .entry(result.path.clone())
-                    .and_modify(|(_, scores)| scores.push(rrf_score))
-                    .or_insert_with(|| (result.clone(), vec![rrf_score]));
+                    .and_modify(|(_, s)| *s += score)
+                    .or_insert_with(|| (result.clone(), score));
             }
         }
 
+        // Lexical results (always, higher weight)
         let lexical_results = self.lexical.search(query);
         for (rank, result) in lexical_results.iter().enumerate() {
-            let rrf_score = rrf_score(rank as u32);
+            let score = rrf_score(rank as u32) * LEXICAL_WEIGHT;
             all_results
                 .entry(result.path.clone())
-                .and_modify(|(_, scores)| scores.push(rrf_score))
-                .or_insert_with(|| (result.clone(), vec![rrf_score]));
+                .and_modify(|(_, s)| *s += score)
+                .or_insert_with(|| (result.clone(), score));
         }
 
-        let mut fused_results: Vec<(DocResult, f32)> = all_results
-            .into_values()
-            .map(|(result, scores)| {
-                let fused_score = scores.iter().sum::<f32>() / scores.len() as f32;
-                (result, fused_score)
-            })
-            .collect();
+        let mut fused_results: Vec<(DocResult, f32)> = all_results.into_values().collect();
 
         fused_results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -72,8 +75,34 @@ impl<R: Runtime<DType = DType>> SearchEngine<R> {
             })
             .collect())
     }
+
+    /// Attach a semantic searcher (enables hybrid search).
+    pub fn set_semantic(&mut self, semantic: SemanticSearcher<R, T>) {
+        self.semantic = Some(semantic);
+    }
+
+    /// Whether semantic search is available.
+    pub fn has_semantic(&self) -> bool {
+        self.semantic.is_some()
+    }
+
+    /// Lexical-only search (no model needed).
+    pub fn search_lexical(&self, query: &SearchQuery) -> Vec<DocResult> {
+        self.lexical.search(query)
+    }
+
+    /// Load a chunk into the lexical searcher.
+    pub fn load_chunk(&mut self, data: &[u8]) -> SearchResult<()> {
+        self.lexical.load_chunk(data)
+    }
+
+    /// Get chunk IDs needed for a query.
+    pub fn needed_chunk_ids(&self, query: &str) -> Vec<u32> {
+        self.lexical.needed_chunk_ids(query)
+    }
 }
 
+/// Reciprocal Rank Fusion score.
 fn rrf_score(rank: u32) -> f32 {
     1.0 / (rank as f32 + 60.0)
 }
@@ -103,7 +132,6 @@ mod tests {
 
     #[test]
     fn test_rrf_fusion_order() {
-        // Test that RRF fusion correctly combines scores
         let score_0 = rrf_score(0);
         let score_1 = rrf_score(1);
 

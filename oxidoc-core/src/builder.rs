@@ -35,6 +35,15 @@ pub use crate::build_result::BuildResult;
 
 /// Build the documentation site from a project root to an output directory.
 pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult> {
+    build_site_with_model(project_root, output_dir, None)
+}
+
+/// Build with an optional bundled GGUF embedding model for semantic search.
+pub fn build_site_with_model(
+    project_root: &Path,
+    output_dir: &Path,
+    bundled_model: Option<&[u8]>,
+) -> Result<BuildResult> {
     let config = load_config(project_root)?;
     let mut nav_groups = discover_pages(project_root, &config)?;
 
@@ -363,15 +372,27 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         })?;
     }
 
-    // Generate redirect pages
-    generate_redirects(&config.redirects.redirects, output_dir)?;
+    // Generate redirect pages (user-configured + auto homepage redirect)
+    let mut redirects = config.redirects.redirects.clone();
+    if let Some(ref slug) = homepage_slug {
+        redirects.push(crate::config::RedirectEntry {
+            from: format!("/{slug}"),
+            to: "/".to_string(),
+        });
+    }
+    generate_redirects(&redirects, output_dir)?;
 
     // Save incremental cache
     cache.save(output_dir)?;
 
     // Generate search indices (only for built-in oxidoc provider)
     if search_provider.is_builtin() {
-        crate::search_index::generate_search_index(&nav_groups, output_dir, &config.search)?;
+        crate::search_index::generate_search_index(
+            &nav_groups,
+            output_dir,
+            &config.search,
+            bundled_model,
+        )?;
     }
 
     // Generate per-locale JSON translation bundles for Wasm islands

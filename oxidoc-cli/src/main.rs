@@ -117,6 +117,9 @@ fn build_wasm_once(output_dir: &std::path::Path) {
     }
 }
 
+/// Bundled sentence embedding model for hybrid search.
+const BUNDLED_SEARCH_MODEL: &[u8] = include_bytes!("../assets/models/bge-micro-v2.gguf");
+
 fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()> {
     let output_dir = project_root.join(output);
     tracing::info!("Building site to {}/", output_dir.display());
@@ -124,7 +127,11 @@ fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()>
     build_wasm_once(&output_dir);
 
     let start = std::time::Instant::now();
-    let result = oxidoc_core::builder::build_site(project_root, &output_dir)?;
+    let result = oxidoc_core::builder::build_site_with_model(
+        project_root,
+        &output_dir,
+        Some(BUNDLED_SEARCH_MODEL),
+    )?;
     tracing::info!(
         pages = result.pages_rendered,
         elapsed_ms = start.elapsed().as_millis() as u64,

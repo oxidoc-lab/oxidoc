@@ -120,7 +120,11 @@ fn reload_stream(
 
 fn do_build(project_root: &Path, output_dir: &Path, label: &str) -> miette::Result<()> {
     let start = std::time::Instant::now();
-    let result = oxidoc_core::builder::build_site(project_root, output_dir)?;
+    let result = oxidoc_core::builder::build_site_with_model(
+        project_root,
+        output_dir,
+        Some(super::BUNDLED_SEARCH_MODEL),
+    )?;
 
     inject_reload_script(output_dir);
 

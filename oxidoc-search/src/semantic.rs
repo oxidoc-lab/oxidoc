@@ -3,17 +3,18 @@ use crate::types::{SearchQuery, SearchResult as DocResult, SearchSource, VectorI
 use boostr::model::encoder::{EmbeddingPipeline, EncoderClient};
 use numr::ops::{DistanceMetric, DistanceOps};
 use numr::prelude::*;
+use splintr::Tokenize;
 use std::sync::Arc;
 
-pub struct SemanticSearcher<R: Runtime<DType = DType>> {
-    embedding_pipeline: Arc<EmbeddingPipeline<R>>,
+pub struct SemanticSearcher<R: Runtime<DType = DType>, T: Tokenize> {
+    embedding_pipeline: Arc<EmbeddingPipeline<R, T>>,
     vector_index: VectorIndex,
     device: R::Device,
 }
 
-impl<R: Runtime<DType = DType>> SemanticSearcher<R> {
+impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
     pub fn new(
-        embedding_pipeline: EmbeddingPipeline<R>,
+        embedding_pipeline: EmbeddingPipeline<R, T>,
         vector_index: VectorIndex,
         device: R::Device,
     ) -> Self {
@@ -129,9 +130,6 @@ impl<R: Runtime<DType = DType>> SemanticSearcher<R> {
 mod tests {
     #[test]
     fn test_empty_query() {
-        // This test is validation only — actual semantic search requires a full runtime setup
-        // which is beyond unit test scope for Wasm crates. Integration tests would use
-        // wasm-bindgen-test with a full encoder loaded.
         let text = "";
         assert!(text.trim().is_empty());
     }

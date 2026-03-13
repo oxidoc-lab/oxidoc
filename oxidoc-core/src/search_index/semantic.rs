@@ -1,12 +1,12 @@
 //! Semantic (vector) search index generation at build time.
 //!
-//! When a GGUF embedding model is configured, the build engine:
-//! 1. Loads the model via boostr (CPU backend)
-//! 2. Computes embeddings for all document texts
+//! When a GGUF sentence embedding model is configured, the build engine:
+//! 1. Loads the model via `EmbeddingPipeline::from_gguf()` (auto-detects tokenizer)
+//! 2. Computes embeddings for all document texts using CPU backend
 //! 3. Writes pre-computed vectors to `search-vectors.json`
 //!
-//! At runtime, the oxidoc-search Wasm crate loads these vectors and computes
-//! only the query embedding, then does cosine similarity for semantic search.
+//! At runtime, the oxidoc-search Wasm crate loads these vectors and the same
+//! GGUF model, computes only the query embedding, then does cosine similarity.
 
 use crate::config::SearchConfig;
 use crate::error::{OxidocError, Result};
@@ -16,60 +16,53 @@ use super::types::{DocMetadata, PageContent, VectorIndex};
 
 /// Build a semantic search index with pre-computed document embeddings.
 ///
-/// Returns `Ok(Some(index))` if a model is configured and embeddings succeed.
-/// Returns `Ok(None)` if no model is configured (semantic search disabled).
+/// The GGUF file contains model weights, config, AND tokenizer vocab — no
+/// separate tokenizer configuration needed.
+///
+/// `bundled_model` is the default embedded model bytes from the CLI binary.
+/// `config.model_path` overrides it with a custom model from disk.
+///
+/// Returns `Ok(Some(index))` if semantic is enabled and embeddings succeed.
+/// Returns `Ok(None)` if semantic search is disabled.
 pub fn build_vector_index(
     pages: &[PageContent],
     config: &SearchConfig,
+    bundled_model: Option<&[u8]>,
 ) -> Result<Option<VectorIndex>> {
-    let model_path = match config.model_path.as_ref() {
-        Some(p) => p,
-        None => return Ok(None),
-    };
+    if !config.semantic {
+        return Ok(None);
+    }
 
-    let tokenizer_name = config.tokenizer.as_deref().unwrap_or("cl100k_base");
+    use boostr::format::gguf::Gguf;
+    use boostr::model::encoder::EmbeddingPipeline;
+    use numr::runtime::cpu::{CpuClient, CpuDevice, CpuRuntime};
 
-    tracing::info!(model = %model_path, tokenizer = %tokenizer_name, "Loading embedding model");
-
-    // Load tokenizer
-    let tokenizer = splintr::from_pretrained(tokenizer_name).map_err(|e| {
-        OxidocError::Search(format!(
-            "Failed to load tokenizer '{}': {}",
-            tokenizer_name, e
-        ))
-    })?;
-
-    // Set up CPU runtime
-    use numr::runtime::cpu::{CpuClient, CpuDevice};
     let device = CpuDevice::new();
     let client = CpuClient::new(device.clone());
 
-    // Load GGUF model
-    use boostr::format::gguf::Gguf;
-    let mut gguf = Gguf::open(model_path).map_err(|e| {
-        OxidocError::Search(format!("Failed to open GGUF model '{}': {}", model_path, e))
-    })?;
+    // Load model: prefer model_path override, fall back to bundled
+    let mut gguf = if let Some(path) = config.model_path.as_ref() {
+        tracing::info!(model = %path, "Loading custom sentence embedding model");
+        Gguf::open(path).map_err(|e| {
+            OxidocError::Search(format!("Failed to open GGUF model '{}': {}", path, e))
+        })?
+    } else if let Some(bytes) = bundled_model {
+        tracing::info!("Loading bundled sentence embedding model");
+        Gguf::from_bytes(bytes.to_vec()).map_err(|e| {
+            OxidocError::Search(format!("Failed to parse bundled GGUF model: {}", e))
+        })?
+    } else {
+        return Err(OxidocError::Search(
+            "Semantic search enabled but no model available (no bundled model or model_path)"
+                .to_string(),
+        ));
+    };
 
-    // Extract encoder config from GGUF metadata
-    use boostr::model::encoder::{EmbeddingPipeline, Encoder, EncoderConfig, Pooling};
-    use numr::runtime::cpu::CpuRuntime;
+    let pipeline = EmbeddingPipeline::<CpuRuntime, _>::from_gguf(&mut gguf, device)
+        .map_err(|e| OxidocError::Search(format!("Failed to load embedding model: {}", e)))?;
 
-    let encoder_config = EncoderConfig::from_gguf_metadata(gguf.metadata()).map_err(|e| {
-        OxidocError::Search(format!("Failed to read encoder config from GGUF: {}", e))
-    })?;
+    let dimension = pipeline.config().hidden_size;
 
-    let dimension = encoder_config.hidden_size;
-
-    // Load encoder weights
-    let encoder = Encoder::from_weights(encoder_config, Pooling::Mean, |name| {
-        gguf.load_tensor_f32::<CpuRuntime>(name, &device)
-    })
-    .map_err(|e| OxidocError::Search(format!("Failed to load encoder weights: {}", e)))?;
-
-    // Create embedding pipeline
-    let pipeline = EmbeddingPipeline::new(encoder, tokenizer, device);
-
-    // Compute embeddings for all documents
     let documents: Vec<DocMetadata> = pages
         .iter()
         .enumerate()
@@ -85,7 +78,11 @@ pub fn build_vector_index(
 
     let texts: Vec<&str> = pages.iter().map(|p| p.text.as_str()).collect();
 
-    tracing::info!(docs = texts.len(), "Computing document embeddings");
+    tracing::info!(
+        docs = texts.len(),
+        dim = dimension,
+        "Computing document embeddings"
+    );
 
     let vectors = if texts.is_empty() {
         Vec::new()
@@ -95,11 +92,7 @@ pub fn build_vector_index(
             .map_err(|e| OxidocError::Search(format!("Failed to compute embeddings: {}", e)))?
     };
 
-    tracing::info!(
-        docs = vectors.len(),
-        dim = dimension,
-        "Document embeddings computed"
-    );
+    tracing::info!(docs = vectors.len(), "Document embeddings computed");
 
     Ok(Some(VectorIndex {
         documents,
@@ -122,20 +115,29 @@ pub fn write_vector_index(index: &VectorIndex, output_dir: &Path) -> Result<()> 
     Ok(())
 }
 
-/// Copy the GGUF model file to the output directory so the browser can fetch it.
-pub fn copy_model_to_output(config: &SearchConfig, output_dir: &Path) -> Result<()> {
-    let model_path = match config.model_path.as_ref() {
-        Some(p) => Path::new(p),
-        None => return Ok(()),
-    };
-
+/// Write the GGUF model to the output directory so the browser can fetch it.
+pub fn write_model_to_output(
+    config: &SearchConfig,
+    bundled_model: Option<&[u8]>,
+    output_dir: &Path,
+) -> Result<()> {
     let dest = output_dir.join("search-model.gguf");
-    std::fs::copy(model_path, &dest).map_err(|e| OxidocError::FileWrite {
-        path: dest.display().to_string(),
-        source: e,
-    })?;
 
-    tracing::info!("Copied embedding model to output directory");
+    if let Some(path) = config.model_path.as_ref() {
+        std::fs::copy(Path::new(path), &dest).map_err(|e| OxidocError::FileWrite {
+            path: dest.display().to_string(),
+            source: e,
+        })?;
+    } else if let Some(bytes) = bundled_model {
+        std::fs::write(&dest, bytes).map_err(|e| OxidocError::FileWrite {
+            path: dest.display().to_string(),
+            source: e,
+        })?;
+    } else {
+        return Ok(());
+    }
+
+    tracing::info!("Wrote embedding model to output directory");
     Ok(())
 }
 
@@ -153,16 +155,79 @@ mod tests {
             headings: vec![],
         }];
 
-        let result = build_vector_index(&pages, &config).unwrap();
+        let result = build_vector_index(&pages, &config, None).unwrap();
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_copy_model_no_path() {
+    fn test_build_vector_index_semantic_disabled() {
+        let config = SearchConfig {
+            semantic: false,
+            ..SearchConfig::default()
+        };
+        let pages = vec![PageContent {
+            title: "Test".to_string(),
+            slug: "test".to_string(),
+            text: "hello world".to_string(),
+            headings: vec![],
+        }];
+        // Even with bundled bytes, returns None when semantic=false
+        let result = build_vector_index(&pages, &config, Some(b"fake")).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[ignore] // Requires OXIDOC_TEST_MODEL env var pointing to a GGUF embedding model
+    fn test_build_vector_index_with_bundled_model() {
+        let model_path = std::env::var("OXIDOC_TEST_MODEL")
+            .expect("Set OXIDOC_TEST_MODEL to a GGUF embedding model path");
+
+        let model_bytes = std::fs::read(&model_path).unwrap();
+        let config = SearchConfig {
+            semantic: true,
+            ..SearchConfig::default()
+        };
+        let pages = vec![
+            PageContent {
+                title: "Getting Started".to_string(),
+                slug: "getting-started".to_string(),
+                text: "Install the CLI tool and create your first project".to_string(),
+                headings: vec![],
+            },
+            PageContent {
+                title: "API Reference".to_string(),
+                slug: "api-reference".to_string(),
+                text: "The REST API provides endpoints for user management".to_string(),
+                headings: vec![],
+            },
+        ];
+
+        let result = build_vector_index(&pages, &config, Some(&model_bytes)).unwrap();
+        let index = result.expect("Should produce vector index");
+        assert_eq!(index.documents.len(), 2);
+        assert_eq!(index.vectors.len(), 2);
+        assert!(index.dimension > 0);
+        // Each vector should match the dimension
+        for vec in &index.vectors {
+            assert_eq!(vec.len(), index.dimension);
+        }
+    }
+
+    #[test]
+    fn test_write_model_no_source() {
         let config = SearchConfig::default();
         let tmp = tempfile::tempdir().unwrap();
-        copy_model_to_output(&config, tmp.path()).unwrap();
-        // Should be a no-op
+        write_model_to_output(&config, None, tmp.path()).unwrap();
         assert!(!tmp.path().join("search-model.gguf").exists());
+    }
+
+    #[test]
+    fn test_write_model_from_bundled() {
+        let config = SearchConfig::default();
+        let tmp = tempfile::tempdir().unwrap();
+        let fake_model = b"fake gguf data";
+        write_model_to_output(&config, Some(fake_model), tmp.path()).unwrap();
+        let written = std::fs::read(tmp.path().join("search-model.gguf")).unwrap();
+        assert_eq!(written, fake_model);
     }
 }

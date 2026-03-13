@@ -182,12 +182,12 @@ fn default_translation_dir() -> String {
 pub struct SearchConfig {
     #[serde(default = "default_provider")]
     pub provider: String,
+    /// Enable semantic (hybrid) search. Default: false.
+    /// When true, uses the bundled sentence embedding model (or `model_path` override).
+    #[serde(default)]
+    pub semantic: bool,
     #[serde(default)]
     pub model_path: Option<String>,
-    /// Tokenizer name for semantic search (e.g. "cl100k_base", "llama3").
-    /// Must match the tokenizer used by the GGUF embedding model.
-    #[serde(default)]
-    pub tokenizer: Option<String>,
     // Algolia preset fields
     #[serde(default)]
     pub app_id: Option<String>,
@@ -217,8 +217,8 @@ impl Default for SearchConfig {
     fn default() -> Self {
         Self {
             provider: default_provider(),
+            semantic: false,
             model_path: None,
-            tokenizer: None,
             app_id: None,
             api_key: None,
             index_name: None,
@@ -262,7 +262,7 @@ pub struct RedirectConfig {
     pub redirects: Vec<RedirectEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RedirectEntry {
     pub from: String,
     pub to: String,

@@ -11,10 +11,14 @@ use crate::error::Result;
 use std::path::Path;
 
 /// Generate both lexical and optional semantic search indices for the site.
+///
+/// `bundled_model` is the default GGUF embedding model bytes from the CLI binary.
+/// Only used when `config.semantic = true`.
 pub fn generate_search_index(
     nav_groups: &[NavGroup],
     output_dir: &Path,
     config: &SearchConfig,
+    bundled_model: Option<&[u8]>,
 ) -> Result<()> {
     // Extract searchable text from all pages.
     let pages = extract::extract_page_text(nav_groups)?;
@@ -29,8 +33,8 @@ pub fn generate_search_index(
     );
 
     // Optionally generate semantic index with pre-computed embeddings.
-    if config.model_path.is_some() {
-        match semantic::build_vector_index(&pages, config) {
+    if config.semantic {
+        match semantic::build_vector_index(&pages, config, bundled_model) {
             Ok(Some(vectors)) => {
                 semantic::write_vector_index(&vectors, output_dir)?;
                 tracing::info!(
@@ -38,13 +42,13 @@ pub fn generate_search_index(
                     dim = vectors.dimension,
                     "Vector index generated"
                 );
-                // Copy model to output dir so the browser can fetch it for query embedding.
-                if let Err(e) = semantic::copy_model_to_output(config, output_dir) {
-                    tracing::warn!("Failed to copy model to output: {}", e);
+                // Write model to output dir so the browser can fetch it for query embedding.
+                if let Err(e) = semantic::write_model_to_output(config, bundled_model, output_dir) {
+                    tracing::warn!("Failed to write model to output: {}", e);
                 }
             }
             Ok(None) => {
-                tracing::info!("Semantic indexing skipped (no model configured)");
+                tracing::info!("Semantic indexing skipped (disabled)");
             }
             Err(e) => {
                 tracing::warn!("Semantic indexing failed: {}", e);
@@ -99,7 +103,7 @@ mod tests {
 
         let config = SearchConfig::default();
 
-        generate_search_index(&nav_groups, &output, &config).unwrap();
+        generate_search_index(&nav_groups, &output, &config, None).unwrap();
 
         // Verify chunked index was created (metadata + at least one chunk).
         let meta_path = output.join("search-meta.bin");
