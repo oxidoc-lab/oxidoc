@@ -14,6 +14,7 @@
   var activeIdx = -1;
   var debounceTimer = null;
   var lastResultKey = "";
+  var loadedChunks = {};
 
   // Preload search result icons so they're cached before results render
   var searchIcons = ["material-symbols:tag-rounded", "material-symbols:description-rounded"];
@@ -26,20 +27,22 @@
     document.body.appendChild(el);
   });
 
-  // Load the Wasm search module and initialize with the lexical index
+  // Load the Wasm search module and initialize with the metadata
   function ensureSearch(cb) {
     if (indexLoaded) return cb();
     // Load wasm module
     var loadWasm = window.__oxidoc_search ? window.__oxidoc_search() : Promise.reject("no loader");
     loadWasm.then(function (mod) {
       wasmModule = mod;
-      // Now fetch and load the index
+      // Fetch metadata binary
       var x = new XMLHttpRequest();
-      x.open("GET", "/search-lexical.json", true);
+      x.open("GET", "/search-meta.bin", true);
+      x.responseType = "arraybuffer";
       x.onload = function () {
         if (x.status === 200) {
           try {
-            wasmModule.oxidoc_search_init(x.responseText);
+            var data = new Uint8Array(x.response);
+            wasmModule.oxidoc_search_init(data);
             indexLoaded = true;
           } catch (e) {
             console.error("[oxidoc-search] init failed:", e);
@@ -53,6 +56,44 @@
       console.error("[oxidoc-search] wasm load failed:", e);
       cb();
     });
+  }
+
+  // Fetch and load any chunks needed for the query
+  function ensureChunks(query, cb) {
+    if (!indexLoaded || !wasmModule) return cb();
+    try {
+      var neededJson = wasmModule.oxidoc_search_needed_chunks(query);
+      var needed = JSON.parse(neededJson);
+      var toLoad = needed.filter(function (id) { return !loadedChunks[id]; });
+      if (toLoad.length === 0) return cb();
+
+      var remaining = toLoad.length;
+      toLoad.forEach(function (chunkId) {
+        var x = new XMLHttpRequest();
+        x.open("GET", "/search-chunk-" + chunkId + ".bin", true);
+        x.responseType = "arraybuffer";
+        x.onload = function () {
+          if (x.status === 200) {
+            try {
+              var data = new Uint8Array(x.response);
+              wasmModule.oxidoc_search_load_chunk(data);
+              loadedChunks[chunkId] = true;
+            } catch (e) {
+              console.error("[oxidoc-search] chunk load failed:", e);
+            }
+          }
+          remaining--;
+          if (remaining === 0) cb();
+        };
+        x.onerror = function () {
+          remaining--;
+          if (remaining === 0) cb();
+        };
+        x.send();
+      });
+    } catch (e) {
+      cb();
+    }
   }
 
   function open() {
@@ -217,8 +258,10 @@
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(function () {
       ensureSearch(function () {
-        var results = search(q);
-        render(results, q);
+        ensureChunks(q, function () {
+          var results = search(q);
+          render(results, q);
+        });
       });
     }, 150);
   });
