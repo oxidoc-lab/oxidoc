@@ -33,6 +33,46 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
 
     let html_redirect = axum::middleware::from_fn(redirect_html_to_clean_url);
 
+    let clean_url_output = output_dir.clone();
+    let clean_url_layer = axum::middleware::from_fn(
+        move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
+            let output_dir = clean_url_output.clone();
+            async move {
+                let path = req
+                    .uri()
+                    .path()
+                    .trim_start_matches('/')
+                    .trim_end_matches('/');
+
+                // Skip static assets and special routes
+                if path.starts_with("__oxidoc") || path.contains('.') {
+                    return next.run(req).await.into_response();
+                }
+
+                // Clean URLs: /intro → intro.html
+                let html_path = output_dir.join(format!("{path}.html"));
+                if html_path.is_file()
+                    && let Ok(content) = tokio::fs::read_to_string(&html_path).await
+                {
+                    return Html(content).into_response();
+                }
+
+                // Try path/index.html (for folder index pages)
+                if !path.is_empty() {
+                    let index_path = output_dir.join(path).join("index.html");
+                    if index_path.is_file()
+                        && let Ok(content) = tokio::fs::read_to_string(&index_path).await
+                    {
+                        return Html(content).into_response();
+                    }
+                }
+
+                next.run(req).await.into_response()
+            }
+        },
+    );
+
+    let not_found_output = output_dir.clone();
     let app = Router::new()
         .route(
             "/__oxidoc_reload",
@@ -42,29 +82,9 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
             }),
         )
         .fallback_service(ServeDir::new(&output_dir).fallback(axum::routing::get({
-            let output_dir_clone = output_dir.clone();
-            move |uri: axum::http::Uri| {
-                let output_dir = output_dir_clone.clone();
+            move |_uri: axum::http::Uri| {
+                let output_dir = not_found_output.clone();
                 async move {
-                    let path = uri.path().trim_start_matches('/');
-
-                    // Clean URLs: /intro → intro.html
-                    let html_path = output_dir.join(format!("{path}.html"));
-                    if html_path.is_file()
-                        && let Ok(content) = tokio::fs::read_to_string(&html_path).await
-                    {
-                        return Html(content).into_response();
-                    }
-
-                    // Try path/index.html
-                    let index_path = output_dir.join(path).join("index.html");
-                    if index_path.is_file()
-                        && let Ok(content) = tokio::fs::read_to_string(&index_path).await
-                    {
-                        return Html(content).into_response();
-                    }
-
-                    // 404
                     let not_found = output_dir.join("404.html");
                     let body = tokio::fs::read_to_string(&not_found)
                         .await
@@ -73,6 +93,7 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
                 }
             }
         })))
+        .layer(clean_url_layer)
         .layer(html_redirect);
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
