@@ -56,7 +56,7 @@ pub fn render_404_page(
         {locale_switcher_html}
         {header_actions_html}
     </header>
-    <div class="oxidoc-layout">
+    <div class="oxidoc-layout oxidoc-layout--no-sidebar">
         <main id="oxidoc-main" class="oxidoc-content" role="main">
             <article>
                 {ERROR_404_HTML}

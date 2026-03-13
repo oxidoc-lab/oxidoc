@@ -8,3 +8,27 @@
 .oxidoc-layout-no-toc {
     grid-template-columns: var(--oxidoc-sidebar-width) minmax(0, 1fr);
 }
+/* Full-width layout (no sidebar, no TOC) — used for 404 etc. */
+.oxidoc-layout--no-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+}
+.oxidoc-404 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 50vh;
+    padding: 2rem;
+}
+.oxidoc-404 h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+.oxidoc-404 p {
+    color: var(--oxidoc-text-secondary);
+    max-width: 400px;
+}
+.oxidoc-404 a {
+    color: var(--oxidoc-primary);
+}
