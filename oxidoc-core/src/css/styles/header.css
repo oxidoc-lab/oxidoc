@@ -1,0 +1,23 @@
+/* Header */
+.oxidoc-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: var(--oxidoc-header-height);
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    background: var(--oxidoc-bg);
+    border-bottom: 1px solid var(--oxidoc-border);
+    transition: transform 0.3s ease;
+}
+.oxidoc-header.oxidoc-header-hidden {
+    transform: translateY(-100%);
+}
+.oxidoc-logo {
+    font-weight: 700;
+    font-size: 1.125rem;
+    color: var(--oxidoc-text);
+    text-decoration: none;
+}
+.oxidoc-logo:hover { color: var(--oxidoc-primary); }

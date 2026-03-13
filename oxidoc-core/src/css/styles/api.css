@@ -1,0 +1,17 @@
+/* API endpoint styles */
+.oxidoc-api-method {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #fff;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+}
+.oxidoc-api-method-get { background: #10b981; }
+.oxidoc-api-method-post { background: #3b82f6; }
+.oxidoc-api-method-put { background: #f59e0b; }
+.oxidoc-api-method-patch { background: #8b5cf6; }
+.oxidoc-api-method-delete { background: #ef4444; }

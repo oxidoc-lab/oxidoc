@@ -1,0 +1,15 @@
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+iconify-icon { display: inline-flex; vertical-align: middle; }
+html { font-size: 106.25%; -webkit-text-size-adjust: 100%; }
+body {
+    font-family: var(--oxidoc-font-sans);
+    color: var(--oxidoc-text);
+    background: var(--oxidoc-bg);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+}

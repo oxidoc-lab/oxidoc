@@ -1,0 +1,30 @@
+/* Responsive */
+@media (max-width: 1024px) {
+    .oxidoc-layout {
+        grid-template-columns: 1fr;
+    }
+    .oxidoc-sidebar, .oxidoc-toc-sidebar {
+        display: none;
+    }
+    .oxidoc-content {
+        padding: 1.5rem 1rem;
+    }
+    .oxidoc-search-trigger span { display: none; }
+}
+
+/* Print */
+@media print {
+    .oxidoc-header, .oxidoc-sidebar, .oxidoc-toc-sidebar, .oxidoc-footer,
+    .oxidoc-skip-nav, .oxidoc-copy-btn, .oxidoc-search-trigger, .oxidoc-theme-toggle {
+        display: none !important;
+    }
+    .oxidoc-layout {
+        display: block;
+    }
+    .oxidoc-content {
+        max-width: 100%;
+        padding: 0;
+    }
+    article a { color: inherit; text-decoration: underline; }
+    article a[href]::after { content: " (" attr(href) ")"; font-size: 0.8em; }
+}

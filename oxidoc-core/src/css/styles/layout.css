@@ -1,0 +1,6 @@
+/* Layout — 3-column */
+.oxidoc-layout {
+    display: grid;
+    grid-template-columns: var(--oxidoc-sidebar-width) minmax(0, 1fr) var(--oxidoc-toc-width);
+    min-height: calc(100vh - var(--oxidoc-header-height));
+}

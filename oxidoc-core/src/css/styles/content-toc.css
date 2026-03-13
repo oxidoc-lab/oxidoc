@@ -1,0 +1,44 @@
+/* Main content */
+.oxidoc-content {
+    max-width: var(--oxidoc-content-max);
+    margin: 0 auto;
+    padding: 2rem 2.5rem;
+    width: 100%;
+}
+
+/* TOC sidebar */
+.oxidoc-toc-sidebar {
+    border-left: 1px solid var(--oxidoc-border);
+}
+.oxidoc-toc-inner {
+    position: sticky;
+    top: var(--oxidoc-header-height);
+    max-height: calc(100vh - var(--oxidoc-header-height));
+    overflow-y: auto;
+    padding: 1.5rem 1rem;
+    scrollbar-width: thin;
+    transition: top 0.3s ease, max-height 0.3s ease;
+}
+.oxidoc-header-hidden ~ .oxidoc-layout .oxidoc-toc-inner {
+    top: 0;
+    max-height: 100vh;
+}
+.oxidoc-toc {
+    font-size: 0.8125rem;
+}
+.oxidoc-toc ul {
+    list-style: none;
+    padding: 0;
+}
+.oxidoc-toc li {
+    margin: 0.25rem 0;
+}
+.oxidoc-toc li a {
+    color: var(--oxidoc-text-secondary);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.oxidoc-toc li a:hover { color: var(--oxidoc-primary); }
+.oxidoc-toc li a.active { color: var(--oxidoc-primary); font-weight: 500; }
+.oxidoc-toc .toc-level-3 { padding-left: 0.75rem; }
+.oxidoc-toc .toc-level-4 { padding-left: 1.5rem; }

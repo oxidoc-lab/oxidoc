@@ -1,0 +1,26 @@
+/* Breadcrumbs */
+.oxidoc-breadcrumbs {
+    margin-bottom: 1.5rem;
+    font-size: 0.8125rem;
+}
+.oxidoc-breadcrumbs ol {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+}
+.oxidoc-breadcrumbs li { display: inline; }
+.oxidoc-breadcrumbs .separator {
+    margin: 0 0.375rem;
+    color: var(--oxidoc-text-secondary);
+}
+.oxidoc-breadcrumbs a {
+    color: var(--oxidoc-primary);
+    text-decoration: none;
+}
+.oxidoc-breadcrumbs a:hover { text-decoration: underline; }
+.oxidoc-breadcrumbs [aria-current="page"] {
+    color: var(--oxidoc-text-secondary);
+}

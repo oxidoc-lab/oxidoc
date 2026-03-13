@@ -1,0 +1,50 @@
+/* Sidebar */
+.oxidoc-sidebar {
+    border-right: 1px solid var(--oxidoc-border);
+    background: var(--oxidoc-bg-secondary);
+}
+.oxidoc-sidebar-inner {
+    position: sticky;
+    top: var(--oxidoc-header-height);
+    max-height: calc(100vh - var(--oxidoc-header-height));
+    overflow-y: auto;
+    padding: 1.5rem 1rem;
+    scrollbar-width: thin;
+    transition: top 0.3s ease, max-height 0.3s ease;
+}
+.oxidoc-header-hidden ~ .oxidoc-layout .oxidoc-sidebar-inner {
+    top: 0;
+    max-height: 100vh;
+}
+.oxidoc-nav-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--oxidoc-text-secondary);
+    margin-bottom: 0.5rem;
+    margin-top: 1rem;
+}
+.oxidoc-nav-group:first-child .oxidoc-nav-title { margin-top: 0; }
+.oxidoc-nav-group ul {
+    list-style: none;
+    padding: 0;
+}
+.oxidoc-nav-group li a {
+    display: block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    color: var(--oxidoc-text-secondary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: color 0.15s, background 0.15s;
+}
+.oxidoc-nav-group li a:hover {
+    color: var(--oxidoc-text);
+    background: var(--oxidoc-border);
+}
+.oxidoc-nav-group li a.active {
+    color: var(--oxidoc-primary);
+    background: color-mix(in srgb, var(--oxidoc-primary) 10%, transparent);
+    font-weight: 500;
+}
