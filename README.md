@@ -204,6 +204,18 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | `oxidoc-openapi`    | cdylib  | Wasm: API playground island                               |
 | `oxidoc-search`     | cdylib  | Wasm: hybrid search island                                |
 
+## Development Setup
+
+After cloning the repository, download the embedding model used for semantic search:
+
+```bash
+mkdir -p oxidoc-cli/assets/models
+curl -L -o oxidoc-cli/assets/models/bge-micro-v2.gguf \
+  https://huggingface.co/fs90/bge-micro-v2-i1-GGUF/resolve/main/bge-micro-v2.i1-Q4_K_M.gguf
+```
+
+This ~17MB GGUF model is embedded into the binary at compile time via `include_bytes!()` and is required for `cargo build` to succeed. End users installing via `cargo install oxidoc-cli` receive it automatically.
+
 ## Architecture
 
 ```
