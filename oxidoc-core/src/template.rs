@@ -139,14 +139,11 @@ pub fn render_page(
     let current_path = format!("/{}", active_slug);
     let locale_switcher_html = i18n_state.render_locale_switcher(locale, &current_path);
 
-    let (layout_class, toc_aside) = if toc_html.is_empty() {
-        (" oxidoc-layout-no-toc".to_string(), String::new())
+    let toc_aside = if toc_html.is_empty() {
+        r#"<aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents"></aside>"#.to_string()
     } else {
-        (
-            String::new(),
-            format!(
-                r#"<aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents"><div class="oxidoc-toc-inner">{toc_html}</div></aside>"#
-            ),
+        format!(
+            r#"<aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents"><div class="oxidoc-toc-inner">{toc_html}</div></aside>"#
         )
     };
 
@@ -183,7 +180,7 @@ pub fn render_page(
         {locale_switcher_html}
         {header_actions_html}
     </header>
-    <div class="oxidoc-layout{layout_class}">
+    <div class="oxidoc-layout">
         <aside class="oxidoc-sidebar" role="navigation" aria-label="Documentation navigation">
             <div class="oxidoc-sidebar-inner">
                 {sidebar_html}
@@ -219,7 +216,6 @@ pub fn render_page(
         breadcrumb_html = breadcrumb_html,
         content_html = content_html,
         toc_aside = toc_aside,
-        layout_class = layout_class,
         page_meta_html = page_meta_html,
         footer_html = footer_html,
         css_preload = css_preload,
