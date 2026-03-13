@@ -1,0 +1,190 @@
+use super::matching::{levenshtein, max_edit_distance, split_camel_case};
+
+/// Score a section based on how query tokens match within it.
+/// For each token, find the best matching word. Score = 1.0 - (match_position / word_length).
+/// Earlier match in word = higher score. Exact match = 1.0.
+/// Multi-token: all tokens matched → 3x bonus.
+pub(super) fn score_section(
+    section_text: &str,
+    heading_title: &str,
+    tokens: &[String],
+    num_tokens: usize,
+) -> f32 {
+    let lower = section_text.to_lowercase();
+    let heading_lower = heading_title.to_lowercase();
+    let heading_words: Vec<&str> = heading_lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let mut total = 0.0_f32;
+    let mut matched_count = 0usize;
+
+    for tk in tokens {
+        let mut best = 0.0_f32;
+        let max_dist = max_edit_distance(tk.len());
+        for word in &words {
+            // Literal substring match — scored by position and coverage
+            if let Some(pos) = word.find(tk.as_str()) {
+                let wlen = word.len().max(1) as f32;
+                let position_score = 1.0 - (pos as f32 / wlen);
+                let coverage_score = tk.len() as f32 / wlen;
+                let score = position_score * coverage_score;
+                best = best.max(score);
+                if score >= 1.0 {
+                    break;
+                }
+            } else if max_dist > 0 {
+                // Fuzzy match — Levenshtein against full word
+                let len_diff = (word.len() as isize - tk.len() as isize).unsigned_abs();
+                if len_diff <= max_dist {
+                    let dist = levenshtein(tk, word);
+                    if dist > 0 && dist <= max_dist {
+                        let score = match dist {
+                            1 => 0.5,
+                            2 => 0.25,
+                            _ => 0.1,
+                        };
+                        best = best.max(score);
+                    }
+                }
+            }
+        }
+        if best > 0.0 {
+            matched_count += 1;
+        }
+        total += best;
+    }
+
+    if num_tokens > 1 && matched_count == num_tokens {
+        total *= 3.0;
+    } else if num_tokens > 1 {
+        total *= matched_count as f32 / num_tokens as f32;
+    }
+
+    // Heading boost: score tokens against heading words using same position+coverage logic
+    // Also split camelCase/hyphenated heading words (e.g. "CodeBlock" → ["code","block"])
+    if !heading_words.is_empty() {
+        let mut expanded_heading: Vec<String> = Vec::new();
+        for hw in &heading_words {
+            expanded_heading.push(hw.to_string());
+            let parts = split_camel_case(hw);
+            if parts.len() > 1 {
+                for p in parts {
+                    let lower = p.to_lowercase();
+                    if lower.len() > 1 {
+                        expanded_heading.push(lower);
+                    }
+                }
+            }
+        }
+
+        let mut heading_score = 0.0_f32;
+        let mut heading_hits = 0usize;
+        for tk in tokens {
+            let mut best = 0.0_f32;
+            for hw in &expanded_heading {
+                if let Some(pos) = hw.find(tk.as_str()) {
+                    let wlen = hw.len().max(1) as f32;
+                    let ps = 1.0 - (pos as f32 / wlen);
+                    let cs = tk.len() as f32 / wlen;
+                    best = best.max(ps * cs);
+                }
+            }
+            if best > 0.0 {
+                heading_hits += 1;
+                heading_score += best;
+            }
+        }
+        if heading_hits > 0 {
+            let heading_ratio = heading_hits as f32 / num_tokens.max(1) as f32;
+            total *= 1.0 + heading_ratio * heading_score * 2.0;
+        }
+    }
+
+    total
+}
+
+/// Get the text for the section containing the given offset (from heading to next heading).
+pub(super) fn get_section_text<'a>(
+    text: &'a str,
+    headings: &[crate::types::HeadingPos],
+    offset: usize,
+) -> &'a str {
+    // If offset is before the first heading, return intro text only
+    if headings.is_empty() || offset < headings[0].offset {
+        let end = headings.first().map(|h| h.offset).unwrap_or(text.len());
+        return &text[0..end];
+    }
+    let mut section_start = 0;
+    let mut section_end = text.len();
+    for (i, h) in headings.iter().enumerate() {
+        if h.offset <= offset {
+            section_start = h.offset;
+            section_end = headings
+                .get(i + 1)
+                .map(|next| next.offset)
+                .unwrap_or(text.len());
+        } else {
+            break;
+        }
+    }
+    &text[section_start..section_end]
+}
+
+/// Given a match offset, walk backwards through heading positions to build breadcrumb.
+/// Returns (breadcrumb, anchor) where breadcrumb is e.g. ["Page Title", "h2"]
+/// and anchor is the closest heading's anchor.
+pub(super) fn resolve_heading_breadcrumb(
+    page_title: &str,
+    headings: &[crate::types::HeadingPos],
+    match_offset: Option<usize>,
+) -> (Vec<String>, String) {
+    let offset = match match_offset {
+        Some(o) => o,
+        None => return (vec![], String::new()),
+    };
+
+    // Find the last heading whose offset <= match offset
+    let mut closest_idx: Option<usize> = None;
+    for (i, h) in headings.iter().enumerate() {
+        if h.offset <= offset {
+            closest_idx = Some(i);
+        } else {
+            break;
+        }
+    }
+
+    let closest_idx = match closest_idx {
+        Some(i) => i,
+        None => return (vec![], String::new()), // Match is before any heading
+    };
+
+    let closest = &headings[closest_idx];
+    let anchor = closest.anchor.clone();
+
+    // Build breadcrumb: page title, then ancestor headings (lower depth), then closest
+    let mut crumbs = vec![page_title.to_string()];
+    let closest_depth = closest.depth;
+
+    // Walk backwards to find ancestor headings
+    let mut need_depth = closest_depth - 1;
+    let mut ancestors = Vec::new();
+    for i in (0..closest_idx).rev() {
+        if headings[i].depth <= need_depth {
+            ancestors.push(headings[i].title.clone());
+            if headings[i].depth <= 2 {
+                break;
+            }
+            need_depth = headings[i].depth - 1;
+        }
+    }
+    ancestors.reverse();
+    crumbs.extend(ancestors);
+    crumbs.push(closest.title.clone());
+
+    (crumbs, anchor)
+}
