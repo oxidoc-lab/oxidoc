@@ -142,6 +142,19 @@ Set `dismissible` to `false` to remove the close button entirely.
 Welcome to the Oxidoc documentation! Star us on GitHub.
 </Banner>
 
+### Mermaid
+
+Diagrams rendered automatically from fenced code blocks with `mermaid` as the language.
+
+```mermaid
+graph LR
+    A[Write .rdx] --> B[oxidoc build]
+    B --> C[Static HTML]
+    B --> D[Wasm Islands]
+    C --> E[Deploy]
+    D --> E
+```
+
 ## Development Server
 
 Run `oxidoc dev` to start a local server with hot reload. Edit any `.rdx` file and the browser refreshes automatically.
