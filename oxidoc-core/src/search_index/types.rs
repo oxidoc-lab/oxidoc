@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A heading position within a document's text.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct HeadingPos {
     pub title: String,
     pub anchor: String,
@@ -12,7 +15,10 @@ pub struct HeadingPos {
 }
 
 /// Metadata for a searchable document (one per page).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct DocMetadata {
     pub id: u32,
     pub title: String,
@@ -26,15 +32,24 @@ pub struct DocMetadata {
     pub headings: Vec<HeadingPos>,
 }
 
-/// A posting entry in the inverted index (term -> doc with score).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A posting entry in the inverted index (term -> doc with score + positions).
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct Posting {
     pub doc_id: u32,
     pub score: f32,
+    /// Token index positions where this term appears in the document.
+    #[serde(default)]
+    pub positions: Vec<u32>,
 }
 
 /// Lexical (inverted) index for keyword-based search.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct LexicalIndex {
     pub postings: HashMap<String, Vec<Posting>>,
     pub documents: Vec<DocMetadata>,
@@ -47,6 +62,38 @@ pub struct VectorIndex {
     pub vectors: Vec<Vec<f32>>,
     pub dimension: usize,
 }
+
+/// Entry in the chunk manifest describing which term prefixes a chunk covers.
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
+pub struct ChunkEntry {
+    pub id: u32,
+    pub prefixes: Vec<String>,
+}
+
+/// Manifest listing all chunks and their prefix coverage.
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
+pub struct ChunkManifest {
+    pub chunks: Vec<ChunkEntry>,
+}
+
+/// Metadata file loaded at init time (documents + manifest, no postings).
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
+pub struct SearchMetadata {
+    pub documents: Vec<DocMetadata>,
+    pub manifest: ChunkManifest,
+}
+
+/// Postings for a single chunk (term -> postings list).
+pub type ChunkPostings = HashMap<String, Vec<Posting>>;
 
 /// Plain text content extracted from a page (one per page).
 #[derive(Debug, Clone)]
@@ -123,6 +170,7 @@ mod tests {
             vec![Posting {
                 doc_id: 0,
                 score: 0.95,
+                positions: vec![0, 5],
             }],
         );
 

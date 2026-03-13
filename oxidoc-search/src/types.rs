@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A heading position within a document's text.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct HeadingPos {
     pub title: String,
     pub anchor: String,
@@ -49,7 +52,10 @@ impl Default for SearchQuery {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct DocMetadata {
     pub id: u32,
     pub title: String,
@@ -61,16 +67,25 @@ pub struct DocMetadata {
     pub headings: Vec<HeadingPos>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct LexicalIndex {
     pub postings: HashMap<String, Vec<Posting>>,
     pub documents: Vec<DocMetadata>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
 pub struct Posting {
     pub doc_id: u32,
     pub score: f32,
+    /// Token index positions where this term appears in the document.
+    #[serde(default)]
+    pub positions: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +94,38 @@ pub struct VectorIndex {
     pub vectors: Vec<Vec<f32>>,
     pub dimension: usize,
 }
+
+/// Entry in the chunk manifest describing which term prefixes a chunk covers.
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
+pub struct ChunkEntry {
+    pub id: u32,
+    pub prefixes: Vec<String>,
+}
+
+/// Manifest listing all chunks and their prefix coverage.
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
+pub struct ChunkManifest {
+    pub chunks: Vec<ChunkEntry>,
+}
+
+/// Metadata file loaded at init time (documents + manifest, no postings).
+#[derive(
+    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[rkyv(crate = rkyv)]
+pub struct SearchMetadata {
+    pub documents: Vec<DocMetadata>,
+    pub manifest: ChunkManifest,
+}
+
+/// Postings for a single chunk (term -> postings list).
+pub type ChunkPostings = HashMap<String, Vec<Posting>>;
 
 #[cfg(test)]
 mod tests {
