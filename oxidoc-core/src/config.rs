@@ -96,20 +96,50 @@ fn default_dark_mode() -> String {
 #[derive(Debug, Default, Deserialize)]
 pub struct RoutingConfig {
     #[serde(default)]
-    pub navigation: Vec<NavigationGroup>,
+    pub navigation: Vec<NavigationEntry>,
     /// Slug of the page to use as the homepage (served at `/`).
     /// Defaults to the first page in navigation.
     #[serde(default)]
     pub homepage: Option<String>,
+    /// Links displayed in the header navigation bar.
+    #[serde(default)]
+    pub header_links: Vec<HeaderLink>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct HeaderLink {
+    pub label: String,
+    pub href: String,
+}
+
+/// A site section in the navigation. Each entry is a separate doc site
+/// with its own base URL, content directory, sidebar, and optional OpenAPI spec.
 #[derive(Debug, Deserialize)]
+pub struct NavigationEntry {
+    /// Base URL path (e.g., "/", "/api")
+    #[serde(default = "default_path")]
+    pub path: String,
+    /// Content directory for .rdx files (e.g., "docs"). Relative to project root.
+    #[serde(default)]
+    pub dir: Option<String>,
+    /// Sidebar groups for this section
+    #[serde(default)]
+    pub groups: Vec<NavigationGroup>,
+    /// OpenAPI spec path — auto-generates API pages for this section
+    #[serde(default)]
+    pub openapi: Option<String>,
+}
+
+fn default_path() -> String {
+    "/".into()
+}
+
+/// A sidebar group within a navigation entry.
+#[derive(Debug, Clone, Deserialize)]
 pub struct NavigationGroup {
     pub group: String,
     #[serde(default)]
     pub pages: Vec<String>,
-    #[serde(default)]
-    pub openapi: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -268,40 +298,7 @@ impl Default for AttributionConfig {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub struct SocialConfig {
-    #[serde(default)]
-    pub github: Option<String>,
-    #[serde(default)]
-    pub discord: Option<String>,
-    #[serde(default)]
-    pub twitter: Option<String>,
-    #[serde(default)]
-    pub mastodon: Option<String>,
-}
-
-impl SocialConfig {
-    /// Render social link icons for the header.
-    pub fn render_header_icons(&self) -> String {
-        let mut html = String::new();
-        let links: &[(&Option<String>, &str, &str)] = &[
-            (&self.github, "mdi:github", "GitHub"),
-            (&self.discord, "ic:baseline-discord", "Discord"),
-            (&self.twitter, "ri:twitter-x-fill", "Twitter"),
-            (&self.mastodon, "ri:mastodon-fill", "Mastodon"),
-        ];
-        for (url, icon, label) in links {
-            if let Some(url) = url {
-                let safe_url = crate::utils::html_escape(url);
-                html.push_str(&format!(
-                    r#"<a href="{}" class="oxidoc-social-link" target="_blank" rel="noopener noreferrer" aria-label="{}" title="{}"><iconify-icon icon="{}" width="20" height="20"></iconify-icon></a>"#,
-                    safe_url, label, label, icon
-                ));
-            }
-        }
-        html
-    }
-}
+pub use crate::config_social::SocialConfig;
 
 fn default_true() -> bool {
     true
@@ -378,8 +375,8 @@ code_font = "Courier New"
 
 [routing]
 navigation = [
-  { group = "Getting Started", pages = ["intro", "quickstart"] },
-  { group = "API Reference", openapi = "./openapi.yaml" }
+  { path = "/", dir = "docs", groups = [{ group = "Getting Started", pages = ["intro", "quickstart"] }] },
+  { path = "/api", openapi = "./openapi.yaml" },
 ]
 
 [versioning]
@@ -417,7 +414,10 @@ to = "/new-page"
         assert_eq!(config.theme.font.as_deref(), Some("Georgia"));
         assert_eq!(config.theme.code_font.as_deref(), Some("Courier New"));
         assert_eq!(config.routing.navigation.len(), 2);
-        assert_eq!(config.routing.navigation[0].group, "Getting Started");
+        assert_eq!(
+            config.routing.navigation[0].groups[0].group,
+            "Getting Started"
+        );
         assert_eq!(
             config.routing.navigation[1].openapi.as_deref(),
             Some("./openapi.yaml")

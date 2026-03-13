@@ -26,25 +26,17 @@ use crate::template_assets::AssetConfig;
 use crate::template_parts::{render_page_meta, render_sidebar_with_homepage};
 use crate::theme;
 use crate::toc::{extract_toc, render_toc};
-use crate::versioning::VersioningState;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-/// Result of a successful site build.
-#[derive(Debug)]
-pub struct BuildResult {
-    /// Total number of pages rendered in this build.
-    pub pages_rendered: usize,
-    /// Absolute path to the output directory.
-    pub output_dir: String,
-}
+pub use crate::build_result::BuildResult;
 
 /// Build the documentation site from a project root to an output directory.
 pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult> {
     let config = load_config(project_root)?;
-    let nav_groups = discover_pages(project_root, &config)?;
+    let mut nav_groups = discover_pages(project_root, &config)?;
 
     std::fs::create_dir_all(output_dir).map_err(|e| OxidocError::DirCreate {
         path: output_dir.display().to_string(),
@@ -56,9 +48,6 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
 
     // Resolve search provider from config
     let search_provider = SearchProvider::from_config(&config.search)?;
-
-    // Setup versioning (reserved for future use when implementing per-version builds)
-    let _versioning = VersioningState::from_config(&config.versioning);
 
     // Setup i18n
     let i18n_state = I18nState::from_config(&config.i18n.default_locale, &config.i18n.locales);
@@ -139,6 +128,18 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
             source: e,
         }
     })?;
+
+    // Patch nav group page titles from frontmatter so the sidebar uses them
+    for group in &mut nav_groups {
+        for page in &mut group.pages {
+            if let Ok(content) = std::fs::read_to_string(&page.file_path) {
+                let root = rdx_parser::parse(&content);
+                if let Some(title) = extract_page_title(&root) {
+                    page.title = title;
+                }
+            }
+        }
+    }
 
     // Build pages for each locale
     let build_locales = i18n_state.build_locales();
@@ -291,27 +292,36 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
         cache.record(&page.file_path.display().to_string(), content.as_bytes());
     }
 
-    // Process OpenAPI specs from navigation groups
-    for nav_group_cfg in &config.routing.navigation {
-        if let Some(ref spec_path) = nav_group_cfg.openapi {
+    // Process OpenAPI specs from navigation entries
+    for nav_entry in &config.routing.navigation {
+        if let Some(ref spec_path) = nav_entry.openapi {
             let resolved = project_root.join(spec_path);
             let spec = openapi::load_openapi_spec(&resolved)?;
+            let base_path = nav_entry.path.trim_matches('/');
+            let prefix = if base_path.is_empty() {
+                "api".to_string()
+            } else {
+                base_path.to_string()
+            };
+            let group_title = nav_entry
+                .groups
+                .first()
+                .map(|g| g.group.as_str())
+                .unwrap_or("API Reference");
             let api_nav = openapi::generate_api_nav_groups(
                 &openapi::extract_endpoints(&spec),
-                &nav_group_cfg.group,
+                group_title,
+                &prefix,
             );
-            let mut combined_nav = nav_groups.to_vec();
-            combined_nav.extend(api_nav);
 
-            let api_count = openapi::build_api_pages(
-                &spec,
-                output_dir,
-                &config,
-                &combined_nav,
-                &assets,
-                &search_provider,
-                &resolved_theme,
-            )?;
+            let api_ctx = openapi::ApiBuildContext {
+                config: &config,
+                assets: &assets,
+                search_provider: &search_provider,
+                theme: &resolved_theme,
+            };
+            let api_count =
+                openapi::build_api_pages(&spec, output_dir, &api_nav, &prefix, &api_ctx)?;
             pages_rendered_total += api_count;
         }
     }
@@ -319,15 +329,6 @@ pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult>
     let assets_copied = copy_assets(project_root, output_dir)?;
     if assets_copied > 0 {
         tracing::info!(count = assets_copied, "Assets copied");
-    }
-
-    // Build and copy wasm islands (only when running inside the oxidoc workspace)
-    match crate::wasm::build_wasm(output_dir) {
-        Ok(()) => {}
-        Err(OxidocError::WasmBuild { ref message }) if message.contains("locate") => {
-            tracing::debug!("Skipping wasm build (not in oxidoc workspace)");
-        }
-        Err(e) => return Err(e),
     }
 
     generate_llms_txt(&nav_groups, output_dir)?;
@@ -478,7 +479,7 @@ mod tests {
         ));
 
         // Missing page in routing
-        let cfg = "[project]\nname = \"X\"\n\n[routing]\nnavigation = [\n  { group = \"G\", pages = [\"nonexistent\"] }\n]\n";
+        let cfg = "[project]\nname = \"X\"\n\n[routing]\nnavigation = [\n  { path = \"/\", dir = \"docs\", groups = [{ group = \"G\", pages = [\"nonexistent\"] }] }\n]\n";
         let (tmp2, out2) = setup_project(cfg, &[]);
         assert!(matches!(
             build_site(tmp2.path(), &out2).unwrap_err(),
@@ -486,7 +487,7 @@ mod tests {
         ));
 
         // Explicit routing works
-        let cfg2 = "[project]\nname = \"R\"\n\n[routing]\nnavigation = [\n  { group = \"Guide\", pages = [\"qs\"] }\n]\n";
+        let cfg2 = "[project]\nname = \"R\"\n\n[routing]\nnavigation = [\n  { path = \"/\", dir = \"docs\", groups = [{ group = \"Guide\", pages = [\"qs\"] }] }\n]\n";
         let (tmp3, out3) = setup_project(cfg2, &[("qs.rdx", "# QS\n\nGo!")]);
         assert_eq!(build_site(tmp3.path(), &out3).unwrap().pages_rendered, 1);
         assert!(

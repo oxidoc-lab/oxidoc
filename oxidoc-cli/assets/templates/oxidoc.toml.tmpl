@@ -11,8 +11,15 @@ dark_mode = "system"
 
 [routing]
 homepage = "intro"
+header_links = [
+  { label = "Docs", href = "/" },
+  { label = "API", href = "/api" },
+]
 navigation = [
-  { group = "Getting Started", pages = ["intro", "quickstart"] },
+  { path = "/", dir = "docs", groups = [
+    { group = "Getting Started", pages = ["intro", "quickstart", "api-reference", "advanced"] },
+  ]},
+  { path = "/api", openapi = "./openapi.yaml" },
 ]
 
 [social]

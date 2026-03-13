@@ -1,4 +1,4 @@
-use crate::config::{OxidocConfig, RoutingConfig};
+use crate::config::OxidocConfig;
 use crate::error::{OxidocError, Result};
 use std::path::{Path, PathBuf};
 
@@ -22,59 +22,83 @@ pub struct NavGroup {
     pub pages: Vec<PageEntry>,
 }
 
-/// Discover all pages to render, using either explicit routing or file-system fallback.
-pub fn discover_pages(project_root: &Path, config: &OxidocConfig) -> Result<Vec<NavGroup>> {
+/// A resolved site section — a group of nav groups under a base URL path.
+#[derive(Debug, Clone)]
+pub struct SiteSection {
+    /// Base URL path (e.g., "/", "/api")
+    pub path: String,
+    /// Content directory name (e.g., "docs")
+    pub dir: Option<String>,
+    /// Sidebar nav groups for this section
+    pub nav_groups: Vec<NavGroup>,
+    /// OpenAPI spec path (if this section is API-driven)
+    pub openapi: Option<String>,
+}
+
+/// Discover all site sections to render.
+pub fn discover_sections(project_root: &Path, config: &OxidocConfig) -> Result<Vec<SiteSection>> {
     if config.routing.navigation.is_empty() {
-        discover_filesystem(project_root)
-    } else {
-        discover_explicit(project_root, &config.routing)
-    }
-}
-
-/// File-system fallback: traverse `docs/` directory, ordering by numeric prefix or alphabetically.
-fn discover_filesystem(project_root: &Path) -> Result<Vec<NavGroup>> {
-    let docs_dir = project_root.join("docs");
-    if !docs_dir.is_dir() {
-        return Err(OxidocError::DocsNotFound {
-            path: docs_dir.display().to_string(),
-        });
-    }
-
-    let mut entries = collect_rdx_files(&docs_dir, &docs_dir)?;
-    entries.sort_by(|a, b| a.slug.cmp(&b.slug));
-
-    Ok(vec![NavGroup {
-        title: String::new(),
-        pages: entries,
-    }])
-}
-
-/// Explicit routing: resolve slugs from `[routing.navigation]` to `.rdx` files.
-fn discover_explicit(project_root: &Path, routing: &RoutingConfig) -> Result<Vec<NavGroup>> {
-    let docs_dir = project_root.join("docs");
-    let mut groups = Vec::new();
-
-    for nav in &routing.navigation {
-        let mut pages = Vec::new();
-        for slug in &nav.pages {
-            let file_path = docs_dir.join(format!("{slug}.rdx"));
-            if !file_path.is_file() {
-                return Err(OxidocError::PageNotFound { slug: slug.clone() });
-            }
-            pages.push(PageEntry {
-                title: slug_to_title(slug),
-                slug: slug.clone(),
-                file_path,
-                group: Some(nav.group.clone()),
+        // Filesystem fallback: single section at "/"
+        let docs_dir = project_root.join("docs");
+        if !docs_dir.is_dir() {
+            return Err(OxidocError::DocsNotFound {
+                path: docs_dir.display().to_string(),
             });
         }
-        groups.push(NavGroup {
-            title: nav.group.clone(),
-            pages,
+        let mut entries = collect_rdx_files(&docs_dir, &docs_dir)?;
+        entries.sort_by(|a, b| a.slug.cmp(&b.slug));
+        return Ok(vec![SiteSection {
+            path: "/".into(),
+            dir: Some("docs".into()),
+            nav_groups: vec![NavGroup {
+                title: String::new(),
+                pages: entries,
+            }],
+            openapi: None,
+        }]);
+    }
+
+    let mut sections = Vec::new();
+    for entry in &config.routing.navigation {
+        let content_dir = entry.dir.as_deref().unwrap_or("docs");
+        let dir_path = project_root.join(content_dir);
+
+        let mut nav_groups = Vec::new();
+        for grp in &entry.groups {
+            let mut pages = Vec::new();
+            for slug in &grp.pages {
+                let file_path = dir_path.join(format!("{slug}.rdx"));
+                if !file_path.is_file() {
+                    return Err(OxidocError::PageNotFound { slug: slug.clone() });
+                }
+                pages.push(PageEntry {
+                    title: slug_to_title(slug),
+                    slug: slug.clone(),
+                    file_path,
+                    group: Some(grp.group.clone()),
+                });
+            }
+            nav_groups.push(NavGroup {
+                title: grp.group.clone(),
+                pages,
+            });
+        }
+
+        sections.push(SiteSection {
+            path: entry.path.clone(),
+            dir: entry.dir.clone(),
+            nav_groups,
+            openapi: entry.openapi.clone(),
         });
     }
 
-    Ok(groups)
+    Ok(sections)
+}
+
+/// Legacy helper: flatten sections into nav groups (for backwards compat in builder).
+pub fn discover_pages(project_root: &Path, config: &OxidocConfig) -> Result<Vec<NavGroup>> {
+    let sections = discover_sections(project_root, config)?;
+    Ok(sections.into_iter().flat_map(|s| s.nav_groups).collect())
 }
 
 /// Recursively collect `.rdx` files from a directory.
@@ -170,10 +194,14 @@ mod tests {
         assert_eq!(slug_to_title("my-page"), "My Page");
     }
 
+    fn empty_config() -> OxidocConfig {
+        crate::config::parse_config("[project]\nname = \"Test\"").unwrap()
+    }
+
     #[test]
     fn discover_filesystem_missing_docs() {
         let tmp = tempfile::tempdir().unwrap();
-        let err = discover_filesystem(tmp.path()).unwrap_err();
+        let err = discover_sections(tmp.path(), &empty_config()).unwrap_err();
         assert!(matches!(err, OxidocError::DocsNotFound { .. }));
     }
 
@@ -186,7 +214,9 @@ mod tests {
         std::fs::write(docs.join("02-setup.rdx"), "# Setup").unwrap();
         std::fs::write(docs.join("readme.md"), "ignored").unwrap();
 
-        let groups = discover_filesystem(tmp.path()).unwrap();
+        let sections = discover_sections(tmp.path(), &empty_config()).unwrap();
+        assert_eq!(sections.len(), 1);
+        let groups = &sections[0].nav_groups;
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].pages.len(), 2);
         assert_eq!(groups[0].pages[0].slug, "01-intro");
@@ -203,8 +233,12 @@ mod tests {
         std::fs::write(docs.join("intro.rdx"), "").unwrap();
         std::fs::write(guides.join("setup.rdx"), "").unwrap();
 
-        let groups = discover_filesystem(tmp.path()).unwrap();
-        let slugs: Vec<&str> = groups[0].pages.iter().map(|p| p.slug.as_str()).collect();
+        let sections = discover_sections(tmp.path(), &empty_config()).unwrap();
+        let slugs: Vec<&str> = sections[0].nav_groups[0]
+            .pages
+            .iter()
+            .map(|p| p.slug.as_str())
+            .collect();
         assert!(slugs.contains(&"guides/setup"));
         assert!(slugs.contains(&"intro"));
     }
