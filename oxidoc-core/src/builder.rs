@@ -441,7 +441,7 @@ mod tests {
             "robots.txt",
             "404.html",
             ".oxidoc-cache.json",
-            "search-lexical.json",
+            "search-meta.bin",
         ] {
             assert!(output.join(f).exists(), "{f} should exist");
         }
