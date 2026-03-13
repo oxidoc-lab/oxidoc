@@ -1,7 +1,7 @@
 use crate::config::OxidocConfig;
 use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
-use crate::template::{ERROR_404_HTML, build_header_actions, render_logo_html};
+use crate::template::{ERROR_404_HTML, build_header_actions, build_header_nav, render_logo_html};
 use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
 };
@@ -53,6 +53,7 @@ pub fn render_404_page(
     <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header" role="banner">
         {logo_html}
+        {header_nav_html}
         {locale_switcher_html}
         {header_actions_html}
     </header>
@@ -81,6 +82,7 @@ pub fn render_404_page(
         script_tag = script_tag,
         search_head_tags = search_head_tags,
         search_scripts = search_scripts,
+        header_nav_html = build_header_nav(&config.routing.header_links),
         header_actions_html = build_header_actions(&config.social),
         ERROR_404_HTML = ERROR_404_HTML,
     )

@@ -243,6 +243,10 @@ pub fn render_sidebar_with_homepage(
             };
             let href = if homepage_slug == Some(page.slug.as_str()) {
                 "/".to_string()
+            } else if page.slug.ends_with("/index") {
+                // lib/index → /lib
+                let parent = &page.slug[..page.slug.len() - "/index".len()];
+                format!("/{}", crate::utils::html_escape(parent))
             } else {
                 format!("/{}", crate::utils::html_escape(&page.slug))
             };
