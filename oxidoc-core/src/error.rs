@@ -109,6 +109,10 @@ pub enum OxidocError {
     #[diagnostic(code(oxidoc::theme::parse), help("Check your theme .toml file syntax"))]
     ThemeParse { path: String, message: String },
 
+    #[error("Search error: {0}")]
+    #[diagnostic(code(oxidoc::search::error))]
+    Search(String),
+
     #[error("Wasm build failed: {message}")]
     #[diagnostic(
         code(oxidoc::wasm::build),

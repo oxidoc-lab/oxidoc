@@ -184,6 +184,10 @@ pub struct SearchConfig {
     pub provider: String,
     #[serde(default)]
     pub model_path: Option<String>,
+    /// Tokenizer name for semantic search (e.g. "cl100k_base", "llama3").
+    /// Must match the tokenizer used by the GGUF embedding model.
+    #[serde(default)]
+    pub tokenizer: Option<String>,
     // Algolia preset fields
     #[serde(default)]
     pub app_id: Option<String>,
@@ -214,6 +218,7 @@ impl Default for SearchConfig {
         Self {
             provider: default_provider(),
             model_path: None,
+            tokenizer: None,
             app_id: None,
             api_key: None,
             index_name: None,
