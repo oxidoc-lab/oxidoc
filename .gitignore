@@ -12,6 +12,10 @@ Cargo.lock
 resource/
 CLAUDE.md
 
+# Bundled models (downloaded during dev setup, see README)
+oxidoc-cli/assets/models/*
+!oxidoc-cli/assets/models/.gitkeep
+
 # IDE
 .vscode/
 .idea/
