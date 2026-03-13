@@ -2,7 +2,7 @@ use crate::asset_hash::hash_content;
 use crate::assets::copy_assets;
 use crate::breadcrumb::{generate_breadcrumbs, render_breadcrumbs};
 use crate::config::load_config;
-use crate::crawler::discover_pages;
+use crate::crawler::{discover_pages, discover_sections};
 use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
 use crate::i18n::{I18nState, load_translations};
@@ -45,6 +45,7 @@ pub fn build_site_with_model(
     bundled_model: Option<&[u8]>,
 ) -> Result<BuildResult> {
     let config = load_config(project_root)?;
+    let mut sections = discover_sections(project_root, &config)?;
     let mut nav_groups = discover_pages(project_root, &config)?;
 
     std::fs::create_dir_all(output_dir).map_err(|e| OxidocError::DirCreate {
@@ -150,6 +151,32 @@ pub fn build_site_with_model(
         }
     }
 
+    // Patch section nav group page titles from frontmatter
+    for section in &mut sections {
+        for group in &mut section.nav_groups {
+            for page in &mut group.pages {
+                if let Ok(content) = std::fs::read_to_string(&page.file_path) {
+                    let root = rdx_parser::parse(&content);
+                    if let Some(title) = extract_page_title(&root) {
+                        page.title = title;
+                    }
+                }
+            }
+        }
+    }
+
+    // Build a map from page slug to the section's nav groups for section-specific sidebars
+    let section_nav_map: HashMap<String, Vec<crate::crawler::NavGroup>> = {
+        let mut map = HashMap::new();
+        for section in &sections {
+            for page in section.nav_groups.iter().flat_map(|g| &g.pages) {
+                map.insert(page.slug.clone(), section.nav_groups.clone());
+            }
+        }
+        map
+    };
+    let section_nav_map = Arc::new(section_nav_map);
+
     // Build pages for each locale
     let build_locales = i18n_state.build_locales();
     let pages_to_build: Vec<_> = nav_groups.iter().flat_map(|g| g.pages.iter()).collect();
@@ -209,6 +236,7 @@ pub fn build_site_with_model(
         let search_provider_arc = Arc::clone(&search_provider);
         let theme_arc = Arc::clone(&resolved_theme);
         let nav_groups_arc = Arc::clone(&nav_groups_arc);
+        let section_nav_map_arc = Arc::clone(&section_nav_map);
         let slug_index_arc = Arc::clone(&slug_index);
         let pages_arc = Arc::clone(&flat_pages);
         let locale_str = locale.clone();
@@ -226,8 +254,12 @@ pub fn build_site_with_model(
                 );
                 let toc_entries = extract_toc(&root);
                 let toc_html = render_toc(&toc_entries);
+                let sidebar_groups = section_nav_map_arc
+                    .get(&page.slug)
+                    .map(|g| g.as_slice())
+                    .unwrap_or(&nav_groups_arc);
                 let sidebar_with_active = render_sidebar_with_homepage(
-                    &nav_groups_arc,
+                    sidebar_groups,
                     &page.slug,
                     homepage_slug.as_deref(),
                 );
@@ -347,6 +379,9 @@ pub fn build_site_with_model(
     }
     generate_seo_files(&nav_groups, &config, output_dir)?;
 
+    // Generate folder index redirects for directories with child pages but no index.rdx
+    generate_folder_redirects(&nav_groups, output_dir)?;
+
     // Generate 404 page for each locale
     for locale in &build_locales {
         let locale_output_dir = if i18n_state.is_default_locale(locale) {
@@ -404,6 +439,76 @@ pub fn build_site_with_model(
         pages_rendered: pages_rendered_total,
         output_dir: output_dir.display().to_string(),
     })
+}
+
+/// Generate redirect index.html files for directories that have child pages but no index page.
+/// For example, if `deployment/github-pages` exists but `deployment/index` doesn't,
+/// generate `deployment/index.html` that redirects to the first child page.
+fn write_redirect_page(index_path: &Path, target_url: &str) -> Result<()> {
+    if index_path.is_file() {
+        return Ok(());
+    }
+    if let Some(parent) = index_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
+            path: parent.display().to_string(),
+            source: e,
+        })?;
+    }
+    let redirect_html = format!(
+        r#"<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/{target_url}"><link rel="canonical" href="/{target_url}"></head><body></body></html>"#
+    );
+    std::fs::write(index_path, redirect_html).map_err(|e| OxidocError::FileWrite {
+        path: index_path.display().to_string(),
+        source: e,
+    })?;
+    Ok(())
+}
+
+fn generate_folder_redirects(
+    nav_groups: &[crate::crawler::NavGroup],
+    output_dir: &Path,
+) -> Result<()> {
+    use std::collections::{HashMap, HashSet};
+
+    let all_slugs: Vec<&str> = nav_groups
+        .iter()
+        .flat_map(|g| g.pages.iter().map(|p| p.slug.as_str()))
+        .collect();
+
+    // Collect all slugs that are "index" pages (either explicit index.rdx or standalone like "deployment")
+    let has_index: HashSet<&str> = all_slugs
+        .iter()
+        .filter(|s| s.ends_with("/index"))
+        .map(|s| &s[..s.len() - "/index".len()])
+        .collect();
+
+    // Find directories that have children but no index
+    let mut folder_first_child: HashMap<&str, &str> = HashMap::new();
+    for slug in &all_slugs {
+        if let Some(pos) = slug.rfind('/') {
+            let parent = &slug[..pos];
+            // Only set first child (pages are in navigation order)
+            folder_first_child.entry(parent).or_insert(slug);
+        }
+    }
+
+    for (folder, first_child) in &folder_first_child {
+        // Skip if this folder already has an index page
+        if has_index.contains(folder) {
+            continue;
+        }
+        let index_path = output_dir.join(folder).join("index.html");
+        // If the folder itself is a page (e.g., deployment.html exists), redirect to /folder
+        let folder_html = output_dir.join(format!("{folder}.html"));
+        if folder_html.is_file() {
+            write_redirect_page(&index_path, folder)?;
+        } else {
+            // No page at /folder and no index — redirect to first child
+            write_redirect_page(&index_path, first_child)?;
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
