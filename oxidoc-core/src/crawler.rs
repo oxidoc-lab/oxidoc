@@ -63,6 +63,7 @@ pub fn discover_sections(project_root: &Path, config: &OxidocConfig) -> Result<V
         let content_dir = entry.dir.as_deref().unwrap_or("docs");
         let dir_path = project_root.join(content_dir);
 
+        let section_prefix = entry.path.trim_matches('/');
         let mut nav_groups = Vec::new();
         for grp in &entry.groups {
             let mut pages = Vec::new();
@@ -71,9 +72,14 @@ pub fn discover_sections(project_root: &Path, config: &OxidocConfig) -> Result<V
                 if !file_path.is_file() {
                     return Err(OxidocError::PageNotFound { slug: slug.clone() });
                 }
+                let full_slug = if section_prefix.is_empty() {
+                    slug.clone()
+                } else {
+                    format!("{section_prefix}/{slug}")
+                };
                 pages.push(PageEntry {
                     title: slug_to_title(slug),
-                    slug: slug.clone(),
+                    slug: full_slug,
                     file_path,
                     group: Some(grp.group.clone()),
                 });
