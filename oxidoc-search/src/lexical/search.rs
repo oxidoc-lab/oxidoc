@@ -1,25 +1,95 @@
 use crate::error::SearchResult;
-use crate::index::deserialize_lexical_index;
-use crate::types::{LexicalIndex, SearchQuery, SearchResult as DocResult, SearchSource};
-use std::collections::HashMap;
-
-use super::matching::{
-    context_snippet_at, find_all_match_offsets, find_matching_postings, tokenize,
+use crate::index::{deserialize_chunk, deserialize_search_metadata};
+use crate::types::{
+    DocMetadata, LexicalIndex, Posting, SearchMetadata, SearchQuery, SearchResult as DocResult,
+    SearchSource,
 };
-use super::scoring::{get_section_text, resolve_heading_breadcrumb, score_section};
+use std::collections::{HashMap, HashSet};
+
+use super::matching::{context_snippet_at, find_all_match_offsets};
+use super::resolve::resolve_tokens;
+use super::scoring::{
+    compute_phrase_boost, get_section_text, resolve_heading_breadcrumb, score_section,
+};
 
 pub struct LexicalSearcher {
-    index: LexicalIndex,
+    documents: Vec<DocMetadata>,
+    /// All loaded postings (merged from chunks or from a full index).
+    postings: HashMap<String, Vec<Posting>>,
+    /// Metadata for chunk-based loading.
+    metadata: Option<SearchMetadata>,
 }
 
 impl LexicalSearcher {
+    /// Load from a full rkyv-serialized LexicalIndex.
     pub fn from_bytes(data: &[u8]) -> SearchResult<Self> {
-        let index = deserialize_lexical_index(data)?;
-        Ok(Self { index })
+        let index: LexicalIndex = rkyv::from_bytes::<LexicalIndex, rkyv::rancor::Error>(data)
+            .map_err(|e| {
+                crate::error::SearchError::IndexLoad(format!(
+                    "Failed to deserialize lexical index: {}",
+                    e
+                ))
+            })?;
+        Ok(Self {
+            documents: index.documents,
+            postings: index.postings,
+            metadata: None,
+        })
+    }
+
+    /// Load from SearchMetadata (chunk-based: documents + manifest, no postings yet).
+    pub fn from_metadata(data: &[u8]) -> SearchResult<Self> {
+        let metadata = deserialize_search_metadata(data)?;
+        let documents = metadata.documents.clone();
+        Ok(Self {
+            documents,
+            postings: HashMap::new(),
+            metadata: Some(metadata),
+        })
+    }
+
+    /// Load a chunk's postings into this searcher.
+    pub fn load_chunk(&mut self, data: &[u8]) -> SearchResult<()> {
+        let chunk: HashMap<String, Vec<Posting>> = deserialize_chunk(data)?;
+        self.postings.extend(chunk);
+        Ok(())
+    }
+
+    /// Get chunk IDs needed for a query (based on 2-char prefix matching).
+    pub fn needed_chunk_ids(&self, query: &str) -> Vec<u32> {
+        let metadata = match &self.metadata {
+            Some(m) => m,
+            None => return vec![],
+        };
+
+        let tokens = oxidoc_text::tokenize(query);
+        let mut needed: HashSet<u32> = HashSet::new();
+
+        for token in &tokens {
+            let prefix = if token.len() >= 2 {
+                &token[..2]
+            } else {
+                token.as_str()
+            };
+
+            for chunk in &metadata.manifest.chunks {
+                if chunk.prefixes.iter().any(|p| p == prefix) {
+                    needed.insert(chunk.id);
+                }
+            }
+        }
+
+        let mut ids: Vec<u32> = needed.into_iter().collect();
+        ids.sort();
+        ids
     }
 
     pub fn new(index: LexicalIndex) -> Self {
-        Self { index }
+        Self {
+            documents: index.documents,
+            postings: index.postings,
+            metadata: None,
+        }
     }
 
     pub fn search(&self, query: &SearchQuery) -> Vec<DocResult> {
@@ -28,85 +98,59 @@ impl LexicalSearcher {
             return Vec::new();
         }
 
-        let tokens = tokenize(text);
+        let tokens = oxidoc_text::tokenize(text);
         if tokens.is_empty() {
             return Vec::new();
         }
 
-        // Find which posting keys match each query token, and how
-        let posting_keys: Vec<&String> = self.index.postings.keys().collect();
-        let mut token_matches: Vec<Vec<(&str, f32, bool)>> = Vec::new();
-        for token in &tokens {
-            token_matches.push(find_matching_postings(token, &posting_keys));
-        }
-
-        // Find which documents have any matches
-        let mut doc_ids: Vec<u32> = Vec::new();
-        for matches in &token_matches {
-            for (key, _, _) in matches {
-                if let Some(postings) = self.index.postings.get(*key) {
-                    for posting in postings {
-                        if !doc_ids.contains(&posting.doc_id) {
-                            doc_ids.push(posting.doc_id);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Collect fuzzy keys per doc (for highlight_terms)
-        let mut doc_fuzzy_keys: HashMap<u32, Vec<String>> = HashMap::new();
-        for matches in &token_matches {
-            for (key, _, is_fuzzy) in matches {
-                if *is_fuzzy && let Some(postings) = self.index.postings.get(*key) {
-                    for posting in postings {
-                        doc_fuzzy_keys
-                            .entry(posting.doc_id)
-                            .or_default()
-                            .push(key.to_string());
-                    }
-                }
-            }
-        }
-
-        // Collect all matched posting keys per doc (for text offset finding)
-        let mut doc_matched_keys: HashMap<u32, Vec<String>> = HashMap::new();
-        for matches in &token_matches {
-            for (key, _, _) in matches {
-                if let Some(postings) = self.index.postings.get(*key) {
-                    for posting in postings {
-                        doc_matched_keys
-                            .entry(posting.doc_id)
-                            .or_default()
-                            .push(key.to_string());
-                    }
-                }
-            }
-        }
-
+        let resolved = resolve_tokens(&tokens, &self.postings);
         let num_tokens = tokens.len();
         let mut all_results: Vec<DocResult> = Vec::new();
 
-        for doc_id in &doc_ids {
-            let doc = match self.index.documents.iter().find(|d| d.id == *doc_id) {
+        for doc_id in &resolved.candidate_docs {
+            let doc = match self.documents.iter().find(|d| d.id == *doc_id) {
                 Some(d) => d,
                 None => continue,
             };
 
-            let mut terms = doc_matched_keys.remove(doc_id).unwrap_or_default();
+            let mut terms = resolved
+                .doc_matched_keys
+                .get(doc_id)
+                .cloned()
+                .unwrap_or_default();
             terms.sort();
             terms.dedup();
 
-            let mut highlight_terms = doc_fuzzy_keys.remove(doc_id).unwrap_or_default();
+            let mut highlight_terms = resolved
+                .doc_fuzzy_keys
+                .get(doc_id)
+                .cloned()
+                .unwrap_or_default();
             highlight_terms.sort();
             highlight_terms.dedup();
+
+            // Compute OR penalty if AND failed
+            let and_penalty = if !resolved.use_and {
+                let matched_tokens = resolved
+                    .per_token_doc_ids
+                    .iter()
+                    .filter(|ids| ids.contains(doc_id))
+                    .count();
+                matched_tokens as f32 / num_tokens as f32
+            } else {
+                1.0
+            };
+
+            // Compute phrase boost
+            let phrase_boost =
+                compute_phrase_boost(&tokens, &resolved.token_postings_for_phrase, *doc_id);
 
             if doc.text.is_empty() {
                 all_results.push(DocResult {
                     title: doc.title.clone(),
                     path: doc.path.clone(),
                     snippet: doc.snippet.clone(),
-                    score: 0.1,
+                    score: 0.1 * and_penalty * phrase_boost,
                     source: SearchSource::Lexical,
                     breadcrumb: vec![],
                     anchor: String::new(),
@@ -137,7 +181,9 @@ impl LexicalSearcher {
                 } else {
                     &doc.title
                 };
-                let score = score_section(section_text, heading_title, &tokens, num_tokens);
+                let score = score_section(section_text, heading_title, &tokens, num_tokens)
+                    * and_penalty
+                    * phrase_boost;
 
                 if score <= 0.0 {
                     continue;
@@ -183,56 +229,63 @@ mod tests {
         postings.insert(
             "hello".to_string(),
             vec![
-                crate::types::Posting {
+                Posting {
                     doc_id: 0,
                     score: 2.0,
+                    positions: vec![0],
                 },
-                crate::types::Posting {
+                Posting {
                     doc_id: 1,
                     score: 1.5,
+                    positions: vec![0],
                 },
             ],
         );
         postings.insert(
             "world".to_string(),
-            vec![crate::types::Posting {
+            vec![Posting {
                 doc_id: 0,
                 score: 1.8,
+                positions: vec![1],
             }],
         );
         postings.insert(
             "rust".to_string(),
-            vec![crate::types::Posting {
+            vec![Posting {
                 doc_id: 2,
                 score: 2.2,
+                positions: vec![0],
             }],
         );
         postings.insert(
             "block".to_string(),
-            vec![crate::types::Posting {
+            vec![Posting {
                 doc_id: 3,
                 score: 1.9,
+                positions: vec![1],
             }],
         );
         postings.insert(
             "blocks".to_string(),
-            vec![crate::types::Posting {
+            vec![Posting {
                 doc_id: 3,
                 score: 1.7,
+                positions: vec![2],
             }],
         );
         postings.insert(
             "code".to_string(),
-            vec![crate::types::Posting {
+            vec![Posting {
                 doc_id: 3,
                 score: 2.1,
+                positions: vec![0],
             }],
         );
 
         LexicalIndex {
             postings,
             documents: vec![
-                crate::types::DocMetadata {
+                DocMetadata {
                     id: 0,
                     title: "Hello World".to_string(),
                     path: "/docs/hello".to_string(),
@@ -240,7 +293,7 @@ mod tests {
                     text: String::new(),
                     headings: vec![],
                 },
-                crate::types::DocMetadata {
+                DocMetadata {
                     id: 1,
                     title: "Hello Rust".to_string(),
                     path: "/docs/hello-rust".to_string(),
@@ -248,7 +301,7 @@ mod tests {
                     text: String::new(),
                     headings: vec![],
                 },
-                crate::types::DocMetadata {
+                DocMetadata {
                     id: 2,
                     title: "Rust Guide".to_string(),
                     path: "/docs/rust".to_string(),
@@ -256,7 +309,7 @@ mod tests {
                     text: String::new(),
                     headings: vec![],
                 },
-                crate::types::DocMetadata {
+                DocMetadata {
                     id: 3,
                     title: "Code Blocks".to_string(),
                     path: "/docs/code-blocks".to_string(),
@@ -293,7 +346,9 @@ mod tests {
 
         let results = searcher.search(&query);
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].title, "Hello World");
+        let titles: Vec<&str> = results.iter().map(|r| r.title.as_str()).collect();
+        assert!(titles.contains(&"Hello World"));
+        assert!(titles.contains(&"Hello Rust"));
     }
 
     #[test]
@@ -346,5 +401,88 @@ mod tests {
 
         let results = searcher.search(&query);
         assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_and_logic_prefers_multi_match() {
+        let index = create_test_index();
+        let searcher = LexicalSearcher::new(index);
+        // "hello world" should prefer doc 0 (has both) over doc 1 (only "hello")
+        let query = SearchQuery {
+            text: "hello world".to_string(),
+            max_results: 10,
+        };
+
+        let results = searcher.search(&query);
+        assert!(!results.is_empty());
+        assert_eq!(results[0].title, "Hello World");
+    }
+
+    #[test]
+    fn test_phrase_boost() {
+        let mut postings = HashMap::new();
+        postings.insert(
+            "hello".to_string(),
+            vec![
+                Posting {
+                    doc_id: 0,
+                    score: 1.0,
+                    positions: vec![0],
+                },
+                Posting {
+                    doc_id: 1,
+                    score: 1.0,
+                    positions: vec![5],
+                },
+            ],
+        );
+        postings.insert(
+            "world".to_string(),
+            vec![
+                Posting {
+                    doc_id: 0,
+                    score: 1.0,
+                    positions: vec![1],
+                }, // adjacent to hello
+                Posting {
+                    doc_id: 1,
+                    score: 1.0,
+                    positions: vec![0],
+                }, // not adjacent
+            ],
+        );
+
+        let index = LexicalIndex {
+            postings,
+            documents: vec![
+                DocMetadata {
+                    id: 0,
+                    title: "Doc A".to_string(),
+                    path: "/a".to_string(),
+                    snippet: "hello world".to_string(),
+                    text: String::new(),
+                    headings: vec![],
+                },
+                DocMetadata {
+                    id: 1,
+                    title: "Doc B".to_string(),
+                    path: "/b".to_string(),
+                    snippet: "world then hello".to_string(),
+                    text: String::new(),
+                    headings: vec![],
+                },
+            ],
+        };
+
+        let searcher = LexicalSearcher::new(index);
+        let query = SearchQuery {
+            text: "hello world".to_string(),
+            max_results: 10,
+        };
+        let results = searcher.search(&query);
+
+        assert!(!results.is_empty());
+        // Doc A should rank higher due to phrase boost (positions 0,1 are adjacent)
+        assert_eq!(results[0].title, "Doc A");
     }
 }

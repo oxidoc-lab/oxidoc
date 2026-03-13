@@ -13,5 +13,6 @@ pub use island::SemanticSearch;
 pub use lexical::LexicalSearcher;
 pub use semantic::SemanticSearcher;
 pub use types::{
-    DocMetadata, LexicalIndex, SearchQuery, SearchResult as SearchDoc, SearchSource, VectorIndex,
+    ChunkEntry, ChunkManifest, ChunkPostings, DocMetadata, LexicalIndex, Posting, SearchMetadata,
+    SearchQuery, SearchResult as SearchDoc, SearchSource, VectorIndex,
 };

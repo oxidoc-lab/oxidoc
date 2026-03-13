@@ -1,9 +1,23 @@
-use crate::types::{LexicalIndex, VectorIndex};
-use serde_json;
+use crate::types::{ChunkPostings, LexicalIndex, SearchMetadata, VectorIndex};
 
 pub fn deserialize_lexical_index(data: &[u8]) -> crate::error::SearchResult<LexicalIndex> {
-    serde_json::from_slice(data).map_err(|e| {
+    rkyv::from_bytes::<LexicalIndex, rkyv::rancor::Error>(data).map_err(|e| {
         crate::error::SearchError::IndexLoad(format!("Failed to deserialize lexical index: {}", e))
+    })
+}
+
+pub fn deserialize_search_metadata(data: &[u8]) -> crate::error::SearchResult<SearchMetadata> {
+    rkyv::from_bytes::<SearchMetadata, rkyv::rancor::Error>(data).map_err(|e| {
+        crate::error::SearchError::IndexLoad(format!(
+            "Failed to deserialize search metadata: {}",
+            e
+        ))
+    })
+}
+
+pub fn deserialize_chunk(data: &[u8]) -> crate::error::SearchResult<ChunkPostings> {
+    rkyv::from_bytes::<ChunkPostings, rkyv::rancor::Error>(data).map_err(|e| {
+        crate::error::SearchError::IndexLoad(format!("Failed to deserialize chunk: {}", e))
     })
 }
 
@@ -14,12 +28,14 @@ pub fn deserialize_vector_index(data: &[u8]) -> crate::error::SearchResult<Vecto
 }
 
 pub fn serialize_lexical_index(index: &LexicalIndex) -> crate::error::SearchResult<Vec<u8>> {
-    serde_json::to_vec(index).map_err(|e| {
-        crate::error::SearchError::Serialization(format!(
-            "Failed to serialize lexical index: {}",
-            e
-        ))
-    })
+    rkyv::to_bytes::<rkyv::rancor::Error>(index)
+        .map(|v| v.to_vec())
+        .map_err(|e| {
+            crate::error::SearchError::Serialization(format!(
+                "Failed to serialize lexical index: {}",
+                e
+            ))
+        })
 }
 
 pub fn serialize_vector_index(index: &VectorIndex) -> crate::error::SearchResult<Vec<u8>> {
@@ -42,6 +58,7 @@ mod tests {
             vec![Posting {
                 doc_id: 0,
                 score: 1.5,
+                positions: vec![0, 3],
             }],
         );
 
@@ -62,6 +79,7 @@ mod tests {
 
         assert_eq!(index.documents.len(), deserialized.documents.len());
         assert_eq!(index.postings.len(), deserialized.postings.len());
+        assert_eq!(deserialized.postings["hello"][0].positions, vec![0, 3]);
     }
 
     #[test]

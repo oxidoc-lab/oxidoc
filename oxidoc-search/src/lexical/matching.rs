@@ -161,71 +161,27 @@ pub(super) fn levenshtein(a: &str, b: &str) -> usize {
     prev[n]
 }
 
-pub(super) fn tokenize(text: &str) -> Vec<String> {
-    let mut result = Vec::new();
-    for word in text.split_whitespace() {
-        let cleaned: String = word
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
-            .collect();
-        if cleaned.is_empty() {
-            continue;
-        }
-        let lower = cleaned.to_lowercase();
-        if lower.len() <= 1 {
-            continue;
-        }
-        // Split camelCase/PascalCase into sub-words
-        let parts = split_camel_case(&cleaned);
-        if parts.len() > 1 {
-            result.push(lower);
-            for part in parts {
-                let p = part.to_lowercase();
-                if p.len() > 1 {
-                    result.push(p);
-                }
-            }
-        } else {
-            result.push(lower);
-        }
-    }
-    result
-}
-
-/// Split a camelCase or PascalCase string into its component words.
-pub(super) fn split_camel_case(s: &str) -> Vec<&str> {
-    let mut parts = Vec::new();
-    let bytes = s.as_bytes();
-    let mut start = 0;
-    for i in 1..bytes.len() {
-        let curr_upper = bytes[i].is_ascii_uppercase();
-        let prev_upper = bytes[i - 1].is_ascii_uppercase();
-        if curr_upper && (!prev_upper || (i + 1 < bytes.len() && bytes[i + 1].is_ascii_lowercase()))
-        {
-            parts.push(&s[start..i]);
-            start = i;
-        }
-    }
-    if start < s.len() {
-        parts.push(&s[start..]);
-    }
-    parts
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_tokenize() {
-        let tokens = tokenize("Hello World Rust!");
+        let tokens = oxidoc_text::tokenize("Hello World Rust!");
         assert_eq!(tokens, vec!["hello", "world", "rust"]);
     }
 
     #[test]
     fn test_tokenize_with_symbols() {
-        let tokens = tokenize("rust-lang_2024");
+        let tokens = oxidoc_text::tokenize("rust-lang_2024");
         assert_eq!(tokens, vec!["rust-lang_2024"]);
+    }
+
+    #[test]
+    fn test_tokenize_stemming() {
+        let tokens = oxidoc_text::tokenize("running jumps");
+        assert!(tokens.contains(&"run".to_string()));
+        assert!(tokens.contains(&"jump".to_string()));
     }
 
     #[test]

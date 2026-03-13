@@ -28,7 +28,7 @@ pub fn generate_search_index(
         "Lexical index generated"
     );
 
-    // Optionally generate semantic index.
+    // Optionally generate semantic index with pre-computed embeddings.
     if config.model_path.is_some() {
         match semantic::build_vector_index(&pages, config) {
             Ok(Some(vectors)) => {
@@ -38,6 +38,10 @@ pub fn generate_search_index(
                     dim = vectors.dimension,
                     "Vector index generated"
                 );
+                // Copy model to output dir so the browser can fetch it for query embedding.
+                if let Err(e) = semantic::copy_model_to_output(config, output_dir) {
+                    tracing::warn!("Failed to copy model to output: {}", e);
+                }
             }
             Ok(None) => {
                 tracing::info!("Semantic indexing skipped (no model configured)");
@@ -97,14 +101,16 @@ mod tests {
 
         generate_search_index(&nav_groups, &output, &config).unwrap();
 
-        // Verify lexical index was created.
-        let lexical_path = output.join("search-lexical.json");
-        assert!(lexical_path.exists());
+        // Verify chunked index was created (metadata + at least one chunk).
+        let meta_path = output.join("search-meta.bin");
+        assert!(meta_path.exists());
 
-        let lexical_json = std::fs::read_to_string(lexical_path).unwrap();
-        let lexical: types::LexicalIndex = serde_json::from_str(&lexical_json).unwrap();
-        assert_eq!(lexical.documents.len(), 2);
-        assert!(!lexical.postings.is_empty());
+        let meta_bytes = std::fs::read(&meta_path).unwrap();
+        let metadata: types::SearchMetadata =
+            rkyv::from_bytes::<_, rkyv::rancor::Error>(&meta_bytes)
+                .expect("SearchMetadata deserialization failed");
+        assert_eq!(metadata.documents.len(), 2);
+        assert!(!metadata.manifest.chunks.is_empty());
 
         // Vector index should not be created (no model).
         let vector_path = output.join("search-vectors.json");

@@ -1,4 +1,5 @@
-use super::matching::{levenshtein, max_edit_distance, split_camel_case};
+use super::matching::{levenshtein, max_edit_distance};
+use crate::types::Posting;
 
 /// Score a section based on how query tokens match within it.
 /// For each token, find the best matching word. Score = 1.0 - (match_position / word_length).
@@ -71,7 +72,7 @@ pub(super) fn score_section(
         let mut expanded_heading: Vec<String> = Vec::new();
         for hw in &heading_words {
             expanded_heading.push(hw.to_string());
-            let parts = split_camel_case(hw);
+            let parts = oxidoc_text::split_camel_case(hw);
             if parts.len() > 1 {
                 for p in parts {
                     let lower = p.to_lowercase();
@@ -106,6 +107,60 @@ pub(super) fn score_section(
     }
 
     total
+}
+
+/// Compute phrase boost based on positional data.
+///
+/// For consecutive query token pairs, checks if any matched postings have
+/// sequential positions (pos_b == pos_a + 1).
+/// - All consecutive pairs sequential → 5x boost
+/// - Partial → proportional boost
+pub(super) fn compute_phrase_boost(
+    query_tokens: &[String],
+    token_postings: &[Vec<(&str, &[Posting])>],
+    doc_id: u32,
+) -> f32 {
+    if query_tokens.len() < 2 {
+        return 1.0;
+    }
+
+    let num_pairs = query_tokens.len() - 1;
+    let mut sequential_pairs = 0;
+
+    for pair_idx in 0..num_pairs {
+        let postings_a = &token_postings[pair_idx];
+        let postings_b = &token_postings[pair_idx + 1];
+
+        let mut found_sequential = false;
+        'outer: for (_key_a, posts_a) in postings_a {
+            for post_a in posts_a.iter().filter(|p| p.doc_id == doc_id) {
+                for (_key_b, posts_b) in postings_b {
+                    for post_b in posts_b.iter().filter(|p| p.doc_id == doc_id) {
+                        for &pos_a in &post_a.positions {
+                            for &pos_b in &post_b.positions {
+                                if pos_b == pos_a + 1 {
+                                    found_sequential = true;
+                                    break 'outer;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if found_sequential {
+            sequential_pairs += 1;
+        }
+    }
+
+    if sequential_pairs == 0 {
+        return 1.0;
+    }
+
+    let ratio = sequential_pairs as f32 / num_pairs as f32;
+    // Full phrase match = 5x, partial = proportional
+    1.0 + ratio * 4.0
 }
 
 /// Get the text for the section containing the given offset (from heading to next heading).

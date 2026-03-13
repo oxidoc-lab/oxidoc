@@ -1,4 +1,5 @@
 mod matching;
+mod resolve;
 mod scoring;
 mod search;
 

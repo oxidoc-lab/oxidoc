@@ -2,7 +2,10 @@ use crate::error::Result;
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::types::{self, DocMetadata, LexicalIndex, PageContent, Posting};
+use super::types::{
+    self, ChunkEntry, ChunkManifest, DocMetadata, LexicalIndex, PageContent, Posting,
+    SearchMetadata,
+};
 
 /// BM25 parameters (standard tuning).
 const K1: f32 = 1.2;
@@ -24,17 +27,24 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
         })
         .collect();
 
-    // Tokenize all documents and compute statistics.
-    let tokenized_docs: Vec<Vec<String>> = pages.iter().map(|page| tokenize(&page.text)).collect();
+    // Tokenize all documents and compute statistics + positions.
+    let tokenized_docs: Vec<Vec<String>> = pages
+        .iter()
+        .map(|page| oxidoc_text::tokenize(&page.text))
+        .collect();
 
-    // Compute document frequencies and term frequencies.
+    // Compute document frequencies, term frequencies, and term positions.
     let mut df: HashMap<String, u32> = HashMap::new();
     let mut tf_lists: Vec<HashMap<String, u32>> = Vec::new();
+    let mut position_lists: Vec<HashMap<String, Vec<u32>>> = Vec::new();
 
     for tokens in &tokenized_docs {
         let mut tf: HashMap<String, u32> = HashMap::new();
-        for token in tokens {
+        let mut positions: HashMap<String, Vec<u32>> = HashMap::new();
+
+        for (pos, token) in tokens.iter().enumerate() {
             *tf.entry(token.clone()).or_insert(0) += 1;
+            positions.entry(token.clone()).or_default().push(pos as u32);
         }
 
         for term in tf.keys() {
@@ -42,6 +52,7 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
         }
 
         tf_lists.push(tf);
+        position_lists.push(positions);
     }
 
     // Compute average document length.
@@ -52,7 +63,7 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
         total_length as f32 / pages.len() as f32
     };
 
-    // Build inverted index with BM25 scores.
+    // Build inverted index with BM25 scores and positions.
     let mut postings: HashMap<String, Vec<Posting>> = HashMap::new();
 
     for (doc_id, tf_map) in tf_lists.iter().enumerate() {
@@ -61,10 +72,15 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
         for (term, tf) in tf_map {
             let idf = compute_idf(*df.get(term).unwrap_or(&1), pages.len() as u32);
             let score = compute_bm25(idf, *tf as f32, doc_length, avg_doc_length);
+            let positions = position_lists[doc_id]
+                .get(term)
+                .cloned()
+                .unwrap_or_default();
 
             postings.entry(term.clone()).or_default().push(Posting {
                 doc_id: doc_id as u32,
                 score,
+                positions,
             });
         }
     }
@@ -84,68 +100,6 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
     }
 }
 
-/// Tokenize text into lowercase terms.
-///
-/// Splits on whitespace, strips non-alphanumeric chars (preserving hyphens and underscores),
-/// splits camelCase/PascalCase into sub-words (emitting both compound and parts),
-/// and filters tokens shorter than 2 characters. This logic must match the tokenizer in
-/// `oxidoc-search/src/lexical.rs` to ensure consistent indexing and querying.
-fn tokenize(text: &str) -> Vec<String> {
-    let mut result = Vec::new();
-    for word in text.split_whitespace() {
-        let cleaned: String = word
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
-            .collect();
-        if cleaned.is_empty() {
-            continue;
-        }
-        let lower = cleaned.to_lowercase();
-        if lower.len() <= 1 {
-            continue;
-        }
-        // Split camelCase/PascalCase into sub-words
-        let parts = split_camel_case(&cleaned);
-        if parts.len() > 1 {
-            // Emit the compound token
-            result.push(lower);
-            // Emit each sub-word
-            for part in parts {
-                let p = part.to_lowercase();
-                if p.len() > 1 {
-                    result.push(p);
-                }
-            }
-        } else {
-            result.push(lower);
-        }
-    }
-    result
-}
-
-/// Split a camelCase or PascalCase string into its component words.
-/// e.g. "CodeBlock" -> ["Code", "Block"], "myFunc" -> ["my", "Func"]
-fn split_camel_case(s: &str) -> Vec<&str> {
-    let mut parts = Vec::new();
-    let bytes = s.as_bytes();
-    let mut start = 0;
-    for i in 1..bytes.len() {
-        let curr_upper = bytes[i].is_ascii_uppercase();
-        let prev_upper = bytes[i - 1].is_ascii_uppercase();
-        // Split at lowercase->uppercase boundary (e.g. "code|Block")
-        // Split at uppercase->uppercase->lowercase boundary (e.g. "XML|Parser")
-        if curr_upper && (!prev_upper || (i + 1 < bytes.len() && bytes[i + 1].is_ascii_lowercase()))
-        {
-            parts.push(&s[start..i]);
-            start = i;
-        }
-    }
-    if start < s.len() {
-        parts.push(&s[start..]);
-    }
-    parts
-}
-
 /// Compute inverse document frequency.
 fn compute_idf(df: u32, total_docs: u32) -> f32 {
     let df = (df as f32).max(1.0);
@@ -158,17 +112,68 @@ fn compute_bm25(idf: f32, tf: f32, doc_length: f32, avg_doc_length: f32) -> f32 
     idf * ((tf * (K1 + 1.0)) / (tf + K1 * normalizer))
 }
 
-/// Write the lexical index to a JSON file.
+/// Write the lexical index as chunked binary files.
+///
+/// Produces:
+/// - `search-meta.bin`: SearchMetadata (documents + chunk manifest)
+/// - `search-chunk-{id}.bin`: postings for each chunk (partitioned by 2-char prefix)
 pub fn write_lexical_index(index: &LexicalIndex, output_dir: &Path) -> Result<()> {
-    let output_path = output_dir.join("search-lexical.json");
-    let json = serde_json::to_string(index).map_err(|e| crate::error::OxidocError::FileWrite {
-        path: output_path.display().to_string(),
-        source: std::io::Error::other(e),
+    // Partition postings by first 2 chars of key.
+    let mut prefix_groups: HashMap<String, HashMap<String, Vec<Posting>>> = HashMap::new();
+    for (key, postings) in &index.postings {
+        let prefix = if key.len() >= 2 {
+            key[..2].to_string()
+        } else {
+            key.to_string()
+        };
+        prefix_groups
+            .entry(prefix)
+            .or_default()
+            .insert(key.clone(), postings.clone());
+    }
+
+    // Assign chunk IDs and write chunk files.
+    let mut chunks: Vec<ChunkEntry> = Vec::new();
+    let mut sorted_prefixes: Vec<String> = prefix_groups.keys().cloned().collect();
+    sorted_prefixes.sort();
+
+    for (chunk_id, prefix) in sorted_prefixes.iter().enumerate() {
+        let chunk_postings = prefix_groups.remove(prefix).unwrap_or_default();
+        let chunk_path = output_dir.join(format!("search-chunk-{}.bin", chunk_id));
+        let encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&chunk_postings).map_err(|e| {
+            crate::error::OxidocError::FileWrite {
+                path: chunk_path.display().to_string(),
+                source: std::io::Error::other(e),
+            }
+        })?;
+        std::fs::write(&chunk_path, encoded).map_err(|e| crate::error::OxidocError::FileWrite {
+            path: chunk_path.display().to_string(),
+            source: e,
+        })?;
+
+        chunks.push(ChunkEntry {
+            id: chunk_id as u32,
+            prefixes: vec![prefix.clone()],
+        });
+    }
+
+    // Write metadata file.
+    let metadata = SearchMetadata {
+        documents: index.documents.clone(),
+        manifest: ChunkManifest { chunks },
+    };
+    let meta_path = output_dir.join("search-meta.bin");
+    let meta_encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&metadata).map_err(|e| {
+        crate::error::OxidocError::FileWrite {
+            path: meta_path.display().to_string(),
+            source: std::io::Error::other(e),
+        }
     })?;
-    std::fs::write(&output_path, json).map_err(|e| crate::error::OxidocError::FileWrite {
-        path: output_path.display().to_string(),
+    std::fs::write(&meta_path, meta_encoded).map_err(|e| crate::error::OxidocError::FileWrite {
+        path: meta_path.display().to_string(),
         source: e,
     })?;
+
     Ok(())
 }
 
@@ -178,31 +183,43 @@ mod tests {
 
     #[test]
     fn test_tokenize_basic() {
-        let tokens = tokenize("Hello World");
+        let tokens = oxidoc_text::tokenize("Hello World");
         assert_eq!(tokens, vec!["hello", "world"]);
     }
 
     #[test]
     fn test_tokenize_with_punctuation() {
-        let tokens = tokenize("Hello, world! How are you?");
+        let tokens = oxidoc_text::tokenize("Hello, world! How are you?");
         assert!(tokens.contains(&"hello".to_string()));
         assert!(tokens.contains(&"world".to_string()));
-        assert!(tokens.contains(&"are".to_string()));
     }
 
     #[test]
     fn test_tokenize_preserves_hyphens() {
-        let tokens = tokenize("rust-lang is great");
+        let tokens = oxidoc_text::tokenize("rust-lang is great");
         assert!(tokens.contains(&"rust-lang".to_string()));
     }
 
     #[test]
     fn test_tokenize_filters_short_tokens() {
-        let tokens = tokenize("a b cd efgh");
+        let tokens = oxidoc_text::tokenize("a b cd efgh");
         assert!(!tokens.contains(&"a".to_string()));
         assert!(!tokens.contains(&"b".to_string()));
-        assert!(tokens.contains(&"cd".to_string()));
-        assert!(tokens.contains(&"efgh".to_string()));
+    }
+
+    #[test]
+    fn test_tokenize_stemming() {
+        let tokens = oxidoc_text::tokenize("running documentation");
+        assert!(tokens.contains(&"run".to_string()));
+        assert!(tokens.contains(&"document".to_string()));
+    }
+
+    #[test]
+    fn test_tokenize_stop_words_filtered() {
+        let tokens = oxidoc_text::tokenize("the quick and brown fox");
+        assert!(!tokens.contains(&"the".to_string()));
+        assert!(!tokens.contains(&"and".to_string()));
+        assert!(tokens.contains(&"quick".to_string()));
     }
 
     #[test]
@@ -227,6 +244,9 @@ mod tests {
         assert!(index.postings.contains_key("world"));
         assert_eq!(index.documents[0].id, 0);
         assert_eq!(index.documents[0].title, "Test");
+        // Verify positions are recorded
+        let hello_posting = &index.postings["hello"][0];
+        assert!(!hello_posting.positions.is_empty());
     }
 
     #[test]
@@ -272,6 +292,7 @@ mod tests {
                     vec![Posting {
                         doc_id: 0,
                         score: 0.95,
+                        positions: vec![0],
                     }],
                 );
                 m
@@ -287,11 +308,23 @@ mod tests {
         };
 
         write_lexical_index(&index, tmp.path()).unwrap();
-        assert!(tmp.path().join("search-lexical.json").exists());
+        // Should produce metadata and chunk files
+        assert!(tmp.path().join("search-meta.bin").exists());
 
-        let json = std::fs::read_to_string(tmp.path().join("search-lexical.json")).unwrap();
-        let deserialized: LexicalIndex = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.documents.len(), 1);
-        assert_eq!(deserialized.postings.len(), 1);
+        // Verify metadata can be deserialized
+        let meta_bytes = std::fs::read(tmp.path().join("search-meta.bin")).unwrap();
+        let metadata: SearchMetadata = rkyv::from_bytes::<_, rkyv::rancor::Error>(&meta_bytes)
+            .expect("SearchMetadata deserialization failed");
+        assert_eq!(metadata.documents.len(), 1);
+        assert!(!metadata.manifest.chunks.is_empty());
+
+        // Verify chunk can be deserialized
+        let chunk_path = tmp.path().join("search-chunk-0.bin");
+        assert!(chunk_path.exists());
+        let chunk_bytes = std::fs::read(&chunk_path).unwrap();
+        let chunk: HashMap<String, Vec<Posting>> =
+            rkyv::from_bytes::<_, rkyv::rancor::Error>(&chunk_bytes)
+                .expect("ChunkPostings deserialization failed");
+        assert!(chunk.contains_key("test"));
     }
 }
