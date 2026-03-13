@@ -1,5 +1,5 @@
+use crate::config_validate::validate_config_keys;
 use crate::error::{OxidocError, Result};
-use crate::suggest::find_suggestion;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -337,41 +337,6 @@ pub fn parse_config(content: &str) -> Result<OxidocConfig> {
     validate_config_keys(content);
 
     Ok(config)
-}
-
-/// Validate config keys and warn about unknown ones.
-fn validate_config_keys(content: &str) {
-    const KNOWN_KEYS: &[&str] = &[
-        "project",
-        "theme",
-        "routing",
-        "versioning",
-        "i18n",
-        "search",
-        "components",
-        "footer",
-        "redirects",
-        "analytics",
-        "attribution",
-    ];
-
-    if let Ok(value) = toml::from_str::<toml::Table>(content) {
-        for key in value.keys() {
-            if !KNOWN_KEYS.contains(&key.as_str()) {
-                let suggestion = find_suggestion(key, KNOWN_KEYS);
-                if let Some(suggested_key) = suggestion {
-                    tracing::warn!(
-                        unknown_key = key,
-                        suggested_key = suggested_key,
-                        "Unknown config key; did you mean '{}'?",
-                        suggested_key
-                    );
-                } else {
-                    tracing::warn!(unknown_key = key, "Unknown config key in oxidoc.toml");
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]

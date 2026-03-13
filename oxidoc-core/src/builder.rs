@@ -20,7 +20,9 @@ use crate::page_extract::{
 use crate::renderer::render_document;
 use crate::search_provider::SearchProvider;
 use crate::sri::generate_sri_hash;
-use crate::template::{AssetConfig, render_404_page, render_page};
+use crate::template::render_page;
+use crate::template_404::render_404_page;
+use crate::template_assets::AssetConfig;
 use crate::template_parts::{render_page_meta, render_sidebar_with_homepage};
 use crate::theme;
 use crate::toc::{extract_toc, render_toc};

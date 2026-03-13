@@ -4,12 +4,16 @@ use std::fmt::Write;
 
 use crate::island_props::build_hydration_props;
 use crate::static_render::{
-    debug_wrap, render_static_accordion, render_static_badge, render_static_banner,
-    render_static_callout, render_static_card, render_static_card_grid, render_static_code_block,
-    render_static_feature, render_static_feature_grid, render_static_head, render_static_hero,
-    render_static_hero_action, render_static_step, render_static_steps, render_static_tab,
-    render_static_tabs, render_static_tag, render_static_themed_image, render_static_tooltip,
+    debug_wrap, render_static_accordion, render_static_badge, render_static_callout,
+    render_static_card, render_static_card_grid, render_static_code_block, render_static_head,
+    render_static_step, render_static_steps, render_static_tab, render_static_tabs,
+    render_static_tag, render_static_themed_image, render_static_tooltip,
 };
+use crate::static_render_landing::{
+    render_static_banner, render_static_feature, render_static_feature_grid, render_static_hero,
+    render_static_hero_action,
+};
+use crate::web_component::render_web_component;
 
 /// Rendering context threaded through all render functions.
 pub(crate) struct RenderCtx<'a> {
@@ -78,18 +82,25 @@ fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
         }
         Node::CodeBlock(c) => {
             let lang = c.lang.as_deref().unwrap_or("");
-            let lang_attr = if lang.is_empty() {
-                String::new()
-            } else {
-                format!(r#" class="language-{}""#, crate::utils::html_escape(lang))
-            };
-            let _ = write!(out, "<pre><code{lang_attr}>");
-            if !lang.is_empty() && oxidoc_highlight::is_supported(lang) {
-                out.push_str(&oxidoc_highlight::highlight(&c.value, lang));
-            } else {
+            if lang == "mermaid" {
+                // Mermaid diagram — render as <pre class="mermaid"> for mermaid.js
+                out.push_str(r#"<pre class="mermaid">"#);
                 push_escaped(&c.value, out);
+                out.push_str("</pre>");
+            } else {
+                let lang_attr = if lang.is_empty() {
+                    String::new()
+                } else {
+                    format!(r#" class="language-{}""#, crate::utils::html_escape(lang))
+                };
+                let _ = write!(out, "<pre><code{lang_attr}>");
+                if !lang.is_empty() && oxidoc_highlight::is_supported(lang) {
+                    out.push_str(&oxidoc_highlight::highlight(&c.value, lang));
+                } else {
+                    push_escaped(&c.value, out);
+                }
+                out.push_str(r#"</code><button class="oxidoc-copy-code" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})">Copy</button></pre>"#);
             }
-            out.push_str(r#"</code><button class="oxidoc-copy-code" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})">Copy</button></pre>"#);
         }
         Node::List(l) => {
             let tag = if l.ordered == Some(true) { "ol" } else { "ul" };
@@ -297,25 +308,6 @@ fn render_island_component(
     }
 }
 
-/// Render a Vanilla Web Component passthrough.
-fn render_web_component(
-    tag: &str,
-    attributes: &[rdx_ast::AttributeNode],
-    js_src: &str,
-    out: &mut String,
-) {
-    let _ = write!(out, "<{tag}");
-    for attr in attributes {
-        let val = crate::utils::html_escape(&attribute_value_to_string(&attr.value));
-        let _ = write!(out, r#" {}="{val}""#, attr.name);
-    }
-    let _ = write!(
-        out,
-        r#"></{tag}><script src="{}" type="module" async></script>"#,
-        crate::utils::html_escape(js_src)
-    );
-}
-
 pub(crate) fn attributes_to_map(
     attributes: &[rdx_ast::AttributeNode],
 ) -> HashMap<String, serde_json::Value> {
@@ -336,18 +328,6 @@ pub(crate) fn attributes_to_map(
             (attr.name.clone(), value)
         })
         .collect()
-}
-
-fn attribute_value_to_string(value: &AttributeValue) -> String {
-    match value {
-        AttributeValue::Null => String::new(),
-        AttributeValue::Bool(b) => b.to_string(),
-        AttributeValue::Number(n) => n.to_string(),
-        AttributeValue::String(s) => s.clone(),
-        AttributeValue::Array(a) => serde_json::to_string(a).unwrap_or_default(),
-        AttributeValue::Object(o) => serde_json::to_string(o).unwrap_or_default(),
-        AttributeValue::Variable(v) => format!("${{{}}}", v.path),
-    }
 }
 
 fn push_escaped(text: &str, out: &mut String) {

@@ -71,7 +71,7 @@ pub fn build_api_pages(
     output_dir: &Path,
     config: &crate::config::OxidocConfig,
     all_nav_groups: &[NavGroup],
-    assets: &crate::template::AssetConfig<'_>,
+    assets: &crate::template_assets::AssetConfig<'_>,
     search_provider: &crate::search_provider::SearchProvider,
     theme: &crate::theme::ResolvedTheme,
 ) -> Result<usize> {

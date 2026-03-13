@@ -1,77 +1,25 @@
 use crate::config::OxidocConfig;
 use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
+use crate::template_assets::{
+    AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
+};
 use crate::template_parts::{render_analytics_script, render_footer};
 use crate::theme::ResolvedTheme;
 
-/// Optional asset paths and SRI hashes for CSS/JS resources.
-#[derive(Debug, Default, Clone)]
-pub struct AssetConfig<'a> {
-    pub css_path: Option<&'a str>,
-    pub js_path: Option<&'a str>,
-    pub css_sri: Option<&'a str>,
-    pub js_sri: Option<&'a str>,
-}
-
-/// Build a `<link rel="stylesheet">` tag with optional SRI integrity hash.
-fn build_stylesheet_link(href: &str, sri: Option<&str>) -> String {
-    if let Some(sri) = sri {
-        format!(
-            r#"    <link rel="stylesheet" href="{href}" integrity="{sri}" crossorigin="anonymous">"#
-        )
-    } else {
-        format!(r#"    <link rel="stylesheet" href="{href}">"#)
-    }
-}
-
-/// Build a `<script>` tag with optional SRI integrity hash.
-fn build_script_tag(src: &str, sri: Option<&str>) -> String {
-    if let Some(sri) = sri {
-        format!(
-            r#"    <script src="{src}" type="module" async integrity="{sri}" crossorigin="anonymous"></script>"#
-        )
-    } else {
-        format!(r#"    <script src="{src}" type="module" async></script>"#)
-    }
-}
-
-/// Build `<link rel="preload">` tags for CSS and JS assets with optional SRI.
-fn build_preload_links(
-    css_href: &str,
-    css_sri: Option<&str>,
-    js_src: &str,
-    js_sri: Option<&str>,
-) -> (String, String) {
-    let css_preload = if let Some(sri) = css_sri {
-        format!(
-            r#"    <link rel="preload" href="{css_href}" as="style" integrity="{sri}" crossorigin="anonymous">"#
-        )
-    } else {
-        format!(r#"    <link rel="preload" href="{css_href}" as="style">"#)
-    };
-    let js_preload = if let Some(sri) = js_sri {
-        format!(
-            r#"    <link rel="preload" href="{js_src}" as="script" integrity="{sri}" crossorigin="anonymous">"#
-        )
-    } else {
-        format!(r#"    <link rel="preload" href="{js_src}" as="script">"#)
-    };
-    (css_preload, js_preload)
-}
-
-const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
-const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.js");
-const BACK_TO_TOP_JS: &str = include_str!("templates/back_to_top.js");
-const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
-const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
-const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
-const HEADER_ACTIONS_HTML: &str = include_str!("templates/header_actions.html");
-const ERROR_404_HTML: &str = include_str!("templates/error_404.html");
+pub(crate) const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
+pub(crate) const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.js");
+pub(crate) const BACK_TO_TOP_JS: &str = include_str!("templates/back_to_top.js");
+pub(crate) const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
+pub(crate) const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
+pub(crate) const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
+pub(crate) const HEADER_ACTIONS_HTML: &str = include_str!("templates/header_actions.html");
+pub(crate) const ERROR_404_HTML: &str = include_str!("templates/error_404.html");
 
 use crate::config::SocialConfig;
 
 /// Build the header actions HTML with social links injected before the static buttons.
-fn build_header_actions(social: &SocialConfig) -> String {
+pub(crate) fn build_header_actions(social: &SocialConfig) -> String {
     let social_html = social.render_header_icons();
     // Insert social links before the theme toggle (first element in HEADER_ACTIONS_HTML)
     HEADER_ACTIONS_HTML.replacen(
@@ -82,7 +30,7 @@ fn build_header_actions(social: &SocialConfig) -> String {
 }
 
 /// Generate the logo HTML for the header.
-fn render_logo_html(config: &OxidocConfig) -> (String, String) {
+pub(crate) fn render_logo_html(config: &OxidocConfig) -> (String, String) {
     let safe_name = crate::utils::html_escape(&config.project.name);
     let logo_html = if let Some(ref logo) = config.project.logo {
         let safe_logo = crate::utils::html_escape(logo);
@@ -272,91 +220,20 @@ pub fn render_page(
         html = html.replace("</head>", &format!("{extra_head}\n</head>"));
     }
 
+    // Conditionally inject mermaid.js if the page has mermaid diagrams
+    let mermaid_script = if html.contains(r#"<pre class="mermaid">"#) {
+        r#"<script type="module">import mermaid from"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.getAttribute("data-theme")==="dark"?"dark":"default"});</script>"#
+    } else {
+        ""
+    };
+
     // Inject search dialog + scripts (contain curly braces, can't go in format!)
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, mermaid_script
         ),
-    )
-}
-
-/// Generate a 404 error page using the site template.
-pub fn render_404_page(
-    config: &OxidocConfig,
-    assets: &AssetConfig<'_>,
-    locale: &str,
-    i18n_state: &I18nState,
-    search_provider: &SearchProvider,
-    theme: &ResolvedTheme,
-) -> String {
-    let (logo_html, safe_name) = render_logo_html(config);
-    let footer_html = render_footer(config, theme);
-
-    let css_href = assets.css_path.unwrap_or("/oxidoc.css");
-    let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
-    let analytics_html = render_analytics_script(config);
-    let stylesheet_link = build_stylesheet_link(css_href, assets.css_sri);
-    let script_tag = build_script_tag(js_src, assets.js_sri);
-    let (css_preload, js_preload) =
-        build_preload_links(css_href, assets.css_sri, js_src, assets.js_sri);
-
-    let search_head_tags = search_provider.render_head_tags();
-    let search_scripts = search_provider.render_scripts();
-
-    let locale_switcher_html = i18n_state.render_locale_switcher(locale, "/");
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="{lang}" data-locale="{locale}">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Page Not Found - {project_name}</title>
-    <meta name="description" content="The page you are looking for could not be found.">
-    <meta name="generator" content="oxidoc">
-    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
-{css_preload}
-{js_preload}
-{stylesheet_link}
-    {analytics_html}
-    {search_head_tags}
-</head>
-<body data-locale="{locale}">
-    <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
-    <header class="oxidoc-header" role="banner">
-        {logo_html}
-        {locale_switcher_html}
-        {header_actions_html}
-    </header>
-    <div class="oxidoc-layout">
-        <main id="oxidoc-main" class="oxidoc-content" role="main">
-            <article>
-                {ERROR_404_HTML}
-            </article>
-        </main>
-    </div>
-    {footer_html}
-{script_tag}
-    {search_scripts}
-</body>
-</html>"##,
-        lang = locale,
-        locale = locale,
-        project_name = safe_name,
-        logo_html = logo_html,
-        locale_switcher_html = locale_switcher_html,
-        footer_html = footer_html,
-        css_preload = css_preload,
-        js_preload = js_preload,
-        analytics_html = analytics_html,
-        stylesheet_link = stylesheet_link,
-        script_tag = script_tag,
-        search_head_tags = search_head_tags,
-        search_scripts = search_scripts,
-        header_actions_html = build_header_actions(&config.social),
-        ERROR_404_HTML = ERROR_404_HTML,
     )
 }
 
@@ -364,6 +241,7 @@ pub fn render_404_page(
 mod tests {
     use super::*;
     use crate::config::parse_config;
+    use crate::template_assets::AssetConfig;
 
     fn test_config() -> OxidocConfig {
         parse_config(
@@ -606,42 +484,5 @@ name = "Test Docs""#,
             &test_theme(),
         );
         assert!(html.contains("custom"));
-    }
-
-    #[test]
-    fn render_404_page_contains_essentials() {
-        let config = test_config();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let html = render_404_page(
-            &config,
-            &default_assets(),
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
-        );
-        assert!(html.contains("<!DOCTYPE html>"));
-        assert!(html.contains("404"));
-        assert!(html.contains("Not Found"));
-        assert!(html.contains("Return to home"));
-    }
-
-    #[test]
-    fn render_404_page_with_assets_and_sri() {
-        let config = test_config();
-        let i18n = default_i18n_state();
-        let provider = default_search_provider();
-        let assets = AssetConfig {
-            css_path: Some("/oxidoc.a1b2c3d4.css"),
-            js_path: Some("/oxidoc-loader.h5i6j7k8.js"),
-            css_sri: Some("sha384-abc123"),
-            js_sri: Some("sha384-def456"),
-        };
-        let html = render_404_page(&config, &assets, "en", &i18n, &provider, &test_theme());
-        assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
-        assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));
-        assert!(html.contains(r#"integrity="sha384-abc123""#));
-        assert!(html.contains(r#"integrity="sha384-def456""#));
     }
 }
