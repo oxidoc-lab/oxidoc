@@ -4,14 +4,9 @@ use crate::request::ApiResponseData;
 use leptos::prelude::*;
 
 /// Leptos view component for displaying API response data.
-pub fn response_view(
-    response: ApiResponseData,
-    code_snippet: String,
-    _copy_code: Callback<()>,
-) -> impl IntoView {
+pub fn response_view(response: ApiResponseData) -> impl IntoView {
     let status_class = get_status_class(response.status);
     let formatted_body = format_response_body(&response.body);
-    let code_snippet_clone = code_snippet.clone();
 
     let duration_display = format!("{}ms", (response.duration_ms * 100.0).round() / 100.0);
 
@@ -25,31 +20,6 @@ pub fn response_view(
                 <div class="api-duration">{duration_display}</div>
             </div>
             <div class="api-response-body">{formatted_body}</div>
-        </div>
-
-        <div class="api-code-snippet">
-            <div class="api-code-tabs">
-                <button
-                    class="api-code-tab active"
-                    type="button"
-                    disabled=true
-                >
-                    "Code Snippet"
-                </button>
-            </div>
-            <div class="api-code-block">
-                <pre class="api-code-content">{code_snippet}</pre>
-                <button
-                    class="api-copy-button"
-                    type="button"
-                    on:click=move |_| {
-                        let snippet = code_snippet_clone.clone();
-                        copy_to_clipboard(&snippet);
-                    }
-                >
-                    "Copy"
-                </button>
-            </div>
         </div>
     }
 }
@@ -75,23 +45,6 @@ fn format_response_body(body: &str) -> String {
     } else {
         body.to_string()
     }
-}
-
-/// Copy text to clipboard using the Clipboard API.
-fn copy_to_clipboard(text: &str) {
-    let text_string = text.to_string();
-    wasm_bindgen_futures::spawn_local(async move {
-        let window = match web_sys::window() {
-            Some(w) => w,
-            None => return,
-        };
-
-        let navigator = window.navigator();
-        let clipboard = navigator.clipboard();
-
-        let clipboard_future = clipboard.write_text(&text_string);
-        let _ = wasm_bindgen_futures::JsFuture::from(clipboard_future).await;
-    });
 }
 
 #[cfg(test)]

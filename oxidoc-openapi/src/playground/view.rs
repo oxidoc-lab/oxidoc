@@ -2,7 +2,6 @@
 
 use super::types::ApiPlaygroundProps;
 use crate::auth::AuthType;
-use crate::codegen::CodegenRequest;
 use crate::request::{ApiResponseData, execute_request};
 use crate::response::response_view;
 use leptos::prelude::*;
@@ -45,11 +44,8 @@ pub fn playground_view(props: ApiPlaygroundProps) -> impl IntoView {
     });
 
     let base_url_for_send = base_url_computed.clone();
-    let base_url_for_response = base_url_computed.clone();
     let props_method = props.method.clone();
-    let props_method_response = props.method.clone();
     let props_path = props.path.clone();
-    let props_path_response = props.path.clone();
     let has_parameters = !props.parameters.is_empty();
     let has_request_body = props.request_body_schema.is_some();
 
@@ -102,14 +98,7 @@ pub fn playground_view(props: ApiPlaygroundProps) -> impl IntoView {
         });
     };
 
-    let method_class = format!("api-method api-method-{}", props.method.to_lowercase());
-
     view! {
-        <div class="api-header">
-            <span class=method_class>{props.method.clone()}</span>
-            <code class="api-path">{props.path.clone()}</code>
-        </div>
-
         // Parameters section
         <Show when=move || has_parameters>
             <div class="api-section">
@@ -253,28 +242,9 @@ pub fn playground_view(props: ApiPlaygroundProps) -> impl IntoView {
         // Response display
         {
             move || response.get().map(|resp| {
-                let method = props_method_response.clone();
-                let url = build_url(&base_url_for_response, &props_path_response, &param_values.get());
-                let mut headers = Vec::new();
-                auth_type.get().apply_to_headers(&mut headers);
-
-                let codegen_request = CodegenRequest {
-                    method,
-                    url,
-                    headers,
-                    body: if request_body.get().is_empty() {
-                        None
-                    } else {
-                        Some(request_body.get())
-                    },
-                };
-
-                let code_snippet = codegen_request.to_curl();
-                let copy_callback = Callback::new(|_| {});
-
                 view! {
                     <>
-                        {response_view(resp, code_snippet, copy_callback)}
+                        {response_view(resp)}
                     </>
                 }
             })

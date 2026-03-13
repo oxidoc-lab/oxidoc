@@ -45,7 +45,9 @@ impl OxidocIsland for ApiPlayground {
 
         // Mount Leptos view into the container
         let html_el: web_sys::HtmlElement = container.unchecked_into();
-        let _ = leptos::mount::mount_to(html_el, move || view::playground_view(props.clone()));
+        let handle = leptos::mount::mount_to(html_el, move || view::playground_view(props.clone()));
+        // Leak the handle so the view stays alive permanently
+        std::mem::forget(handle);
 
         Ok(())
     }
