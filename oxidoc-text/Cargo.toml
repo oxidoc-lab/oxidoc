@@ -1,0 +1,11 @@
+[package]
+name = "oxidoc-text"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared tokenization pipeline for oxidoc — used by both build-time and query-time search"
+
+[dependencies]
+rust-stemmers = "1"
+unicode-normalization = "0.1"
