@@ -61,6 +61,7 @@ fn build_preload_links(
 
 const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
 const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.js");
+const BACK_TO_TOP_JS: &str = include_str!("templates/back_to_top.js");
 const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
 const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
 const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
@@ -253,12 +254,30 @@ pub fn render_page(
         search_scripts = search_scripts,
         header_actions_html = build_header_actions(&config.social),
     );
+    let mut html = html;
+    // Extract <Head> component content and move to <head>
+    let mut extra_head = String::new();
+    while let Some(start) = html.find("<!--oxidoc-head-start-->") {
+        let end_marker = "<!--oxidoc-head-end-->";
+        if let Some(end) = html[start..].find(end_marker) {
+            let content_start = start + "<!--oxidoc-head-start-->".len();
+            let content_end = start + end;
+            extra_head.push_str(&html[content_start..content_end]);
+            html.replace_range(start..content_end + end_marker.len(), "");
+        } else {
+            break;
+        }
+    }
+    if !extra_head.is_empty() {
+        html = html.replace("</head>", &format!("{extra_head}\n</head>"));
+    }
+
     // Inject search dialog + scripts (contain curly braces, can't go in format!)
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS
         ),
     )
 }
