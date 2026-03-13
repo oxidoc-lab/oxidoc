@@ -1,6 +1,9 @@
 use axum::Router;
+use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse};
+use futures_util::stream::Stream;
 use notify::{Event, RecursiveMode, Watcher};
+use std::convert::Infallible;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -9,6 +12,9 @@ use tower_http::services::ServeDir;
 /// Start the development server with file watching and live reload.
 pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<()> {
     let output_dir = project_root.join(".oxidoc-dev");
+
+    // Build wasm once before first build
+    super::build_wasm_once(&output_dir);
 
     // Initial build
     do_build(&project_root, &output_dir, "Build complete")?;
@@ -30,12 +36,9 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
     let app = Router::new()
         .route(
             "/__oxidoc_reload",
-            axum::routing::get(move || {
-                let mut rx = reload_tx_sse.subscribe();
-                async move {
-                    let _ = rx.recv().await;
-                    Html("reload")
-                }
+            axum::routing::get(move || async move {
+                let rx = reload_tx_sse.subscribe();
+                Sse::new(reload_stream(rx)).keep_alive(KeepAlive::default())
             }),
         )
         .fallback_service(ServeDir::new(&output_dir).fallback(axum::routing::get({
@@ -105,6 +108,16 @@ async fn redirect_html_to_clean_url(
     next.run(req).await.into_response()
 }
 
+fn reload_stream(
+    mut rx: broadcast::Receiver<()>,
+) -> impl Stream<Item = Result<SseEvent, Infallible>> {
+    async_stream::stream! {
+        while let Ok(()) = rx.recv().await {
+            yield Ok(SseEvent::default().event("reload").data(""));
+        }
+    }
+}
+
 fn do_build(project_root: &Path, output_dir: &Path, label: &str) -> miette::Result<()> {
     let start = std::time::Instant::now();
     let result = oxidoc_core::builder::build_site(project_root, output_dir)?;
@@ -122,7 +135,7 @@ fn do_build(project_root: &Path, output_dir: &Path, label: &str) -> miette::Resu
 /// Inject a small live-reload polling script into all HTML files in the output directory.
 fn inject_reload_script(output_dir: &Path) {
     let script = r#"<script>
-(function(){var p="/__oxidoc_reload";(function poll(){fetch(p).then(function(){location.reload()}).catch(function(){setTimeout(poll,1000)})})()})();
+(function(){var a=true,s=new EventSource("/__oxidoc_reload");s.addEventListener("reload",function(){if(a)location.reload()});document.addEventListener("visibilitychange",function(){if(document.hidden){a=false;s.close()}});window.addEventListener("pagehide",function(){a=false;s.close()})})();
 </script>"#;
 
     let entries = match glob_html_files(output_dir) {

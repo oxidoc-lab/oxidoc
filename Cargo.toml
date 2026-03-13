@@ -40,9 +40,11 @@ clap = { version = "4", features = ["derive"] }
 miette = { version = "7", features = ["fancy"] }
 
 # Web framework (dev server)
-axum = "0.8"
+axum = { version = "0.8", features = ["default"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "cors"] }
+futures-util = "0.3"
+async-stream = "0.3"
 
 # OpenAPI
 openapiv3 = "2"
