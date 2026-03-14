@@ -9,7 +9,7 @@ pub fn default_theme() -> ResolvedTheme {
             text: "#1e293b".to_string(),
             text_secondary: "#64748b".to_string(),
             border: "#e2e8f0".to_string(),
-            code_bg: "#f1f5f9".to_string(),
+            code_bg: "#f8fafc".to_string(),
             primary: "#2563eb".to_string(),
             accent: "#f59e0b".to_string(),
         },
