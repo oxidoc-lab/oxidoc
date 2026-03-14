@@ -1,6 +1,22 @@
 mod server;
 
 use clap::{Parser, Subcommand};
+
+#[derive(Subcommand)]
+enum ArchiveAction {
+    /// Create a new archive from current docs
+    Create {
+        /// Version label (e.g., "v1.0")
+        version: String,
+    },
+    /// List all available archives
+    List,
+    /// Delete an archive
+    Delete {
+        /// Version to delete (e.g., "v1.0")
+        version: String,
+    },
+}
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -54,6 +70,11 @@ enum Command {
         #[arg(short, long)]
         yes: bool,
     },
+    /// Manage versioned documentation archives
+    Archive {
+        #[command(subcommand)]
+        action: ArchiveAction,
+    },
     /// Remove build artifacts (.oxidoc-dev/ and dist/)
     Clean,
 }
@@ -88,6 +109,11 @@ fn main() -> ExitCode {
             };
             run_init(&target, name.as_deref(), force, yes)
         }
+        Command::Archive { action } => match action {
+            ArchiveAction::Create { version } => run_archive(&project_root, &version),
+            ArchiveAction::List => run_archive_list(&project_root),
+            ArchiveAction::Delete { version } => run_archive_delete(&project_root, &version),
+        },
         Command::Clean => run_clean(&project_root),
     };
 
@@ -172,6 +198,48 @@ fn run_dev(project_root: &std::path::Path, port: u16) -> miette::Result<()> {
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| miette::miette!("Failed to create async runtime: {e}"))?;
     rt.block_on(server::run_dev_server(project_root.to_path_buf(), port))
+}
+
+fn run_archive(project_root: &std::path::Path, version: &str) -> miette::Result<()> {
+    let start = std::time::Instant::now();
+    tracing::info!(version = %version, "Archiving current docs");
+
+    let archive = oxidoc_core::archive::create_archive(project_root, version)?;
+    oxidoc_core::archive::write_archive(project_root, version, &archive)?;
+
+    tracing::info!(
+        version = %version,
+        pages = archive.pages.len(),
+        elapsed_ms = start.elapsed().as_millis() as u64,
+        "Archive complete"
+    );
+    Ok(())
+}
+
+fn run_archive_list(project_root: &std::path::Path) -> miette::Result<()> {
+    let versions = oxidoc_core::archive::discover_archives(project_root);
+    if versions.is_empty() {
+        tracing::info!("No archives found");
+    } else {
+        for version in &versions {
+            println!("{version}");
+        }
+        tracing::info!(count = versions.len(), "Archives listed");
+    }
+    Ok(())
+}
+
+fn run_archive_delete(project_root: &std::path::Path, version: &str) -> miette::Result<()> {
+    let archive_path = project_root
+        .join("archives")
+        .join(format!("{version}.rdx.archive"));
+    if !archive_path.exists() {
+        miette::bail!("Archive '{version}' not found");
+    }
+    std::fs::remove_file(&archive_path)
+        .map_err(|e| miette::miette!("Failed to delete archive: {e}"))?;
+    tracing::info!(version = %version, "Archive deleted");
+    Ok(())
 }
 
 fn run_clean(project_root: &std::path::Path) -> miette::Result<()> {

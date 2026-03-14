@@ -34,6 +34,8 @@ use std::sync::Arc;
 
 pub use crate::build_result::BuildResult;
 
+use crate::html_inject::inject_version_switcher;
+
 /// Build the documentation site from a project root to an output directory.
 pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult> {
     build_site_with_model(project_root, output_dir, None)
@@ -59,6 +61,14 @@ pub fn build_site_with_model(
 
     // Resolve search provider from config
     let search_provider = SearchProvider::from_config(&config.search)?;
+
+    // Resolve versioning state (auto-discovers archives)
+    let versioning = crate::versioning::VersioningState::from_config_with_archives(
+        &config.versioning,
+        project_root,
+        config.versioning.default.as_deref(),
+    );
+    let version_switcher_html = versioning.render_version_switcher(&versioning.default_version);
 
     // Setup i18n
     let i18n_state = I18nState::from_config(&config.i18n.default_locale, &config.i18n.locales);
@@ -193,6 +203,7 @@ pub fn build_site_with_model(
     // Legacy compat: homepage_slug is None when using root config
     let homepage_slug: Option<String> = None;
 
+    let version_switcher_html = Arc::new(version_switcher_html);
     let config = Arc::new(config);
     let i18n_state = Arc::new(i18n_state);
     let search_provider = Arc::new(search_provider);
@@ -245,6 +256,7 @@ pub fn build_site_with_model(
         let section_nav_map_arc = Arc::clone(&section_nav_map);
         let slug_index_arc = Arc::clone(&slug_index);
         let pages_arc = Arc::clone(&flat_pages);
+        let version_switcher_arc = Arc::clone(&version_switcher_html);
         let locale_str = locale.clone();
 
         let results: Result<Vec<_>> = page_contents
@@ -331,6 +343,7 @@ pub fn build_site_with_model(
                     })?;
                 }
 
+                let full_html = inject_version_switcher(&full_html, &version_switcher_arc);
                 let minified_html = minify_html(&full_html);
                 std::fs::write(&page_output, minified_html).map_err(|e| {
                     OxidocError::FileWrite {
@@ -457,6 +470,7 @@ pub fn build_site_with_model(
             } else {
                 output_dir.join(format!("{slug}.html"))
             };
+            let full_html = inject_version_switcher(&full_html, &version_switcher_html);
             let minified = minify_html(&full_html);
             std::fs::write(&out_path, minified).map_err(|e| OxidocError::FileWrite {
                 path: out_path.display().to_string(),
@@ -467,6 +481,30 @@ pub fn build_site_with_model(
                 tracing::info!("Rendered homepage");
             } else {
                 tracing::info!(page = %slug, "Rendered root page");
+            }
+        }
+    }
+
+    // Render archived versions (if any)
+    let archived_versions = crate::archive::discover_archives(project_root);
+    for version in &archived_versions {
+        match crate::archive::read_archive(project_root, version) {
+            Ok(archive) => {
+                // Generate version switcher for archived pages (current = this archive's version)
+                let archive_switcher = versioning.render_version_switcher(&archive.version);
+                let count = crate::archive::build_archived_version(
+                    &archive,
+                    output_dir,
+                    &config,
+                    &assets,
+                    &i18n_state,
+                    &search_provider,
+                    &archive_switcher,
+                )?;
+                pages_rendered_total += count;
+            }
+            Err(e) => {
+                tracing::warn!(version = %version, "Failed to load archive: {e}");
             }
         }
     }
@@ -486,6 +524,7 @@ pub fn build_site_with_model(
         i18n_state: &i18n_state,
         homepage_slug: homepage_slug.as_deref(),
         section_nav_map: &section_nav_map,
+        version_switcher_html: &version_switcher_html,
     };
     generate_folder_index_pages(&nav_groups, output_dir, &folder_ctx)?;
 
@@ -550,6 +589,7 @@ struct FolderIndexContext<'a> {
     i18n_state: &'a Arc<crate::i18n::I18nState>,
     homepage_slug: Option<&'a str>,
     section_nav_map: &'a Arc<HashMap<String, Vec<crate::crawler::NavGroup>>>,
+    version_switcher_html: &'a str,
 }
 
 /// Write a redirect HTML page at `index_path` pointing to `target_url`.
@@ -691,6 +731,7 @@ fn generate_folder_index_pages(
             })?;
         }
 
+        let full_html = inject_version_switcher(&full_html, ctx.version_switcher_html);
         let minified = minify_html(&full_html);
         std::fs::write(&index_path, minified).map_err(|e| OxidocError::FileWrite {
             path: index_path.display().to_string(),

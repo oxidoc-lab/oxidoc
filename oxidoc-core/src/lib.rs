@@ -1,3 +1,4 @@
+pub mod archive;
 pub mod asset_hash;
 pub mod assets;
 pub mod breadcrumb;
@@ -10,6 +11,7 @@ pub mod crawler;
 pub mod css;
 pub mod error;
 pub mod feed;
+pub mod html_inject;
 pub mod i18n;
 pub mod icons;
 pub mod incremental;

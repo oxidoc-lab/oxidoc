@@ -44,8 +44,11 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
                     .trim_start_matches('/')
                     .trim_end_matches('/');
 
-                // Skip static assets and special routes
-                if path.starts_with("__oxidoc") || path.contains('.') {
+                // Skip special routes and static assets (files with extensions like .js, .css, .wasm)
+                // Use the last path segment to check for extensions, so version paths
+                // like "v0.1.0/docs/intro" don't get falsely skipped.
+                let last_segment = path.rsplit('/').next().unwrap_or(path);
+                if path.starts_with("__oxidoc") || last_segment.contains('.') {
                     return next.run(req).await.into_response();
                 }
 
