@@ -16,6 +16,10 @@ CLAUDE.md
 oxidoc-cli/assets/models/*
 !oxidoc-cli/assets/models/.gitkeep
 
+# Bundled Wasm assets (built by CI, embedded in the CLI binary)
+oxidoc-cli/assets/wasm/*
+!oxidoc-cli/assets/wasm/.gitkeep
+
 # IDE
 .vscode/
 .idea/

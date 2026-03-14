@@ -13,8 +13,8 @@ use tower_http::services::ServeDir;
 pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<()> {
     let output_dir = project_root.join(".oxidoc-dev");
 
-    // Build wasm once before first build
-    super::build_wasm_once(&output_dir);
+    // Write wasm assets before first build
+    super::write_wasm_assets(&output_dir);
 
     // Initial build
     do_build(&project_root, &output_dir, "Build complete")?;

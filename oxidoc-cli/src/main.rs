@@ -103,28 +103,48 @@ fn main() -> ExitCode {
     }
 }
 
-fn build_wasm_once(output_dir: &std::path::Path) {
+/// Write Wasm assets to the output directory.
+///
+/// In development (inside the oxidoc workspace), builds from source to get the latest code.
+/// Otherwise, writes the pre-compiled bundled assets — no Rust toolchain required.
+fn write_wasm_assets(output_dir: &std::path::Path) {
+    // Try building from source first (dev workflow)
     match oxidoc_core::wasm::build_wasm(output_dir) {
-        Ok(()) => {}
+        Ok(()) => return,
         Err(e) => {
             let msg = format!("{e}");
             if msg.contains("locate") {
-                tracing::debug!("Skipping wasm build (not in oxidoc workspace)");
+                tracing::debug!("Not in oxidoc workspace, using bundled wasm assets");
             } else {
-                tracing::warn!("Wasm build failed: {e}");
+                tracing::warn!("Wasm source build failed ({e}), falling back to bundled assets");
             }
         }
+    }
+
+    // Fall back to bundled assets
+    if let Err(e) = oxidoc_core::wasm::write_bundled_wasm(output_dir, &BUNDLED_WASM) {
+        tracing::warn!("Failed to write bundled wasm assets: {e}");
     }
 }
 
 /// Bundled sentence embedding model for hybrid search.
 const BUNDLED_SEARCH_MODEL: &[u8] = include_bytes!("../assets/models/bge-micro-v2.gguf");
 
+/// Pre-compiled Wasm assets (JS glue + Wasm binaries) built during CI.
+const BUNDLED_WASM: oxidoc_core::wasm::BundledWasm = oxidoc_core::wasm::BundledWasm {
+    registry_js: include_bytes!("../assets/wasm/oxidoc_registry.js"),
+    registry_wasm: include_bytes!("../assets/wasm/oxidoc_registry_bg.wasm"),
+    openapi_js: include_bytes!("../assets/wasm/oxidoc_openapi.js"),
+    openapi_wasm: include_bytes!("../assets/wasm/oxidoc_openapi_bg.wasm"),
+    search_js: include_bytes!("../assets/wasm/oxidoc_search.js"),
+    search_wasm: include_bytes!("../assets/wasm/oxidoc_search_bg.wasm"),
+};
+
 fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()> {
     let output_dir = project_root.join(output);
     tracing::info!("Building site to {}/", output_dir.display());
 
-    build_wasm_once(&output_dir);
+    write_wasm_assets(&output_dir);
 
     let start = std::time::Instant::now();
     let result = oxidoc_core::builder::build_site_with_model(

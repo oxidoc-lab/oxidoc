@@ -13,11 +13,61 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint & Check
+  # Build Wasm assets and download model once, shared across lint + test matrix
+  prepare-assets:
+    name: Prepare Assets
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-assets
+
+      - name: Build Wasm assets
+        run: |
+          cargo build -p oxidoc-registry -p oxidoc-openapi -p oxidoc-search --target wasm32-unknown-unknown --release
+          mkdir -p oxidoc-cli/assets/wasm
+          for stem in oxidoc_registry oxidoc_openapi oxidoc_search; do
+            wasm-bindgen target/wasm32-unknown-unknown/release/${stem}.wasm --out-dir oxidoc-cli/assets/wasm --target web --no-typescript
+          done
+
+      - name: Download embedding model
+        run: |
+          mkdir -p oxidoc-cli/assets/models
+          curl -L -o oxidoc-cli/assets/models/bge-micro-v2.gguf \
+            https://huggingface.co/fs90/bge-micro-v2-i1-GGUF/resolve/main/bge-micro-v2.i1-Q4_K_M.gguf
+
+      - name: Upload bundled assets
+        uses: actions/upload-artifact@v3
+        with:
+          name: bundled-assets
+          path: |
+            oxidoc-cli/assets/wasm/
+            oxidoc-cli/assets/models/bge-micro-v2.gguf
+          retention-days: 1
+
+  lint:
+    name: Lint & Check
+    needs: prepare-assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download bundled assets
+        uses: actions/download-artifact@v3
+        with:
+          name: bundled-assets
+          path: oxidoc-cli/assets
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -41,6 +91,7 @@ jobs:
 
   test:
     name: Test Suite
+    needs: prepare-assets
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -48,6 +99,12 @@ jobs:
         rust: [stable]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download bundled assets
+        uses: actions/download-artifact@v3
+        with:
+          name: bundled-assets
+          path: oxidoc-cli/assets
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
