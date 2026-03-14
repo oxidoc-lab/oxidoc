@@ -1,0 +1,132 @@
+---
+title: Animations
+---
+
+# Animations
+
+Oxidoc ships a built-in animation system — 15 reusable `@keyframes`, scroll-triggered entrances, and animatable CSS variables. Pure CSS, no JavaScript required.
+
+## Built-in Component Animations
+
+Landing page components animate automatically:
+
+- **Hero** — title fades down, tagline and actions fade up with stagger
+- **Features** — each card fades in from below, staggered by position
+- **Testimonials** — cards fade in with stagger
+- **CTA** — fades in from below
+- **Search dialog** — overlay fades in, dialog scales in
+- **Tooltips** — fade in on hover
+
+No configuration needed — these work out of the box.
+
+## Using Animation Classes
+
+Components that accept a `class` prop can use animation utility classes:
+
+```rdx
+<Feature icon="⚡" title="Fast" class="oxidoc-animate-bounce-in">
+Sub-second builds.
+</Feature>
+
+<FeatureGrid class="oxidoc-animate-fade-in-up">
+  ...
+</FeatureGrid>
+```
+
+| Class | Effect |
+|:------|:-------|
+| `oxidoc-animate-fade-in` | Opacity 0 → 1 |
+| `oxidoc-animate-fade-in-up` | Fade in + slide up from below |
+| `oxidoc-animate-bounce-in` | Bouncy entrance with overshoot |
+| `oxidoc-animate-pop` | Quick scale-up pop |
+| `oxidoc-animate-float` | Gentle up-and-down floating (infinite) |
+| `oxidoc-animate-spin` | 360° rotation (infinite) |
+| `oxidoc-animate-shimmer` | Loading skeleton shimmer (infinite) |
+
+### Stagger Delays
+
+Add stagger classes for sequential timing:
+
+```rdx
+<Feature icon="⚡" title="First" class="oxidoc-animate-fade-in-up oxidoc-stagger-1">...</Feature>
+<Feature icon="🧩" title="Second" class="oxidoc-animate-fade-in-up oxidoc-stagger-2">...</Feature>
+<Feature icon="🔍" title="Third" class="oxidoc-animate-fade-in-up oxidoc-stagger-3">...</Feature>
+```
+
+`oxidoc-stagger-1` through `oxidoc-stagger-5` add incremental delays (0.1s each by default).
+
+## Custom CSS Animations
+
+Use the shipped `@keyframes` in your own custom CSS:
+
+<CodeBlock language="css" filename="assets/custom.css">
+.my-element {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-normal) both;
+}
+
+.my-modal {
+  animation: oxidoc-scale-in var(--oxidoc-transition-spring) both;
+}
+</CodeBlock>
+
+### Available Keyframes
+
+| Keyframe | Description |
+|:---------|:------------|
+| `oxidoc-fade-in` | Opacity 0 → 1 |
+| `oxidoc-fade-out` | Opacity 1 → 0 |
+| `oxidoc-fade-in-up` | Fade in + translate up |
+| `oxidoc-fade-in-down` | Fade in + translate down |
+| `oxidoc-slide-in-left` | Slide in from left edge |
+| `oxidoc-slide-in-right` | Slide in from right edge |
+| `oxidoc-scale-in` | Scale up from 0.9 + fade in |
+| `oxidoc-scale-out` | Scale up to 1.05 + fade out |
+| `oxidoc-bounce-in` | Bouncy scale entrance |
+| `oxidoc-pop` | Quick snap-in from scale 0 |
+| `oxidoc-spin` | 360° rotation |
+| `oxidoc-pulse` | Gentle scale pulse |
+| `oxidoc-shake` | Horizontal shake |
+| `oxidoc-float` | Gentle vertical float |
+| `oxidoc-shimmer` | Loading skeleton shimmer |
+
+## Scroll-Triggered Animations
+
+In browsers that support scroll-driven animations, use the `oxidoc-animate-on-scroll` class to trigger entrance animations as elements scroll into view. In unsupported browsers, content appears normally.
+
+## Animatable CSS Variables
+
+Color variables are registered with `@property`, so the browser can smoothly interpolate them. This means you can animate theme colors with CSS transitions:
+
+<CodeBlock language="css" filename="assets/custom.css">
+.my-element {
+  transition: --oxidoc-primary var(--oxidoc-transition-normal);
+}
+.my-element:hover {
+  --oxidoc-primary: #8b5cf6;
+}
+</CodeBlock>
+
+Registered animatable properties: `--oxidoc-primary`, `--oxidoc-accent`, `--oxidoc-bg`, `--oxidoc-text`, `--oxidoc-success`, `--oxidoc-warning`, `--oxidoc-error`.
+
+## Transition Presets
+
+All component transitions use these variables. Override them to change the feel of the entire site:
+
+<CodeBlock language="css" filename="assets/custom.css">
+:root {
+  --oxidoc-transition-fast: 0.15s ease;                             /* Hover states */
+  --oxidoc-transition-normal: 0.25s ease;                           /* UI movements */
+  --oxidoc-transition-slow: 0.4s ease;                              /* Page-level */
+  --oxidoc-transition-spring: 0.5s cubic-bezier(0.19, 1, 0.22, 1); /* Elastic */
+}
+</CodeBlock>
+
+<Callout kind="tip">
+Set all transitions to `0s` for an instant-feel UI, or increase them for a more relaxed, cinematic feel.
+</Callout>
+
+## Accessibility
+
+All animations automatically respect `prefers-reduced-motion`. When a user has reduced motion enabled in their OS, animation durations collapse to near-zero and iterations run once.
+
+No configuration needed.

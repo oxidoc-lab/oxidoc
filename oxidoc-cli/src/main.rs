@@ -216,8 +216,11 @@ fn run_init(
     let deploy_dir = docs_dir.join("deployment");
     std::fs::create_dir_all(&docs_dir)
         .map_err(|e| miette::miette!("Failed to create docs/: {e}"))?;
+    let guides_dir = docs_dir.join("guides");
     std::fs::create_dir_all(&deploy_dir)
         .map_err(|e| miette::miette!("Failed to create docs/deployment/: {e}"))?;
+    std::fs::create_dir_all(&guides_dir)
+        .map_err(|e| miette::miette!("Failed to create docs/guides/: {e}"))?;
     std::fs::create_dir_all(&lib_dir).map_err(|e| miette::miette!("Failed to create lib/: {e}"))?;
     std::fs::create_dir_all(&assets_dir)
         .map_err(|e| miette::miette!("Failed to create assets/: {e}"))?;
@@ -267,6 +270,18 @@ fn run_init(
     write_file(
         &deploy_dir.join("netlify.rdx"),
         include_str!("../assets/templates/deployment-netlify.rdx"),
+    )?;
+    write_file(
+        &guides_dir.join("styling.rdx"),
+        include_str!("../assets/templates/guides-styling.rdx"),
+    )?;
+    write_file(
+        &guides_dir.join("animations.rdx"),
+        include_str!("../assets/templates/guides-animations.rdx"),
+    )?;
+    write_file(
+        &guides_dir.join("internationalization.rdx"),
+        include_str!("../assets/templates/guides-internationalization.rdx"),
     )?;
     write_file(
         &lib_dir.join("index.rdx"),

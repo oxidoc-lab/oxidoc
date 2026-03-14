@@ -80,18 +80,38 @@ fn test_init_creates_scaffold() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Check that files were created
+    // Check that core files and directories were created
     assert!(
         project_dir.join("oxidoc.toml").exists(),
         "oxidoc.toml should be created"
+    );
+    assert!(
+        project_dir.join("home.rdx").exists(),
+        "home.rdx should be created"
     );
     assert!(
         project_dir.join("docs").is_dir(),
         "docs/ directory should be created"
     );
     assert!(
-        project_dir.join("docs/intro.rdx").exists(),
-        "docs/intro.rdx should be created"
+        project_dir.join("docs/quickstart.rdx").exists(),
+        "docs/quickstart.rdx should be created"
+    );
+    assert!(
+        project_dir.join("docs/deployment").is_dir(),
+        "docs/deployment/ directory should be created"
+    );
+    assert!(
+        project_dir.join("docs/guides").is_dir(),
+        "docs/guides/ directory should be created"
+    );
+    assert!(
+        project_dir.join("lib").is_dir(),
+        "lib/ directory should be created"
+    );
+    assert!(
+        project_dir.join("assets/logo.svg").exists(),
+        "assets/logo.svg should be created"
     );
 
     // Verify config content
@@ -104,14 +124,6 @@ fn test_init_creates_scaffold() {
     assert!(
         config_content.contains("name ="),
         "Config should have project name"
-    );
-
-    // Verify intro.rdx content
-    let intro_content =
-        fs::read_to_string(project_dir.join("docs/intro.rdx")).expect("Failed to read intro.rdx");
-    assert!(
-        intro_content.contains("Welcome"),
-        "intro.rdx should contain welcome text"
     );
 }
 

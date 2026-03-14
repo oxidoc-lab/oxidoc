@@ -1,0 +1,29 @@
+---
+title: Internationalization
+---
+
+# Internationalization
+
+Oxidoc supports building your documentation in multiple languages.
+
+## Configuration
+
+<CodeBlock language="toml" filename="oxidoc.toml">
+[i18n]
+default_locale = "en"
+locales = ["en", "ja", "es"]
+translation_dir = "translations"
+</CodeBlock>
+
+## Translation Files
+
+Create JSON translation files in the `translations/` directory:
+
+<CodeBlock language="json" filename="translations/ja.json">
+{
+  "search.placeholder": "検索...",
+  "toc.title": "目次"
+}
+</CodeBlock>
+
+Each locale gets its own URL prefix (e.g., `/ja/intro`). The default locale is served at the root.
