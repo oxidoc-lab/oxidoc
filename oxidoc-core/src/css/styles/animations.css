@@ -1,0 +1,307 @@
+/* ==========================================================================
+   animations.css — Oxidoc Animation System
+   Pure CSS animation primitives, keyframe library, scroll-driven entrances,
+   utility classes, and reduced-motion safety.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. @property Registrations
+   Register animatable CSS custom properties so the browser understands their
+   syntax and can interpolate them during transitions and animations.
+   ========================================================================== */
+
+@property --oxidoc-primary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #2563eb;
+}
+
+@property --oxidoc-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f59e0b;
+}
+
+@property --oxidoc-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --oxidoc-text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1e293b;
+}
+
+@property --oxidoc-success {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #10b981;
+}
+
+@property --oxidoc-warning {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f59e0b;
+}
+
+@property --oxidoc-error {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ef4444;
+}
+
+
+/* ==========================================================================
+   2. @keyframes Library
+   All keyframes are prefixed with `oxidoc-` to avoid collisions with any
+   other animation libraries loaded on the same page.
+   ========================================================================== */
+
+/* --- Fade ----------------------------------------------------------------- */
+
+@keyframes oxidoc-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes oxidoc-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* --- Fade + Translate ------------------------------------------------------ */
+
+@keyframes oxidoc-fade-in-up {
+  from {
+    opacity: 0;
+    translate: 0 1rem;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes oxidoc-fade-in-down {
+  from {
+    opacity: 0;
+    translate: 0 -1rem;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* --- Slide ----------------------------------------------------------------- */
+
+@keyframes oxidoc-slide-in-left {
+  from { translate: -100% 0; }
+  to   { translate: 0 0; }
+}
+
+@keyframes oxidoc-slide-in-right {
+  from { translate: 100% 0; }
+  to   { translate: 0 0; }
+}
+
+/* --- Scale ----------------------------------------------------------------- */
+
+@keyframes oxidoc-scale-in {
+  from {
+    opacity: 0;
+    scale: 0.9;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes oxidoc-scale-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 1.05;
+  }
+}
+
+/* --- Bounce In ------------------------------------------------------------- */
+
+@keyframes oxidoc-bounce-in {
+  0%   { opacity: 0; scale: 0.3; }
+  50%  { scale: 1.05; }
+  70%  { scale: 0.95; }
+  100% { opacity: 1; scale: 1; }
+}
+
+/* --- Spin ------------------------------------------------------------------ */
+
+@keyframes oxidoc-spin {
+  from { rotate: 0deg; }
+  to   { rotate: 360deg; }
+}
+
+/* --- Pulse ----------------------------------------------------------------- */
+
+@keyframes oxidoc-pulse {
+  0%   { opacity: 1; scale: 1; }
+  50%  { opacity: 0.8; scale: 1.05; }
+  100% { opacity: 1; scale: 1; }
+}
+
+/* --- Shake ----------------------------------------------------------------- */
+
+@keyframes oxidoc-shake {
+  0%, 100% { translate: 0 0; }
+  20%       { translate: -10px 0; }
+  40%       { translate: 10px 0; }
+  60%       { translate: -10px 0; }
+  80%       { translate: 10px 0; }
+}
+
+/* --- Float ----------------------------------------------------------------- */
+/* Gentle perpetual floating. Intended for decorative elements. */
+
+@keyframes oxidoc-float {
+  0%, 100% { translate: 0 0; }
+  50%       { translate: 0 -6px; }
+}
+
+/* --- Shimmer --------------------------------------------------------------- */
+/* Loading skeleton effect. Apply to an element with a gradient background. */
+
+@keyframes oxidoc-shimmer {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
+
+/* --- Pop ------------------------------------------------------------------- */
+/* Snappy entrance from zero scale. */
+
+@keyframes oxidoc-pop {
+  0%   { scale: 0; }
+  80%  { scale: 1.1; }
+  100% { scale: 1; }
+}
+
+/* --- Accordion / Collapsible ----------------------------------------------- */
+/* Requires the element to have a child with `min-height: 0; overflow: hidden`. */
+
+@keyframes oxidoc-collapse {
+  from { grid-template-rows: 1fr; }
+  to   { grid-template-rows: 0fr; }
+}
+
+@keyframes oxidoc-expand {
+  from { grid-template-rows: 0fr; }
+  to   { grid-template-rows: 1fr; }
+}
+
+
+/* ==========================================================================
+   3. Scroll-Driven Entrance Animations
+   Uses the modern `animation-timeline: view()` API to trigger entrance
+   animations as elements scroll into the viewport. Only applied when the
+   browser supports scroll-driven animations.
+   ========================================================================== */
+
+@supports (animation-timeline: scroll()) {
+  .oxidoc-animate-on-scroll {
+    animation: oxidoc-fade-in-up var(--oxidoc-transition-slow, 0.6s) both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 30%;
+  }
+}
+
+
+/* ==========================================================================
+   4. Utility Classes
+   Drop these classes onto any element to apply a named animation. Duration
+   tokens reference the design-token variables defined in the base CSS; the
+   fallback values keep things working if this file is loaded in isolation.
+   ========================================================================== */
+
+/* Stagger delay custom property — override on the parent to change spacing. */
+:root {
+  --oxidoc-stagger: 0.1s;
+}
+
+/* --- Fade ----------------------------------------------------------------- */
+
+.oxidoc-animate-fade-in {
+  animation: oxidoc-fade-in var(--oxidoc-transition-normal, 0.3s) ease both;
+}
+
+.oxidoc-animate-fade-in-up {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-normal, 0.3s) ease both;
+}
+
+/* --- Bounce / Pop ---------------------------------------------------------- */
+
+.oxidoc-animate-bounce-in {
+  animation: oxidoc-bounce-in var(--oxidoc-transition-spring, 0.5s) ease both;
+}
+
+.oxidoc-animate-pop {
+  animation: oxidoc-pop var(--oxidoc-transition-fast, 0.15s) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* --- Float ----------------------------------------------------------------- */
+
+.oxidoc-animate-float {
+  animation: oxidoc-float 3s ease-in-out infinite;
+}
+
+/* --- Spin ------------------------------------------------------------------ */
+
+.oxidoc-animate-spin {
+  animation: oxidoc-spin 1s linear infinite;
+}
+
+/* --- Shimmer --------------------------------------------------------------- */
+/* The gradient must cover at least 200% width so the shimmer has room to travel. */
+
+.oxidoc-animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--oxidoc-primary, #2563eb) 15%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: oxidoc-shimmer 1.5s ease-in-out infinite;
+}
+
+/* --- Stagger Delays -------------------------------------------------------- */
+/* Apply .oxidoc-stagger-N to children that should animate one after another. */
+
+.oxidoc-stagger-1 { animation-delay: calc(var(--oxidoc-stagger) * 1); }
+.oxidoc-stagger-2 { animation-delay: calc(var(--oxidoc-stagger) * 2); }
+.oxidoc-stagger-3 { animation-delay: calc(var(--oxidoc-stagger) * 3); }
+.oxidoc-stagger-4 { animation-delay: calc(var(--oxidoc-stagger) * 4); }
+.oxidoc-stagger-5 { animation-delay: calc(var(--oxidoc-stagger) * 5); }
+
+
+/* ==========================================================================
+   5. prefers-reduced-motion Safety
+   Honour the user's OS-level motion preference by collapsing all durations to
+   near-zero. This is placed last so it overrides every rule above.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

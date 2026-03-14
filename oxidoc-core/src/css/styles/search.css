@@ -5,8 +5,8 @@
 .oxidoc-search-overlay {
     position: fixed;
     inset: 0;
-    z-index: 1000;
-    background: rgba(0, 0, 0, 0.4);
+    z-index: var(--oxidoc-z-overlay);
+    background: var(--oxidoc-overlay);
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -20,7 +20,7 @@
     background: var(--oxidoc-bg);
     border: 1px solid var(--oxidoc-border);
     border-radius: 0.75rem;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--oxidoc-shadow-lg);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -107,7 +107,7 @@
     border-radius: 0.5rem;
     text-decoration: none;
     color: var(--oxidoc-text);
-    transition: background 0.1s;
+    transition: background var(--oxidoc-transition-fast);
 }
 .oxidoc-search-result:hover,
 .oxidoc-search-result.active {
@@ -188,7 +188,7 @@
     text-align: left;
     width: 100%;
     margin-bottom: 2px;
-    transition: background 0.1s;
+    transition: background var(--oxidoc-transition-fast);
 }
 .oxidoc-search-ask-ai:hover,
 .oxidoc-search-ask-ai.active {
@@ -241,7 +241,7 @@
     color: var(--oxidoc-primary);
     cursor: pointer;
     border-radius: 0.375rem;
-    transition: background 0.1s;
+    transition: background var(--oxidoc-transition-fast);
 }
 .oxidoc-search-ai-banner-back:hover {
     background: color-mix(in srgb, var(--oxidoc-primary) 16%, transparent);

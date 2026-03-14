@@ -1,16 +1,21 @@
-/* Component: Callout */
+/* Component: Callout — per-type variables for full customization */
 .oxidoc-callout {
+    --oxidoc-callout-color: var(--oxidoc-primary);
+    --oxidoc-callout-bg: color-mix(in srgb, var(--oxidoc-callout-color) 5%, var(--oxidoc-bg-secondary));
+    --oxidoc-callout-border: var(--oxidoc-callout-color);
+    --oxidoc-callout-text: var(--oxidoc-text);
     border: 1px solid var(--oxidoc-border);
-    border-left: 3px solid var(--oxidoc-primary);
+    border-left: 3px solid var(--oxidoc-callout-border);
     border-radius: 0.375rem;
     padding: 0.75rem 1rem;
     margin: 1rem 0;
-    background: var(--oxidoc-bg-secondary);
+    background: var(--oxidoc-callout-bg);
+    color: var(--oxidoc-callout-text);
 }
-.oxidoc-callout-info { border-left-color: var(--oxidoc-primary); background: color-mix(in srgb, var(--oxidoc-primary) 5%, var(--oxidoc-bg-secondary)); }
-.oxidoc-callout-warning { border-left-color: #f59e0b; background: color-mix(in srgb, #f59e0b 5%, var(--oxidoc-bg-secondary)); }
-.oxidoc-callout-error, .oxidoc-callout-danger { border-left-color: #ef4444; background: color-mix(in srgb, #ef4444 5%, var(--oxidoc-bg-secondary)); }
-.oxidoc-callout-tip, .oxidoc-callout-success { border-left-color: #10b981; background: color-mix(in srgb, #10b981 5%, var(--oxidoc-bg-secondary)); }
+.oxidoc-callout-info { --oxidoc-callout-color: var(--oxidoc-primary); }
+.oxidoc-callout-warning { --oxidoc-callout-color: var(--oxidoc-warning); }
+.oxidoc-callout-error, .oxidoc-callout-danger { --oxidoc-callout-color: var(--oxidoc-error); }
+.oxidoc-callout-tip, .oxidoc-callout-success { --oxidoc-callout-color: var(--oxidoc-success); }
 .oxidoc-callout-header {
     display: flex;
     align-items: center;
@@ -41,7 +46,7 @@
     cursor: pointer;
     font-size: 0.875rem;
     border-bottom: 2px solid transparent;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color var(--oxidoc-transition-fast), border-color var(--oxidoc-transition-fast);
 }
 .oxidoc-tab:hover { color: var(--oxidoc-text); }
 .oxidoc-tab.active {
@@ -87,10 +92,10 @@
     font-size: 0.75rem;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--oxidoc-transition-fast);
 }
 .oxidoc-codeblock:hover .oxidoc-copy-btn { opacity: 1; }
-.oxidoc-copy-btn.copied { color: #10b981; }
+.oxidoc-copy-btn.copied { color: var(--oxidoc-success); }
 .oxidoc-line {
     display: block;
     margin-left: -1rem;
@@ -112,36 +117,49 @@
     user-select: none;
 }
 
-/* Component: Accordion */
+/* Component: Accordion — smooth height animation via CSS grid */
 .oxidoc-accordion { margin: 1rem 0; }
-.oxidoc-accordion-item {
+.oxidoc-accordion {
     border: 1px solid var(--oxidoc-border);
     border-radius: 0.375rem;
     margin-bottom: 0.5rem;
-    overflow: hidden;
 }
-.oxidoc-accordion-trigger {
+.oxidoc-accordion > summary {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 100%;
     padding: 0.75rem 1rem;
-    border: none;
     background: var(--oxidoc-bg-secondary);
     color: var(--oxidoc-text);
     cursor: pointer;
     font-size: 0.875rem;
     font-weight: 500;
-    text-align: left;
+    list-style: none;
 }
-.oxidoc-accordion-trigger:hover { background: var(--oxidoc-border); }
-.oxidoc-accordion-chevron {
-    font-size: 0.625rem;
-    transition: transform 0.2s;
+.oxidoc-accordion > summary::-webkit-details-marker { display: none; }
+.oxidoc-accordion > summary::after {
+    content: '▸';
+    font-size: 0.75rem;
+    transition: transform var(--oxidoc-transition-normal);
 }
+.oxidoc-accordion[open] > summary::after {
+    transform: rotate(90deg);
+}
+.oxidoc-accordion > summary:hover { background: var(--oxidoc-border); }
 .oxidoc-accordion-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--oxidoc-transition-normal);
+}
+.oxidoc-accordion[open] > .oxidoc-accordion-content {
+    grid-template-rows: 1fr;
+}
+.oxidoc-accordion-content > * {
+    overflow: hidden;
+    padding: 0 1rem;
+}
+.oxidoc-accordion[open] > .oxidoc-accordion-content > * {
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
 }
 
 /* Component: CardGrid */
@@ -157,7 +175,7 @@
     padding: 1.25rem;
     text-decoration: none;
     color: var(--oxidoc-text);
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: border-color var(--oxidoc-transition-fast), box-shadow var(--oxidoc-transition-fast);
     display: flex;
     flex-direction: column;
 }
@@ -204,7 +222,7 @@ a.oxidoc-card:hover {
     justify-content: center;
     border-radius: 50%;
     background: var(--oxidoc-primary);
-    color: #fff;
+    color: var(--oxidoc-on-primary);
     font-size: 0.8125rem;
     font-weight: 600;
     z-index: 1;
@@ -228,11 +246,11 @@ a.oxidoc-card:hover {
     vertical-align: middle;
 }
 .oxidoc-badge-info { background: color-mix(in srgb, var(--oxidoc-primary) 15%, transparent); color: var(--oxidoc-primary); }
-.oxidoc-badge-tip, .oxidoc-badge-success { background: color-mix(in srgb, #10b981 15%, transparent); color: #059669; }
-.oxidoc-badge-warning { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
-.oxidoc-badge-danger, .oxidoc-badge-error { background: color-mix(in srgb, #ef4444 15%, transparent); color: #dc2626; }
-.oxidoc-badge-new { background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed; }
-.oxidoc-badge-deprecated { background: color-mix(in srgb, #6b7280 15%, transparent); color: #4b5563; }
+.oxidoc-badge-tip, .oxidoc-badge-success { background: color-mix(in srgb, var(--oxidoc-success) 15%, transparent); color: var(--oxidoc-success-text); }
+.oxidoc-badge-warning { background: color-mix(in srgb, var(--oxidoc-warning) 15%, transparent); color: var(--oxidoc-warning-text); }
+.oxidoc-badge-danger, .oxidoc-badge-error { background: color-mix(in srgb, var(--oxidoc-error) 15%, transparent); color: var(--oxidoc-error-text); }
+.oxidoc-badge-new { background: color-mix(in srgb, var(--oxidoc-new) 15%, transparent); color: var(--oxidoc-new-text); }
+.oxidoc-badge-deprecated { background: color-mix(in srgb, var(--oxidoc-deprecated) 15%, transparent); color: var(--oxidoc-deprecated-text); }
 .oxidoc-badge-outline {
     background: transparent;
     border: 1px solid currentColor;
@@ -262,7 +280,7 @@ a.oxidoc-card:hover {
     line-height: 1.4;
     border-radius: 0.375rem;
     white-space: nowrap;
-    z-index: 10;
+    z-index: var(--oxidoc-z-tooltip);
     margin-bottom: 0.25rem;
     pointer-events: none;
 }
@@ -279,21 +297,21 @@ a.oxidoc-card:hover {
     gap: 0.75rem;
     padding: 0.5rem 1rem;
     background: var(--oxidoc-primary);
-    color: #fff;
+    color: var(--oxidoc-on-primary);
     font-size: 0.875rem;
     text-align: center;
 }
-.oxidoc-banner a { color: #fff; font-weight: 600; }
+.oxidoc-banner a { color: var(--oxidoc-on-primary); font-weight: 600; }
 .oxidoc-banner-content { flex: 1; }
 .oxidoc-banner-close {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--oxidoc-on-primary);
     font-size: 1.25rem;
     cursor: pointer;
     padding: 0 0.25rem;
     opacity: 0.7;
-    transition: opacity 0.15s;
+    transition: opacity var(--oxidoc-transition-fast);
 }
 .oxidoc-banner-close:hover { opacity: 1; }
 
@@ -310,12 +328,12 @@ a.oxidoc-card:hover {
     vertical-align: middle;
 }
 .oxidoc-tag-info { background: color-mix(in srgb, var(--oxidoc-primary) 15%, transparent); color: var(--oxidoc-primary); }
-.oxidoc-tag-tip { background: color-mix(in srgb, #10b981 15%, transparent); color: #059669; }
-.oxidoc-tag-warning { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
-.oxidoc-tag-danger { background: color-mix(in srgb, #ef4444 15%, transparent); color: #dc2626; }
-.oxidoc-tag-new { background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed; }
-.oxidoc-tag-experimental { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
-.oxidoc-tag-deprecated { background: color-mix(in srgb, #6b7280 15%, transparent); color: #4b5563; }
+.oxidoc-tag-tip { background: color-mix(in srgb, var(--oxidoc-success) 15%, transparent); color: var(--oxidoc-success-text); }
+.oxidoc-tag-warning { background: color-mix(in srgb, var(--oxidoc-warning) 15%, transparent); color: var(--oxidoc-warning-text); }
+.oxidoc-tag-danger { background: color-mix(in srgb, var(--oxidoc-error) 15%, transparent); color: var(--oxidoc-error-text); }
+.oxidoc-tag-new { background: color-mix(in srgb, var(--oxidoc-new) 15%, transparent); color: var(--oxidoc-new-text); }
+.oxidoc-tag-experimental { background: color-mix(in srgb, var(--oxidoc-warning) 15%, transparent); color: var(--oxidoc-warning-text); }
+.oxidoc-tag-deprecated { background: color-mix(in srgb, var(--oxidoc-deprecated) 15%, transparent); color: var(--oxidoc-deprecated-text); }
 
 /* Component: BackToTop */
 .oxidoc-back-to-top {
@@ -332,12 +350,12 @@ a.oxidoc-card:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--oxidoc-shadow-md);
     opacity: 0;
     transform: translateY(10px);
-    transition: opacity 0.3s, transform 0.3s, color 0.15s, border-color 0.15s;
+    transition: opacity var(--oxidoc-transition-normal), transform var(--oxidoc-transition-normal), color var(--oxidoc-transition-fast), border-color var(--oxidoc-transition-fast);
     pointer-events: none;
-    z-index: 50;
+    z-index: var(--oxidoc-z-back-to-top);
 }
 .oxidoc-back-to-top.visible {
     opacity: 1;
@@ -384,12 +402,12 @@ a.oxidoc-card:hover {
     font-weight: 600;
     font-size: 0.9375rem;
     text-decoration: none;
-    transition: opacity 0.15s;
+    transition: opacity var(--oxidoc-transition-fast);
 }
 .oxidoc-hero-action:hover { opacity: 0.9; }
 .oxidoc-hero-action-primary {
     background: var(--oxidoc-primary);
-    color: #fff;
+    color: var(--oxidoc-on-primary);
 }
 .oxidoc-hero-action-secondary {
     background: var(--oxidoc-bg-secondary);
@@ -415,8 +433,8 @@ a.oxidoc-card:hover {
     padding: 1.5rem;
     border: 1px solid var(--oxidoc-border);
     border-radius: 0.5rem;
-    background: var(--oxidoc-bg, #fff);
-    transition: border-color 0.15s, box-shadow 0.15s;
+    background: var(--oxidoc-bg);
+    transition: border-color var(--oxidoc-transition-fast), box-shadow var(--oxidoc-transition-fast);
 }
 .oxidoc-feature:hover {
     border-color: var(--oxidoc-primary);

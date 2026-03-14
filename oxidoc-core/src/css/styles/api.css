@@ -6,15 +6,15 @@
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    color: #fff;
+    color: var(--oxidoc-on-primary);
     margin-right: 0.5rem;
     vertical-align: middle;
 }
-.oxidoc-api-method-get { background: #10b981; }
-.oxidoc-api-method-post { background: #3b82f6; }
-.oxidoc-api-method-put { background: #f59e0b; }
-.oxidoc-api-method-patch { background: #8b5cf6; }
-.oxidoc-api-method-delete { background: #ef4444; }
+.oxidoc-api-method-get { background: var(--oxidoc-success); }
+.oxidoc-api-method-post { background: var(--oxidoc-info); }
+.oxidoc-api-method-put { background: var(--oxidoc-warning); }
+.oxidoc-api-method-patch { background: var(--oxidoc-new); }
+.oxidoc-api-method-delete { background: var(--oxidoc-error); }
 
 /* Two-column Scalar-style layout */
 .oxidoc-api-page {
@@ -35,11 +35,11 @@
 }
 .oxidoc-api-panel-inner {
     position: sticky;
-    top: calc(var(--oxidoc-header-height, 60px) + 1rem);
+    top: calc(var(--oxidoc-header-height) + 1rem);
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-height: calc(100vh - var(--oxidoc-header-height, 60px) - 2rem);
+    max-height: calc(100vh - var(--oxidoc-header-height) - 2rem);
     overflow-y: auto;
 }
 
@@ -67,17 +67,17 @@
     font-weight: 600;
     font-size: 0.75rem;
     text-transform: uppercase;
-    color: var(--oxidoc-text-muted, #6b7280);
+    color: var(--oxidoc-text-muted);
     padding: 0.5rem 0.75rem;
-    border-bottom: 2px solid var(--oxidoc-border, #e5e7eb);
+    border-bottom: 2px solid var(--oxidoc-border);
 }
 .oxidoc-api-field-table td {
     padding: 0.6rem 0.75rem;
-    border-bottom: 1px solid var(--oxidoc-border, #e5e7eb);
+    border-bottom: 1px solid var(--oxidoc-border);
     vertical-align: top;
 }
 .oxidoc-api-field-table tbody {
-    border-bottom: 2px solid var(--oxidoc-border, #e5e7eb);
+    border-bottom: 2px solid var(--oxidoc-border);
 }
 .oxidoc-api-field-table code {
     font-weight: 600;
@@ -85,24 +85,24 @@
 }
 
 .oxidoc-api-param-type {
-    color: var(--oxidoc-text-muted, #6b7280);
+    color: var(--oxidoc-text-muted);
     font-size: 0.8rem;
 }
 .oxidoc-api-param-in {
-    color: var(--oxidoc-text-muted, #6b7280);
+    color: var(--oxidoc-text-muted);
     font-size: 0.75rem;
-    background: var(--oxidoc-bg-subtle, #f3f4f6);
+    background: var(--oxidoc-bg-subtle);
     padding: 0.1rem 0.4rem;
     border-radius: 0.25rem;
 }
 .oxidoc-api-required {
-    color: #ef4444;
+    color: var(--oxidoc-error);
     font-size: 0.75rem;
     font-weight: 600;
     margin-left: 0.25rem;
 }
 .oxidoc-api-optional {
-    color: #f59e0b;
+    color: var(--oxidoc-warning);
     font-size: 0.8rem;
     font-weight: 700;
     margin-left: 0.25rem;
@@ -110,7 +110,7 @@
 .oxidoc-api-schema-type {
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--oxidoc-text, #1e293b);
+    color: var(--oxidoc-text);
 }
 
 /* Body header with required badge + content type */
@@ -125,16 +125,16 @@
 .oxidoc-api-content-type {
     margin-left: auto;
     font-size: 0.75rem;
-    color: var(--oxidoc-text-muted, #6b7280);
-    background: var(--oxidoc-bg-subtle, #f3f4f6);
+    color: var(--oxidoc-text-muted);
+    background: var(--oxidoc-bg-subtle);
     padding: 0.1rem 0.5rem;
     border-radius: 0.25rem;
-    font-family: var(--oxidoc-font-mono, monospace);
+    font-family: var(--oxidoc-font-mono);
 }
 
 /* Responses (tabbed) */
 .oxidoc-api-responses {
-    border: 1px solid var(--oxidoc-border, #e5e7eb);
+    border: 1px solid var(--oxidoc-border);
     border-radius: 0.5rem;
     overflow: hidden;
 }
@@ -147,7 +147,7 @@
     padding: 0.75rem 0.75rem 0;
     margin: 0;
     font-size: 0.875rem;
-    color: var(--oxidoc-text-secondary, #374151);
+    color: var(--oxidoc-text-secondary);
 }
 .oxidoc-api-response-meta {
     display: flex;
@@ -162,12 +162,12 @@
 .oxidoc-api-status {
     font-weight: 700;
     font-size: 0.875rem;
-    font-family: var(--oxidoc-font-mono, monospace);
+    font-family: var(--oxidoc-font-mono);
 }
-.oxidoc-api-status-2xx { color: #10b981; }
-.oxidoc-api-status-3xx { color: #06b6d4; }
-.oxidoc-api-status-4xx { color: #f59e0b; }
-.oxidoc-api-status-5xx { color: #ef4444; }
+.oxidoc-api-status-2xx { color: var(--oxidoc-success); }
+.oxidoc-api-status-3xx { color: var(--oxidoc-info); }
+.oxidoc-api-status-4xx { color: var(--oxidoc-warning); }
+.oxidoc-api-status-5xx { color: var(--oxidoc-error); }
 
 /* Code snippets panel (right column) */
 .oxidoc-api-snippets {
@@ -188,34 +188,34 @@
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    color: var(--oxidoc-text-secondary, #6b7280);
+    color: var(--oxidoc-text-secondary);
     font-size: 0.8rem;
     cursor: pointer;
     font-family: inherit;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color var(--oxidoc-transition-fast), border-color var(--oxidoc-transition-fast);
 }
 .oxidoc-api-tab:hover {
-    color: var(--oxidoc-text, #1e293b);
+    color: var(--oxidoc-text);
 }
 .oxidoc-api-tab.active {
-    color: var(--oxidoc-text, #1e293b);
-    border-bottom-color: var(--oxidoc-primary, #3b82f6);
+    color: var(--oxidoc-text);
+    border-bottom-color: var(--oxidoc-primary);
 }
 .oxidoc-api-copy-btn {
     margin-left: auto;
     padding: 0.25rem 0.6rem;
-    background: var(--oxidoc-bg-subtle, #f3f4f6);
+    background: var(--oxidoc-bg-subtle);
     border: 1px solid var(--oxidoc-border);
     border-radius: 0.25rem;
-    color: var(--oxidoc-text-secondary, #6b7280);
+    color: var(--oxidoc-text-secondary);
     font-size: 0.75rem;
     cursor: pointer;
     align-self: center;
-    transition: color 0.15s, background 0.15s;
+    transition: color var(--oxidoc-transition-fast), background var(--oxidoc-transition-fast);
 }
 .oxidoc-api-copy-btn:hover {
     background: var(--oxidoc-border);
-    color: var(--oxidoc-text, #1e293b);
+    color: var(--oxidoc-text);
 }
 
 /* Tab panels */
@@ -255,7 +255,7 @@
 .oxidoc-api-response-desc {
     padding: 0.5rem 1rem 0;
     margin: 0;
-    color: var(--oxidoc-text-secondary, #6b7280);
+    color: var(--oxidoc-text-secondary);
     font-size: 0.8rem;
 }
 

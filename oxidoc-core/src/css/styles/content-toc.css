@@ -21,7 +21,7 @@
     overflow-y: auto;
     padding: 1.5rem 1rem;
     scrollbar-width: thin;
-    transition: top 0.3s ease, max-height 0.3s ease;
+    transition: top var(--oxidoc-transition-normal), max-height var(--oxidoc-transition-normal);
 }
 .oxidoc-header-hidden ~ .oxidoc-layout .oxidoc-toc-inner {
     top: 0;
@@ -40,7 +40,7 @@
 .oxidoc-toc li a {
     color: var(--oxidoc-text-secondary);
     text-decoration: none;
-    transition: color 0.15s;
+    transition: color var(--oxidoc-transition-fast);
 }
 .oxidoc-toc li a:hover { color: var(--oxidoc-primary); }
 .oxidoc-toc li a.active { color: var(--oxidoc-primary); font-weight: 500; }

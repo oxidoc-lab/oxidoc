@@ -8,7 +8,7 @@
     opacity: 0;
     color: var(--oxidoc-text-muted);
     text-decoration: none !important;
-    transition: opacity 0.15s;
+    transition: opacity var(--oxidoc-transition-fast);
     padding: 0.25em;
 }
 .oxidoc-heading:hover .oxidoc-heading-anchor { opacity: 1; }
@@ -38,7 +38,7 @@ article a {
     text-decoration: underline;
     text-decoration-color: color-mix(in srgb, var(--oxidoc-primary) 40%, transparent);
     text-underline-offset: 2px;
-    transition: text-decoration-color 0.15s;
+    transition: text-decoration-color var(--oxidoc-transition-fast);
 }
 article a:hover { text-decoration-color: var(--oxidoc-primary); }
 
@@ -93,10 +93,10 @@ article pre .oxidoc-copy-code {
     font-size: 0.75rem;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--oxidoc-transition-fast);
 }
 article pre:hover .oxidoc-copy-code { opacity: 1; }
-article pre .oxidoc-copy-code.copied { color: #10b981; }
+article pre .oxidoc-copy-code.copied { color: var(--oxidoc-success); }
 
 article table {
     width: 100%;

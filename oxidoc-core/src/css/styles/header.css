@@ -2,14 +2,14 @@
 .oxidoc-header {
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: var(--oxidoc-z-header);
     height: var(--oxidoc-header-height);
     display: flex;
     align-items: center;
     padding: 0 1.5rem;
     background: var(--oxidoc-bg);
     border-bottom: 1px solid var(--oxidoc-border);
-    transition: transform 0.3s ease;
+    transition: transform var(--oxidoc-transition-normal);
 }
 .oxidoc-header.oxidoc-header-hidden {
     transform: translateY(-100%);
@@ -36,7 +36,7 @@
     color: var(--oxidoc-text-muted);
     text-decoration: none;
     border-radius: 0.375rem;
-    transition: color 0.15s, background 0.15s;
+    transition: color var(--oxidoc-transition-fast), background var(--oxidoc-transition-fast);
 }
 .oxidoc-header-nav-link:hover {
     color: var(--oxidoc-primary);
