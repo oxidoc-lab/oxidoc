@@ -74,29 +74,34 @@ pub fn build_site_with_model(
 
     // Resolve theme
     let resolved_theme = theme::resolve_theme(
-        &config.theme.theme,
         config.theme.primary.as_deref(),
         config.theme.accent.as_deref(),
         config.theme.font.as_deref(),
         config.theme.code_font.as_deref(),
-        project_root,
-    )?;
+    );
 
-    // Load custom CSS if configured
-    let custom_css = if let Some(css_path) = &config.theme.custom_css {
-        let custom_path = if Path::new(css_path).is_absolute() {
-            Path::new(css_path).to_path_buf()
-        } else {
-            project_root.join(css_path)
-        };
-        Some(
-            std::fs::read_to_string(&custom_path).map_err(|e| OxidocError::FileRead {
-                path: custom_path.display().to_string(),
-                source: e,
-            })?,
-        )
-    } else {
+    // Load custom CSS files if configured
+    let custom_css = if config.theme.custom_css.is_empty() {
         None
+    } else {
+        let mut combined = String::new();
+        for css_path in &config.theme.custom_css {
+            let custom_path = if Path::new(css_path).is_absolute() {
+                Path::new(css_path).to_path_buf()
+            } else {
+                project_root.join(css_path)
+            };
+            let content =
+                std::fs::read_to_string(&custom_path).map_err(|e| OxidocError::FileRead {
+                    path: custom_path.display().to_string(),
+                    source: e,
+                })?;
+            if !combined.is_empty() {
+                combined.push('\n');
+            }
+            combined.push_str(&content);
+        }
+        Some(combined)
     };
 
     // Generate assets (CSS and JS)
@@ -182,14 +187,15 @@ pub fn build_site_with_model(
     let build_locales = i18n_state.build_locales();
     let pages_to_build: Vec<_> = nav_groups.iter().flat_map(|g| g.pages.iter()).collect();
 
-    // Determine homepage slug: explicit config or first page in navigation
-    let homepage_slug: Option<String> = config.routing.homepage.clone();
+    // Root pages config — standalone pages at `/`
+    let root_config = config.routing.root.clone();
+    let has_root = root_config.is_some();
+    // Legacy compat: homepage_slug is None when using root config
+    let homepage_slug: Option<String> = None;
 
     let config = Arc::new(config);
     let i18n_state = Arc::new(i18n_state);
     let search_provider = Arc::new(search_provider);
-    let resolved_theme = Arc::new(resolved_theme);
-
     let mut pages_rendered_total = 0;
 
     // Read and parse all pages once, check cache, then render across locales
@@ -235,7 +241,6 @@ pub fn build_site_with_model(
         let config_arc = Arc::clone(&config);
         let i18n_state_arc = Arc::clone(&i18n_state);
         let search_provider_arc = Arc::clone(&search_provider);
-        let theme_arc = Arc::clone(&resolved_theme);
         let nav_groups_arc = Arc::clone(&nav_groups_arc);
         let section_nav_map_arc = Arc::clone(&section_nav_map);
         let slug_index_arc = Arc::clone(&slug_index);
@@ -285,7 +290,6 @@ pub fn build_site_with_model(
                         &locale_str,
                         &i18n_state_arc,
                         &search_provider_arc,
-                        &theme_arc,
                     )
                 } else {
                     let page_nav = build_page_nav(&page.slug, &slug_index_arc, &pages_arc);
@@ -313,7 +317,6 @@ pub fn build_site_with_model(
                         &locale_str,
                         &i18n_state_arc,
                         &search_provider_arc,
-                        &theme_arc,
                     )
                 };
                 let page_output = if is_homepage {
@@ -376,7 +379,6 @@ pub fn build_site_with_model(
                 config: &config,
                 assets: &assets,
                 search_provider: &search_provider,
-                theme: &resolved_theme,
             };
             let api_count =
                 openapi::build_api_pages(&spec, output_dir, &api_nav, &prefix, &api_ctx)?;
@@ -389,9 +391,89 @@ pub fn build_site_with_model(
         tracing::info!(count = assets_copied, "Assets copied");
     }
 
+    // Render root-level pages (homepage + extra pages at /)
+    if let Some(ref root_cfg) = root_config {
+        let mut root_files = vec![(&root_cfg.homepage, true)];
+        for p in &root_cfg.pages {
+            root_files.push((p, false));
+        }
+        for (rdx_file, is_homepage) in &root_files {
+            let rdx_path = project_root.join(rdx_file);
+            let content =
+                std::fs::read_to_string(&rdx_path).map_err(|e| OxidocError::FileRead {
+                    path: rdx_path.display().to_string(),
+                    source: e,
+                })?;
+            let root = rdx_parser::parse(&content);
+            check_parse_errors(&root, &rdx_path.display().to_string())?;
+            let content_html = render_document(
+                &root,
+                &config.components.custom,
+                config.project.debug_islands,
+            );
+            let page_title =
+                extract_page_title(&root).unwrap_or_else(|| config.project.name.clone());
+            let page_description = extract_page_description(&root);
+            let page_layout = extract_page_layout(&root);
+
+            let slug = if *is_homepage {
+                ""
+            } else {
+                rdx_path.file_stem().and_then(|s| s.to_str()).unwrap_or("")
+            };
+
+            let full_html = if page_layout.as_deref() == Some("landing") {
+                render_landing_page(
+                    &config,
+                    &page_title,
+                    &content_html,
+                    slug,
+                    page_description.as_deref(),
+                    &assets,
+                    &i18n_state.default_locale,
+                    &i18n_state,
+                    &search_provider,
+                )
+            } else {
+                render_page(
+                    &config,
+                    &page_title,
+                    &content_html,
+                    "",
+                    "",
+                    "",
+                    slug,
+                    page_description.as_deref(),
+                    "",
+                    &assets,
+                    &i18n_state.default_locale,
+                    &i18n_state,
+                    &search_provider,
+                )
+            };
+
+            let out_path = if *is_homepage {
+                output_dir.join("index.html")
+            } else {
+                output_dir.join(format!("{slug}.html"))
+            };
+            let minified = minify_html(&full_html);
+            std::fs::write(&out_path, minified).map_err(|e| OxidocError::FileWrite {
+                path: out_path.display().to_string(),
+                source: e,
+            })?;
+            pages_rendered_total += 1;
+            if *is_homepage {
+                tracing::info!("Rendered homepage");
+            } else {
+                tracing::info!(page = %slug, "Rendered root page");
+            }
+        }
+    }
+
     generate_llms_txt(&nav_groups, output_dir)?;
-    // Only generate redirect if no homepage was rendered as index.html
-    if homepage_slug.is_none() {
+    // Only generate redirect if no root homepage was rendered
+    if !has_root {
         generate_index_redirect(&nav_groups, output_dir)?;
     }
     generate_seo_files(&nav_groups, &config, output_dir)?;
@@ -401,7 +483,6 @@ pub fn build_site_with_model(
         config: &config,
         assets: &assets,
         search_provider: &search_provider,
-        theme: &resolved_theme,
         i18n_state: &i18n_state,
         homepage_slug: homepage_slug.as_deref(),
         section_nav_map: &section_nav_map,
@@ -416,14 +497,8 @@ pub fn build_site_with_model(
             output_dir.join(locale)
         };
 
-        let not_found_html = render_404_page(
-            &config,
-            &assets,
-            locale,
-            &i18n_state,
-            &search_provider,
-            &resolved_theme,
-        );
+        let not_found_html =
+            render_404_page(&config, &assets, locale, &i18n_state, &search_provider);
         let not_found_minified = minify_html(&not_found_html);
         std::fs::write(locale_output_dir.join("404.html"), not_found_minified).map_err(|e| {
             OxidocError::FileWrite {
@@ -472,7 +547,6 @@ struct FolderIndexContext<'a> {
     config: &'a Arc<crate::config::OxidocConfig>,
     assets: &'a AssetConfig<'a>,
     search_provider: &'a Arc<SearchProvider>,
-    theme: &'a Arc<crate::theme::ResolvedTheme>,
     i18n_state: &'a Arc<crate::i18n::I18nState>,
     homepage_slug: Option<&'a str>,
     section_nav_map: &'a Arc<HashMap<String, Vec<crate::crawler::NavGroup>>>,
@@ -608,7 +682,6 @@ fn generate_folder_index_pages(
             "en",
             ctx.i18n_state,
             ctx.search_provider,
-            ctx.theme,
         );
 
         if let Some(parent) = index_path.parent() {

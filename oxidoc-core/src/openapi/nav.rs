@@ -79,7 +79,6 @@ pub struct ApiBuildContext<'a> {
     pub config: &'a crate::config::OxidocConfig,
     pub assets: &'a crate::template_assets::AssetConfig<'a>,
     pub search_provider: &'a crate::search_provider::SearchProvider,
-    pub theme: &'a crate::theme::ResolvedTheme,
 }
 
 /// Build HTML pages for all API endpoints and return the number of pages rendered.
@@ -120,7 +119,6 @@ pub fn build_api_pages(
         &config.i18n.default_locale,
         &i18n_state,
         ctx.search_provider,
-        ctx.theme,
     );
     let section_dir = output_dir.join(prefix);
     std::fs::create_dir_all(&section_dir).map_err(|e| OxidocError::DirCreate {
@@ -163,7 +161,6 @@ pub fn build_api_pages(
             &config.i18n.default_locale,
             &i18n_state,
             ctx.search_provider,
-            ctx.theme,
         );
 
         let page_output = output_dir.join(format!("{slug}.html"));

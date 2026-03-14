@@ -31,11 +31,10 @@ gtag('config', '{}');
 }
 
 /// Render the site footer from config, with optional attribution.
-pub fn render_footer(config: &OxidocConfig, theme: &crate::theme::ResolvedTheme) -> String {
+pub fn render_footer(config: &OxidocConfig) -> String {
     let has_copyright = config.footer.copyright_owner.is_some();
     let has_links = !config.footer.links.is_empty();
-    let attribution = &config.attribution;
-    let has_attribution = attribution.oxidoc || attribution.theme;
+    let has_attribution = config.attribution.oxidoc;
 
     if !has_copyright && !has_links && !has_attribution {
         return String::new();
@@ -76,34 +75,11 @@ pub fn render_footer(config: &OxidocConfig, theme: &crate::theme::ResolvedTheme)
             parts.push(format!("Copyright \u{00a9} {year} {owner_html}."));
         }
 
-        if attribution.oxidoc {
+        if config.attribution.oxidoc {
             parts.push(
                 r#"Built with <a href="https://github.com/oxidoc-lab/oxidoc">Oxidoc</a>."#
                     .to_string(),
             );
-        }
-
-        if attribution.theme && theme.name != "oxidoc" {
-            let theme_name = crate::utils::html_escape(&theme.name);
-            let theme_part = match (&theme.url, &theme.author) {
-                (Some(url), Some(author)) => {
-                    let safe_url = crate::utils::html_escape(url);
-                    let safe_author = crate::utils::html_escape(author);
-                    format!(r#"Theme: <a href="{safe_url}">{theme_name}</a> by {safe_author}."#)
-                }
-                (Some(url), None) => {
-                    let safe_url = crate::utils::html_escape(url);
-                    format!(r#"Theme: <a href="{safe_url}">{theme_name}</a>."#)
-                }
-                (None, Some(author)) => {
-                    let safe_author = crate::utils::html_escape(author);
-                    format!(r#"Theme: {theme_name} by {safe_author}."#)
-                }
-                (None, None) => {
-                    format!(r#"Theme: {theme_name}."#)
-                }
-            };
-            parts.push(theme_part);
         }
 
         let _ = write!(html, "{}", parts.join(" "));
@@ -268,10 +244,6 @@ mod tests {
     use crate::crawler::PageEntry;
     use std::path::PathBuf;
 
-    fn test_theme() -> crate::theme::ResolvedTheme {
-        crate::theme::builtin_theme("oxidoc").unwrap()
-    }
-
     #[test]
     fn render_sidebar_with_groups() {
         let groups = vec![NavGroup {
@@ -312,7 +284,7 @@ label = "GitHub"
 href = "https://github.com""#,
         )
         .unwrap();
-        let html = render_footer(&config, &test_theme());
+        let html = render_footer(&config);
         assert!(html.contains("Acme"));
         assert!(html.contains("Copyright ©"));
         assert!(html.contains("GitHub"));
@@ -322,7 +294,7 @@ href = "https://github.com""#,
     #[test]
     fn render_footer_with_default_attribution() {
         let config = parse_config("[project]\nname = \"T\"").unwrap();
-        let html = render_footer(&config, &test_theme());
+        let html = render_footer(&config);
         // Default config has attribution.oxidoc = true, so footer is present
         assert!(html.contains("oxidoc-footer"));
         assert!(html.contains("Built with"));
@@ -331,9 +303,8 @@ href = "https://github.com""#,
     #[test]
     fn render_footer_empty_when_attribution_disabled() {
         let config =
-            parse_config("[project]\nname = \"T\"\n\n[attribution]\noxidoc = false\ntheme = false")
-                .unwrap();
-        let html = render_footer(&config, &test_theme());
+            parse_config("[project]\nname = \"T\"\n\n[attribution]\noxidoc = false").unwrap();
+        let html = render_footer(&config);
         assert!(html.is_empty());
     }
 

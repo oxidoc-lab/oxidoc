@@ -97,18 +97,6 @@ pub enum OxidocError {
     )]
     SearchProviderConfig { provider: String, field: String },
 
-    #[error("Failed to read theme file: {path}")]
-    #[diagnostic(code(oxidoc::theme::read))]
-    ThemeFileRead {
-        path: String,
-        #[source]
-        source: std::io::Error,
-    },
-
-    #[error("Invalid theme file {path}: {message}")]
-    #[diagnostic(code(oxidoc::theme::parse), help("Check your theme .toml file syntax"))]
-    ThemeParse { path: String, message: String },
-
     #[error("Search error: {0}")]
     #[diagnostic(code(oxidoc::search::error))]
     Search(String),
