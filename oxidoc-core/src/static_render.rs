@@ -183,9 +183,9 @@ pub(crate) fn render_static_accordion(
         r#"<summary>{}</summary>"#,
         crate::utils::html_escape(title)
     );
-    out.push_str(r#"<div class="oxidoc-accordion-content">"#);
+    out.push_str(r#"<div class="oxidoc-accordion-content"><div>"#);
     render_children(children, out, ctx);
-    out.push_str("</div></details>");
+    out.push_str("</div></div></details>");
 }
 
 pub(crate) fn render_static_steps(children: &[Node], out: &mut String, ctx: &RenderCtx<'_>) {
