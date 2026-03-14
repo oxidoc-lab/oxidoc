@@ -55,8 +55,6 @@ pub struct ProjectConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct ThemeConfig {
-    #[serde(default = "default_theme_name")]
-    pub theme: String,
     #[serde(default)]
     pub primary: Option<String>,
     #[serde(default)]
@@ -64,7 +62,7 @@ pub struct ThemeConfig {
     #[serde(default = "default_dark_mode")]
     pub dark_mode: String,
     #[serde(default)]
-    pub custom_css: Option<String>,
+    pub custom_css: Vec<String>,
     #[serde(default)]
     pub font: Option<String>,
     #[serde(default)]
@@ -74,19 +72,14 @@ pub struct ThemeConfig {
 impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
-            theme: default_theme_name(),
             primary: None,
             accent: None,
             dark_mode: default_dark_mode(),
-            custom_css: None,
+            custom_css: Vec::new(),
             font: None,
             code_font: None,
         }
     }
-}
-
-fn default_theme_name() -> String {
-    "oxidoc".into()
 }
 
 fn default_dark_mode() -> String {
@@ -97,13 +90,24 @@ fn default_dark_mode() -> String {
 pub struct RoutingConfig {
     #[serde(default)]
     pub navigation: Vec<NavigationEntry>,
-    /// Slug of the page to use as the homepage (served at `/`).
-    /// Defaults to the first page in navigation.
+    /// Root-level pages served at `/`. Optional.
+    /// If omitted, `/` redirects to the first page in navigation.
     #[serde(default)]
-    pub homepage: Option<String>,
+    pub root: Option<RootConfig>,
     /// Links displayed in the header navigation bar.
     #[serde(default)]
     pub header_links: Vec<HeaderLink>,
+}
+
+/// Root-level pages that live at `/` (outside any navigation section).
+#[derive(Debug, Clone, Deserialize)]
+pub struct RootConfig {
+    /// The `.rdx` file rendered as the homepage at `/` (relative to project root).
+    pub homepage: String,
+    /// Additional root-level `.rdx` pages (e.g. `["contact.rdx", "about.rdx"]`).
+    /// Rendered at `/{stem}` (e.g. `/contact`, `/about`).
+    #[serde(default)]
+    pub pages: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -289,17 +293,11 @@ pub struct AttributionConfig {
     /// Show "Built with Oxidoc" in footer (default: true)
     #[serde(default = "default_true")]
     pub oxidoc: bool,
-    /// Show theme name/author in footer (default: true)
-    #[serde(default = "default_true")]
-    pub theme: bool,
 }
 
 impl Default for AttributionConfig {
     fn default() -> Self {
-        Self {
-            oxidoc: true,
-            theme: true,
-        }
+        Self { oxidoc: true }
     }
 }
 
@@ -353,7 +351,6 @@ name = "My Docs"
 "#;
         let config = parse_config(toml).unwrap();
         assert_eq!(config.project.name, "My Docs");
-        assert_eq!(config.theme.theme, "oxidoc");
         assert_eq!(config.theme.primary, None);
         assert_eq!(config.theme.dark_mode, "system");
         assert_eq!(config.search.provider, "oxidoc");
@@ -370,11 +367,10 @@ logo = "/assets/logo.svg"
 description = "Complete SDK documentation"
 
 [theme]
-theme = "ocean"
 primary = "#ff0000"
 accent = "#00ff00"
 dark_mode = "dark"
-custom_css = "assets/custom.css"
+custom_css = ["assets/custom.css"]
 font = "Georgia"
 code_font = "Courier New"
 
@@ -408,14 +404,10 @@ to = "/new-page"
             config.project.description.as_deref(),
             Some("Complete SDK documentation")
         );
-        assert_eq!(config.theme.theme, "ocean");
         assert_eq!(config.theme.primary.as_deref(), Some("#ff0000"));
         assert_eq!(config.theme.accent.as_deref(), Some("#00ff00"));
         assert_eq!(config.theme.dark_mode, "dark");
-        assert_eq!(
-            config.theme.custom_css.as_deref(),
-            Some("assets/custom.css")
-        );
+        assert_eq!(config.theme.custom_css, vec!["assets/custom.css"]);
         assert_eq!(config.theme.font.as_deref(), Some("Georgia"));
         assert_eq!(config.theme.code_font.as_deref(), Some("Courier New"));
         assert_eq!(config.routing.navigation.len(), 2);
