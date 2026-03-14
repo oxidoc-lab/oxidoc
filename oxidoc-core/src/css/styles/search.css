@@ -12,8 +12,10 @@
     justify-content: center;
     padding-top: 10vh;
     backdrop-filter: blur(2px);
+    animation: oxidoc-fade-in var(--oxidoc-transition-fast) both;
 }
 .oxidoc-search-dialog {
+    animation: oxidoc-scale-in var(--oxidoc-transition-normal) both;
     width: 100%;
     max-width: 600px;
     max-height: 70vh;

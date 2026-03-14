@@ -192,3 +192,43 @@
   gap: 1rem;
   flex-wrap: wrap;
 }
+
+/* Landing page entrance animations */
+.oxidoc-hero-title {
+  animation: oxidoc-fade-in-down var(--oxidoc-transition-slow) both;
+}
+
+.oxidoc-hero-tagline {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-slow) 0.1s both;
+}
+
+.oxidoc-hero-actions {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-slow) 0.2s both;
+}
+
+.oxidoc-hero-image {
+  animation: oxidoc-fade-in var(--oxidoc-transition-slow) 0.3s both;
+}
+
+.oxidoc-feature {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-slow) both;
+}
+
+.oxidoc-feature:nth-child(1) { animation-delay: 0s; }
+.oxidoc-feature:nth-child(2) { animation-delay: 0.1s; }
+.oxidoc-feature:nth-child(3) { animation-delay: 0.2s; }
+.oxidoc-feature:nth-child(4) { animation-delay: 0.3s; }
+.oxidoc-feature:nth-child(5) { animation-delay: 0.4s; }
+.oxidoc-feature:nth-child(6) { animation-delay: 0.5s; }
+
+.oxidoc-testimonial {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-slow) both;
+}
+
+.oxidoc-testimonial:nth-child(1) { animation-delay: 0s; }
+.oxidoc-testimonial:nth-child(2) { animation-delay: 0.1s; }
+.oxidoc-testimonial:nth-child(3) { animation-delay: 0.15s; }
+
+.oxidoc-cta {
+  animation: oxidoc-fade-in-up var(--oxidoc-transition-slow) both;
+}
