@@ -78,7 +78,6 @@ fn accordion_view(props: AccordionProps) -> impl IntoView {
                         <span
                             class="oxidoc-accordion-chevron"
                             aria-hidden="true"
-                            style=move || if is_open.get() { "transform:rotate(90deg)" } else { "" }
                         >
                             "\u{25b6}"
                         </span>
@@ -86,7 +85,6 @@ fn accordion_view(props: AccordionProps) -> impl IntoView {
                     <div
                         class="oxidoc-accordion-content"
                         role="region"
-                        style=move || if is_open.get() { "" } else { "display:none" }
                     >
                         // SAFETY: content is pre-sanitized by oxidoc-core during build.
                         <div inner_html=item.content.clone()></div>

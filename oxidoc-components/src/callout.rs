@@ -69,8 +69,7 @@ fn callout_view(props: CalloutProps) -> impl IntoView {
                 <span class="oxidoc-callout-title">{title}</span>
             </div>
             <div
-                class="oxidoc-callout-body"
-                style=move || if collapsed.get() { "display:none" } else { "" }
+                class=move || if collapsed.get() { "oxidoc-callout-body oxidoc-collapsed" } else { "oxidoc-callout-body" }
             >
                 // SAFETY: content is pre-sanitized by oxidoc-core during build.
                 <div inner_html=props.content.clone()></div>

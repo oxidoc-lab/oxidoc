@@ -40,7 +40,6 @@ impl OxidocIsland for CardGrid {
 
 fn card_grid_view(props: CardGridProps) -> impl IntoView {
     let cols = props.columns.clamp(1, 6);
-    let style = format!("display:grid;grid-template-columns:repeat({cols},1fr);gap:1rem");
 
     let card_views: Vec<_> = props
         .cards
@@ -83,7 +82,7 @@ fn card_grid_view(props: CardGridProps) -> impl IntoView {
         .collect();
 
     view! {
-        <div class="oxidoc-cardgrid" style=style>
+        <div class="oxidoc-cardgrid" data-columns=cols.to_string()>
             {card_views}
         </div>
     }

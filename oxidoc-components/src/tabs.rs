@@ -87,9 +87,8 @@ fn tabs_view(props: TabsProps) -> impl IntoView {
             let content = content.clone();
             view! {
                 <div
-                    class="oxidoc-tab-panel"
+                    class=move || if active.get() == i { "oxidoc-tab-panel active" } else { "oxidoc-tab-panel" }
                     role="tabpanel"
-                    style=move || if active.get() == i { "" } else { "display:none" }
                 >
                     // SAFETY: content is pre-sanitized by oxidoc-core during build.
                     <div inner_html=content.clone()></div>
