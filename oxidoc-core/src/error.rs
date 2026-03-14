@@ -101,11 +101,11 @@ pub enum OxidocError {
     #[diagnostic(code(oxidoc::search::error))]
     Search(String),
 
-    #[error("Wasm build failed: {message}")]
+    #[error("Wasm asset error: {message}")]
     #[diagnostic(
         code(oxidoc::wasm::build),
         help(
-            "Ensure wasm32-unknown-unknown target and wasm-bindgen-cli are installed:\n  rustup target add wasm32-unknown-unknown\n  cargo install wasm-bindgen-cli"
+            "Wasm assets are bundled in the CLI binary. If building from source, ensure wasm32-unknown-unknown target and wasm-bindgen-cli are installed:\n  rustup target add wasm32-unknown-unknown\n  cargo install wasm-bindgen-cli"
         )
     )]
     WasmBuild { message: String },

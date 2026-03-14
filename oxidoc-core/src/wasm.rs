@@ -9,11 +9,54 @@ const WASM_CRATES: &[(&str, &str)] = &[
     ("oxidoc-search", "oxidoc_search"),
 ];
 
-/// Build wasm crates and run wasm-bindgen, writing output to `output_dir`.
+/// Pre-compiled Wasm assets bundled into the CLI binary.
 ///
-/// Locates the oxidoc workspace by finding the `oxidoc-core` crate's manifest,
-/// then builds each wasm crate with `cargo build --target wasm32-unknown-unknown --release`
-/// and processes with `wasm-bindgen --target web`.
+/// Each entry is a pair of (JS glue code, Wasm binary) produced by `wasm-bindgen --target web`.
+pub struct BundledWasm {
+    pub registry_js: &'static [u8],
+    pub registry_wasm: &'static [u8],
+    pub openapi_js: &'static [u8],
+    pub openapi_wasm: &'static [u8],
+    pub search_js: &'static [u8],
+    pub search_wasm: &'static [u8],
+}
+
+/// Accessor function that extracts a specific asset from the bundled Wasm payload.
+type WasmAssetGetter = fn(&BundledWasm) -> &'static [u8];
+
+/// File names for the bundled Wasm assets (must match what the loader JS expects).
+const WASM_FILES: &[(&str, WasmAssetGetter)] = &[
+    ("oxidoc_registry.js", |b| b.registry_js),
+    ("oxidoc_registry_bg.wasm", |b| b.registry_wasm),
+    ("oxidoc_openapi.js", |b| b.openapi_js),
+    ("oxidoc_openapi_bg.wasm", |b| b.openapi_wasm),
+    ("oxidoc_search.js", |b| b.search_js),
+    ("oxidoc_search_bg.wasm", |b| b.search_wasm),
+];
+
+/// Write pre-compiled Wasm assets to the output directory.
+pub fn write_bundled_wasm(output_dir: &Path, bundled: &BundledWasm) -> Result<()> {
+    std::fs::create_dir_all(output_dir).map_err(|e| OxidocError::DirCreate {
+        path: output_dir.display().to_string(),
+        source: e,
+    })?;
+
+    for (filename, getter) in WASM_FILES {
+        let data = getter(bundled);
+        std::fs::write(output_dir.join(filename), data).map_err(|e| OxidocError::FileWrite {
+            path: output_dir.join(filename).display().to_string(),
+            source: e,
+        })?;
+    }
+
+    tracing::info!("Wrote bundled wasm assets");
+    Ok(())
+}
+
+/// Build wasm crates from source and run wasm-bindgen, writing output to `output_dir`.
+///
+/// This is used during development when working inside the oxidoc workspace.
+/// For end-user builds, use [`write_bundled_wasm`] instead.
 pub fn build_wasm(output_dir: &Path) -> Result<()> {
     let workspace_root = find_workspace_root()?;
     let target_dir = resolve_target_dir(&workspace_root)?;
