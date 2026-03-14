@@ -207,7 +207,7 @@ fn run_init(
                 .and_then(|f| f.to_str())
                 .unwrap_or(n)
         })
-        .unwrap_or("My Documentation");
+        .unwrap_or("Oxidoc");
 
     // Create directories
     let docs_dir = target.join("docs");
@@ -237,8 +237,8 @@ fn run_init(
             .replace("{project_name}", project_name),
     )?;
     write_file(
-        &docs_dir.join("intro.rdx"),
-        include_str!("../assets/templates/intro.rdx"),
+        &docs_dir.join("home.rdx"),
+        include_str!("../assets/templates/home.rdx"),
     )?;
     write_file(
         &docs_dir.join("quickstart.rdx"),

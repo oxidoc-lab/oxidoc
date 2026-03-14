@@ -1,5 +1,6 @@
 ---
 title: Welcome to Oxidoc
+layout: landing
 ---
 
 <Hero title="Oxidoc">
@@ -9,6 +10,7 @@ title: Welcome to Oxidoc
 Oxidoc is a documentation engine written in Rust. It generates fast static sites with interactive WebAssembly components.
 </Hero>
 
+<Section bg="muted">
 <FeatureGrid>
 <Feature icon="⚡" title="Fast Builds">
 Sub-second builds for thousands of pages with incremental rebuilds.
@@ -23,7 +25,25 @@ Hybrid lexical + semantic search with zero external dependencies.
 Works out of the box with sensible defaults. Customize when you need to.
 </Feature>
 </FeatureGrid>
+</Section>
 
-## Next Steps
+<Section>
+<TestimonialGrid>
+<Testimonial author="Jane Doe" role="Engineering Lead">
+Oxidoc cut our docs build time from 45 seconds to under 2. The interactive islands are a game changer.
+</Testimonial>
+<Testimonial author="Alex Smith" role="Developer Advocate">
+Finally a docs engine that doesn't need Node.js. Single binary, fast builds, great output.
+</Testimonial>
+<Testimonial author="Sam Chen" role="Open Source Maintainer">
+The built-in search is fantastic. Our users find what they need instantly.
+</Testimonial>
+</TestimonialGrid>
+</Section>
 
-Check out the [Quickstart Guide](/quickstart) to create your first page.
+<Section bg="muted">
+<CTA title="Ready to build?" description="Get started with Oxidoc in under a minute.">
+<HeroAction label="Quickstart Guide" href="/quickstart" variant="primary" />
+<HeroAction label="API Reference" href="/api-reference" variant="secondary" />
+</CTA>
+</Section>
