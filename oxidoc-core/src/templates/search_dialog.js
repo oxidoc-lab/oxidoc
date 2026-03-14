@@ -172,7 +172,7 @@
     clearBtn.style.display = "none";
     resultsEl.innerHTML = "";
     noResultsEl.classList.remove("visible");
-    emptyEl.hidden = false;
+    emptyEl.classList.remove("hidden");
     activeIdx = -1;
     aiMode = false;
     setTimeout(function () {
@@ -469,7 +469,7 @@
     clearBtn.style.display = "none";
     resultsEl.innerHTML = "";
     noResultsEl.classList.remove("visible");
-    emptyEl.hidden = false;
+    emptyEl.classList.remove("hidden");
     activeIdx = -1;
     aiMode = false;
     input.focus();
