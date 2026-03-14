@@ -492,6 +492,7 @@ pub(crate) fn build_archived_version(
         .enumerate()
         .map(|(i, p)| (p.slug.clone(), i))
         .collect();
+    let title_map = crate::page_extract::build_title_map(&flat_pages);
 
     let mut pages_rendered = 0;
 
@@ -528,8 +529,12 @@ pub(crate) fn build_archived_version(
                 search_provider,
             )
         } else {
-            let page_nav =
-                crate::page_extract::build_page_nav(&archived_page.slug, &slug_index, &flat_pages);
+            let page_nav = crate::page_extract::build_page_nav(
+                &archived_page.slug,
+                &slug_index,
+                &flat_pages,
+                &title_map,
+            );
             let git_meta = crate::template_parts::PageGitMeta::default();
             let page_meta_html = crate::template_parts::render_page_meta(
                 config,

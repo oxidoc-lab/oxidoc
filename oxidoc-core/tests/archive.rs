@@ -3,7 +3,7 @@
 //! Tests the full archive → build pipeline: creating archives, building sites
 //! with archived versions, version switcher injection, and multi-version builds.
 
-use oxidoc_core::archive::{create_archive, discover_archives, read_archive, write_archive};
+use oxidoc_core::archive::{create_archive, write_archive};
 use oxidoc_core::builder::build_site;
 
 /// Helper to create a temporary test project with config and doc files.
@@ -26,15 +26,6 @@ fn setup_project(
     }
     let output = root.join("dist");
     (tmp, output)
-}
-
-/// Write an extra file at an arbitrary path relative to the project root.
-fn write_root_file(tmp: &tempfile::TempDir, path: &str, content: &str) {
-    let full = tmp.path().join(path);
-    if let Some(parent) = full.parent() {
-        std::fs::create_dir_all(parent).unwrap();
-    }
-    std::fs::write(full, content).unwrap();
 }
 
 fn read_output(output: &std::path::Path, file: &str) -> String {

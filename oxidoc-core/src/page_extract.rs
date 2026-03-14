@@ -34,11 +34,24 @@ pub(crate) fn extract_page_title(root: &rdx_ast::Root) -> Option<String> {
     None
 }
 
+/// Pre-compute a map of slug → page title for all pages.
+pub(crate) fn build_title_map(pages: &[PageEntry]) -> std::collections::HashMap<String, String> {
+    pages
+        .iter()
+        .map(|p| {
+            let title =
+                extract_page_title_from_file(&p.file_path).unwrap_or_else(|| p.title.clone());
+            (p.slug.clone(), title)
+        })
+        .collect()
+}
+
 /// Build prev/next navigation links for a page given its position in the flat page list.
 pub(crate) fn build_page_nav(
     slug: &str,
     slug_index: &std::collections::HashMap<String, usize>,
     pages: &[PageEntry],
+    title_map: &std::collections::HashMap<String, String>,
 ) -> PageNav {
     if let Some(&idx) = slug_index.get(slug) {
         PageNav {
@@ -46,7 +59,10 @@ pub(crate) fn build_page_nav(
                 let p = &pages[idx - 1];
                 Some((
                     p.slug.clone(),
-                    extract_page_title_from_file(&p.file_path).unwrap_or_else(|| p.title.clone()),
+                    title_map
+                        .get(&p.slug)
+                        .cloned()
+                        .unwrap_or_else(|| p.title.clone()),
                 ))
             } else {
                 None
@@ -55,7 +71,10 @@ pub(crate) fn build_page_nav(
                 let p = &pages[idx + 1];
                 Some((
                     p.slug.clone(),
-                    extract_page_title_from_file(&p.file_path).unwrap_or_else(|| p.title.clone()),
+                    title_map
+                        .get(&p.slug)
+                        .cloned()
+                        .unwrap_or_else(|| p.title.clone()),
                 ))
             } else {
                 None

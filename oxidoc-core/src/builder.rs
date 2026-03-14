@@ -14,8 +14,8 @@ use crate::outputs::{
     generate_index_redirect, generate_llms_txt, generate_redirects, generate_seo_files,
 };
 use crate::page_extract::{
-    build_page_nav, check_parse_errors, extract_page_description, extract_page_layout,
-    extract_page_title, resolve_git_meta,
+    build_page_nav, build_title_map, check_parse_errors, extract_page_description,
+    extract_page_layout, extract_page_title, resolve_git_meta,
 };
 use crate::renderer::render_document;
 use crate::search_provider::SearchProvider;
@@ -232,7 +232,9 @@ pub fn build_site_with_model(
         .enumerate()
         .map(|(i, p)| (p.slug.clone(), i))
         .collect();
+    let title_map = build_title_map(&flat_pages);
     let slug_index = Arc::new(slug_index);
+    let title_map = Arc::new(title_map);
     let flat_pages = Arc::new(flat_pages);
 
     let nav_groups_arc = Arc::new(nav_groups.clone());
@@ -255,6 +257,7 @@ pub fn build_site_with_model(
         let nav_groups_arc = Arc::clone(&nav_groups_arc);
         let section_nav_map_arc = Arc::clone(&section_nav_map);
         let slug_index_arc = Arc::clone(&slug_index);
+        let title_map_arc = Arc::clone(&title_map);
         let pages_arc = Arc::clone(&flat_pages);
         let version_switcher_arc = Arc::clone(&version_switcher_html);
         let locale_str = locale.clone();
@@ -304,7 +307,8 @@ pub fn build_site_with_model(
                         &search_provider_arc,
                     )
                 } else {
-                    let page_nav = build_page_nav(&page.slug, &slug_index_arc, &pages_arc);
+                    let page_nav =
+                        build_page_nav(&page.slug, &slug_index_arc, &pages_arc, &title_map_arc);
                     let git_meta = resolve_git_meta(&page.file_path);
 
                     let page_meta_html = render_page_meta(
