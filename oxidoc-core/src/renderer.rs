@@ -10,8 +10,9 @@ use crate::static_render::{
     render_static_tag, render_static_themed_image, render_static_tooltip,
 };
 use crate::static_render_landing::{
-    render_static_banner, render_static_feature, render_static_feature_grid, render_static_hero,
-    render_static_hero_action,
+    render_static_banner, render_static_cta, render_static_embed, render_static_feature,
+    render_static_feature_grid, render_static_hero, render_static_hero_action,
+    render_static_section, render_static_testimonial, render_static_testimonial_grid,
 };
 use crate::web_component::render_web_component;
 
@@ -263,8 +264,13 @@ fn render_island_component(
         "Tag" => render_static_tag(&props, children, out, ctx),
         "Hero" => render_static_hero(&props, children, out, ctx),
         "HeroAction" => render_static_hero_action(&props, children, out, ctx),
-        "FeatureGrid" => render_static_feature_grid(children, out, ctx),
+        "FeatureGrid" => render_static_feature_grid(&props, children, out, ctx),
         "Feature" => render_static_feature(&props, children, out, ctx),
+        "Section" => render_static_section(&props, children, out, ctx),
+        "Testimonial" => render_static_testimonial(&props, children, out, ctx),
+        "TestimonialGrid" => render_static_testimonial_grid(children, out, ctx),
+        "Embed" => render_static_embed(&props, out),
+        "CTA" => render_static_cta(&props, children, out, ctx),
         "Head" => render_static_head(&props, children, out, ctx),
         // Hydration-required components — SSR inside <oxidoc-island> for wasm to hydrate
         "Tabs" | "Tab" | "Accordion" | "CodeBlock" => {

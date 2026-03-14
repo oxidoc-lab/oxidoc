@@ -96,11 +96,17 @@ pub(crate) fn render_static_hero_action(
 }
 
 pub(crate) fn render_static_feature_grid(
+    props: &HashMap<String, serde_json::Value>,
     children: &[rdx_ast::Node],
     out: &mut String,
     ctx: &RenderCtx<'_>,
 ) {
-    out.push_str(r#"<div class="oxidoc-feature-grid">"#);
+    let extra_class = prop_str(props, "class");
+    let class_attr = match extra_class {
+        Some(c) => format!("oxidoc-feature-grid {}", crate::utils::html_escape(c)),
+        None => "oxidoc-feature-grid".to_string(),
+    };
+    let _ = write!(out, r#"<div class="{class_attr}">"#);
     render_children(children, out, ctx);
     out.push_str("</div>");
 }
@@ -113,7 +119,12 @@ pub(crate) fn render_static_feature(
 ) {
     let title = prop_str(props, "title").unwrap_or("");
     let icon = prop_str(props, "icon");
-    out.push_str(r#"<div class="oxidoc-feature">"#);
+    let extra_class = prop_str(props, "class");
+    let class_attr = match extra_class {
+        Some(c) => format!("oxidoc-feature {}", crate::utils::html_escape(c)),
+        None => "oxidoc-feature".to_string(),
+    };
+    let _ = write!(out, r#"<div class="{class_attr}">"#);
     if let Some(icon) = icon {
         let _ = write!(
             out,
@@ -131,6 +142,173 @@ pub(crate) fn render_static_feature(
     out.push_str(r#"<div class="oxidoc-feature-desc">"#);
     render_children(children, out, ctx);
     out.push_str("</div></div>");
+}
+
+/// Render a full-width section wrapper.
+///
+/// Props:
+///   bg — background variant: "muted", "primary", "dark" (default: none)
+///   id — optional HTML id attribute
+///   padding — optional padding override (e.g. "4rem 0")
+pub(crate) fn render_static_section(
+    props: &HashMap<String, serde_json::Value>,
+    children: &[rdx_ast::Node],
+    out: &mut String,
+    ctx: &RenderCtx<'_>,
+) {
+    let bg = prop_str(props, "bg");
+    let id = prop_str(props, "id");
+    let padding = prop_str(props, "padding");
+
+    let extra_class = prop_str(props, "class");
+
+    let mut classes = String::from("oxidoc-section");
+    if let Some(bg) = bg {
+        let _ = write!(classes, " oxidoc-section-{}", crate::utils::html_escape(bg));
+    }
+    if let Some(extra) = extra_class {
+        let _ = write!(classes, " {}", crate::utils::html_escape(extra));
+    }
+
+    out.push_str(r#"<section class=""#);
+    out.push_str(&classes);
+    out.push('"');
+    if let Some(id) = id {
+        let _ = write!(out, r#" id="{}""#, crate::utils::html_escape(id));
+    }
+    if let Some(padding) = padding {
+        let _ = write!(
+            out,
+            r#" style="padding:{}""#,
+            crate::utils::html_escape(padding)
+        );
+    }
+    out.push('>');
+    out.push_str(r#"<div class="oxidoc-section-inner">"#);
+    render_children(children, out, ctx);
+    out.push_str("</div></section>");
+}
+
+/// Render a testimonial quote card.
+///
+/// Props:
+///   author — author name
+///   role   — author role/company
+///   avatar — optional avatar image URL
+pub(crate) fn render_static_testimonial(
+    props: &HashMap<String, serde_json::Value>,
+    children: &[rdx_ast::Node],
+    out: &mut String,
+    ctx: &RenderCtx<'_>,
+) {
+    let author = prop_str(props, "author").unwrap_or("");
+    let role = prop_str(props, "role").unwrap_or("");
+    let avatar = prop_str(props, "avatar");
+
+    out.push_str(r#"<div class="oxidoc-testimonial">"#);
+    out.push_str(r#"<div class="oxidoc-testimonial-quote">"#);
+    out.push_str(r#"<span class="oxidoc-testimonial-open" aria-hidden="true">&ldquo;</span>"#);
+    render_children(children, out, ctx);
+    out.push_str(r#"<span class="oxidoc-testimonial-close" aria-hidden="true">&rdquo;</span>"#);
+    out.push_str("</div>");
+    out.push_str(r#"<div class="oxidoc-testimonial-author">"#);
+    if let Some(avatar) = avatar {
+        let _ = write!(
+            out,
+            r#"<img src="{}" alt="{}" class="oxidoc-testimonial-avatar" loading="lazy">"#,
+            crate::utils::html_escape(avatar),
+            crate::utils::html_escape(author),
+        );
+    }
+    out.push_str(r#"<div class="oxidoc-testimonial-info">"#);
+    if !author.is_empty() {
+        let _ = write!(
+            out,
+            r#"<div class="oxidoc-testimonial-name">{}</div>"#,
+            crate::utils::html_escape(author)
+        );
+    }
+    if !role.is_empty() {
+        let _ = write!(
+            out,
+            r#"<div class="oxidoc-testimonial-role">{}</div>"#,
+            crate::utils::html_escape(role)
+        );
+    }
+    out.push_str("</div></div></div>");
+}
+
+/// Render a grid wrapper for testimonials.
+pub(crate) fn render_static_testimonial_grid(
+    children: &[rdx_ast::Node],
+    out: &mut String,
+    ctx: &RenderCtx<'_>,
+) {
+    out.push_str(r#"<div class="oxidoc-testimonial-grid">"#);
+    render_children(children, out, ctx);
+    out.push_str("</div>");
+}
+
+/// Render a responsive iframe embed container.
+///
+/// Props:
+///   src         — iframe source URL
+///   title       — iframe title (for accessibility)
+///   aspectRatio — aspect ratio (default: "16/9")
+pub(crate) fn render_static_embed(props: &HashMap<String, serde_json::Value>, out: &mut String) {
+    let src = prop_str(props, "src").unwrap_or("");
+    let title = prop_str(props, "title").unwrap_or("");
+    let aspect_ratio = prop_str(props, "aspectRatio").unwrap_or("16/9");
+
+    let _ = write!(
+        out,
+        r#"<div class="oxidoc-embed" style="aspect-ratio:{}">"#,
+        crate::utils::html_escape(aspect_ratio)
+    );
+    let _ = write!(
+        out,
+        r#"<iframe src="{}" title="{}" loading="lazy" allowfullscreen></iframe>"#,
+        crate::utils::html_escape(src),
+        crate::utils::html_escape(title),
+    );
+    out.push_str("</div>");
+}
+
+/// Render a call-to-action block.
+///
+/// Props:
+///   title       — CTA heading
+///   description — CTA body text
+pub(crate) fn render_static_cta(
+    props: &HashMap<String, serde_json::Value>,
+    children: &[rdx_ast::Node],
+    out: &mut String,
+    ctx: &RenderCtx<'_>,
+) {
+    let title = prop_str(props, "title").unwrap_or("");
+    let description = prop_str(props, "description").unwrap_or("");
+
+    out.push_str(r#"<div class="oxidoc-cta">"#);
+    if !title.is_empty() {
+        let _ = write!(
+            out,
+            r#"<h2 class="oxidoc-cta-title">{}</h2>"#,
+            crate::utils::html_escape(title)
+        );
+    }
+    if !description.is_empty() {
+        let _ = write!(
+            out,
+            r#"<p class="oxidoc-cta-description">{}</p>"#,
+            crate::utils::html_escape(description)
+        );
+    }
+    if !children.is_empty() {
+        out.push_str(r#"<div class="oxidoc-cta-actions">"#);
+        render_children(children, out, ctx);
+        out.push_str("</div>");
+    }
+    out.push_str("</div>");
 }
 
 /// Render a dismissible announcement banner.

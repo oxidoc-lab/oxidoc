@@ -25,6 +25,7 @@ pub fn generate_base_css(
 {API_CSS}
 {SYNTAX_CSS}
 {SEARCH_DIALOG_CSS}
+{LANDING_CSS}
 {RESPONSIVE_AND_PRINT_CSS}
 "#,
         RESET_AND_BODY = theme::RESET_AND_BODY,
@@ -39,6 +40,7 @@ pub fn generate_base_css(
         API_CSS = components::API,
         SYNTAX_CSS = syntax::SYNTAX,
         SEARCH_DIALOG_CSS = search::SEARCH_DIALOG,
+        LANDING_CSS = theme::LANDING,
         RESPONSIVE_AND_PRINT_CSS = theme::RESPONSIVE_AND_PRINT,
     );
 

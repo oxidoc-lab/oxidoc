@@ -14,8 +14,8 @@ use crate::outputs::{
     generate_index_redirect, generate_llms_txt, generate_redirects, generate_seo_files,
 };
 use crate::page_extract::{
-    build_page_nav, check_parse_errors, extract_page_description, extract_page_title,
-    resolve_git_meta,
+    build_page_nav, check_parse_errors, extract_page_description, extract_page_layout,
+    extract_page_title, resolve_git_meta,
 };
 use crate::renderer::render_document;
 use crate::search_provider::SearchProvider;
@@ -23,6 +23,7 @@ use crate::sri::generate_sri_hash;
 use crate::template::render_page;
 use crate::template_404::render_404_page;
 use crate::template_assets::AssetConfig;
+use crate::template_landing::render_landing_page;
 use crate::template_parts::{render_page_meta, render_sidebar_with_homepage};
 use crate::theme;
 use crate::toc::{extract_toc, render_toc};
@@ -268,37 +269,53 @@ pub fn build_site_with_model(
 
                 let page_title = extract_page_title(&root).unwrap_or_else(|| page.title.clone());
                 let page_description = extract_page_description(&root);
+                let page_layout = extract_page_layout(&root);
 
                 let is_homepage = homepage_slug.as_deref() == Some(page.slug.as_str());
                 let render_slug = if is_homepage { "" } else { &page.slug };
 
-                let page_nav = build_page_nav(&page.slug, &slug_index_arc, &pages_arc);
-                let git_meta = resolve_git_meta(&page.file_path);
+                let full_html = if page_layout.as_deref() == Some("landing") {
+                    render_landing_page(
+                        &config_arc,
+                        &page_title,
+                        &content_html,
+                        render_slug,
+                        page_description.as_deref(),
+                        &assets,
+                        &locale_str,
+                        &i18n_state_arc,
+                        &search_provider_arc,
+                        &theme_arc,
+                    )
+                } else {
+                    let page_nav = build_page_nav(&page.slug, &slug_index_arc, &pages_arc);
+                    let git_meta = resolve_git_meta(&page.file_path);
 
-                let page_meta_html = render_page_meta(
-                    &config_arc,
-                    &page.slug,
-                    &page_nav,
-                    &git_meta,
-                    homepage_slug.as_deref(),
-                );
+                    let page_meta_html = render_page_meta(
+                        &config_arc,
+                        &page.slug,
+                        &page_nav,
+                        &git_meta,
+                        homepage_slug.as_deref(),
+                    );
 
-                let full_html = render_page(
-                    &config_arc,
-                    &page_title,
-                    &content_html,
-                    &toc_html,
-                    &sidebar_with_active,
-                    &breadcrumb_html,
-                    render_slug,
-                    page_description.as_deref(),
-                    &page_meta_html,
-                    &assets,
-                    &locale_str,
-                    &i18n_state_arc,
-                    &search_provider_arc,
-                    &theme_arc,
-                );
+                    render_page(
+                        &config_arc,
+                        &page_title,
+                        &content_html,
+                        &toc_html,
+                        &sidebar_with_active,
+                        &breadcrumb_html,
+                        render_slug,
+                        page_description.as_deref(),
+                        &page_meta_html,
+                        &assets,
+                        &locale_str,
+                        &i18n_state_arc,
+                        &search_provider_arc,
+                        &theme_arc,
+                    )
+                };
                 let page_output = if is_homepage {
                     locale_output_dir.join("index.html")
                 } else {

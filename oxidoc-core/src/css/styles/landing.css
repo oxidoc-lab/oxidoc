@@ -1,0 +1,194 @@
+/* Landing page layout — full-width, no sidebar/TOC */
+
+.oxidoc-header-landing .oxidoc-header-nav {
+  display: none;
+}
+
+.oxidoc-landing {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.oxidoc-landing > article {
+  width: 100%;
+}
+
+/* Constrain Hero inside landing pages */
+.oxidoc-landing .oxidoc-hero {
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Section */
+.oxidoc-section {
+  width: 100%;
+  padding: 4rem 1.5rem;
+}
+
+.oxidoc-section-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.oxidoc-section-muted {
+  background: var(--oxidoc-bg-secondary, #f8fafc);
+}
+
+[data-theme="dark"] .oxidoc-section-muted {
+  background: var(--oxidoc-bg-secondary, #1e293b);
+}
+
+.oxidoc-section-primary {
+  background: var(--oxidoc-primary);
+  color: #fff;
+}
+
+.oxidoc-section-dark {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Testimonial */
+.oxidoc-testimonial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.oxidoc-testimonial {
+  background: var(--oxidoc-bg, #fff);
+  border: 1px solid var(--oxidoc-border, #e2e8f0);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .oxidoc-testimonial {
+  background: var(--oxidoc-bg-secondary, #1e293b);
+  border-color: var(--oxidoc-border, #334155);
+}
+
+.oxidoc-testimonial-quote {
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-style: italic;
+  color: var(--oxidoc-text-secondary);
+  line-height: 1.7;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.oxidoc-testimonial-quote > p {
+  margin: 0;
+  display: inline;
+}
+
+.oxidoc-testimonial-open,
+.oxidoc-testimonial-close {
+  font-family: Georgia, serif;
+  font-size: 1.5em;
+  color: var(--oxidoc-primary);
+  font-style: normal;
+  line-height: 0;
+  vertical-align: -0.15em;
+}
+
+.oxidoc-testimonial-open {
+  margin-right: 0.1em;
+}
+
+.oxidoc-testimonial-close {
+  margin-left: 0.1em;
+}
+
+.oxidoc-testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--oxidoc-border, #e2e8f0);
+}
+
+.oxidoc-testimonial-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.oxidoc-testimonial-name {
+  font-weight: 600;
+  color: var(--oxidoc-text);
+  font-size: 0.9375rem;
+}
+
+.oxidoc-testimonial-role {
+  font-size: 0.8125rem;
+  color: var(--oxidoc-text-secondary);
+}
+
+/* Embed */
+.oxidoc-embed {
+  position: relative;
+  width: 100%;
+  max-width: 56rem;
+  margin: 2rem auto;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #000;
+}
+
+.oxidoc-embed iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* CTA */
+.oxidoc-cta {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.oxidoc-cta-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  padding-bottom: 0;
+  border-bottom: none;
+  color: var(--oxidoc-text);
+}
+
+.oxidoc-cta-description {
+  font-size: 1.125rem;
+  color: var(--oxidoc-text);
+  margin: 0 0 2rem;
+  line-height: 1.6;
+}
+
+/* Stronger secondary button contrast on muted backgrounds */
+.oxidoc-section-muted .oxidoc-hero-action-secondary {
+  background: var(--oxidoc-bg, #fff);
+  border-color: var(--oxidoc-text-secondary);
+}
+
+
+.oxidoc-cta-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}

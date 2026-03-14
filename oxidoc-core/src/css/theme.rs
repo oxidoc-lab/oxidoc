@@ -25,4 +25,6 @@ pub const BREADCRUMBS: &str = include_str!("styles/breadcrumbs.css");
 
 pub const SKIP_NAV_AND_HEADER_ACTIONS: &str = include_str!("styles/header-actions.css");
 
+pub const LANDING: &str = include_str!("styles/landing.css");
+
 pub const RESPONSIVE_AND_PRINT: &str = include_str!("styles/responsive.css");

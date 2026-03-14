@@ -415,6 +415,7 @@ a.oxidoc-card:hover {
     padding: 1.5rem;
     border: 1px solid var(--oxidoc-border);
     border-radius: 0.5rem;
+    background: var(--oxidoc-bg, #fff);
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 .oxidoc-feature:hover {

@@ -88,6 +88,15 @@ pub(crate) fn resolve_git_meta(file_path: &std::path::Path) -> PageGitMeta {
         })
 }
 
+/// Extract the page layout from frontmatter (e.g. "landing").
+pub(crate) fn extract_page_layout(root: &rdx_ast::Root) -> Option<String> {
+    root.frontmatter
+        .as_ref()?
+        .get("layout")?
+        .as_str()
+        .map(|s| s.to_string())
+}
+
 /// Extract a description from the first paragraph of content.
 pub(crate) fn extract_page_description(root: &rdx_ast::Root) -> Option<String> {
     for node in &root.children {

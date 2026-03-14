@@ -29,6 +29,7 @@ pub mod suggest;
 pub mod template;
 pub mod template_404;
 pub mod template_assets;
+pub mod template_landing;
 pub mod template_parts;
 pub mod theme;
 pub mod toc;
