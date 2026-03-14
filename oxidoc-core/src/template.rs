@@ -5,7 +5,6 @@ use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
 };
 use crate::template_parts::{render_analytics_script, render_footer};
-use crate::theme::ResolvedTheme;
 
 pub(crate) const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
 pub(crate) const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.js");
@@ -79,7 +78,6 @@ pub fn render_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
-    theme: &ResolvedTheme,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -91,7 +89,7 @@ pub fn render_page(
     let base_url = config.project.base_url.as_deref().unwrap_or("/");
     let (logo_html, safe_name) = render_logo_html(config);
 
-    let footer_html = render_footer(config, theme);
+    let footer_html = render_footer(config);
 
     // Determine page description for SEO
     let default_description = format!("{} documentation", project_name);
@@ -165,7 +163,6 @@ pub fn render_page(
     <meta name="twitter:title" content="{page_title_escaped}">
     <script type="application/ld+json">{json_ld}</script>
     <link rel="canonical" href="{base_url}{active_slug}">
-    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
 {css_preload}
 {js_preload}
 {stylesheet_link}
@@ -173,7 +170,7 @@ pub fn render_page(
     {search_head_tags}
 </head>
 <body data-locale="{locale}">
-    <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
+<a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header" role="banner">
         {logo_html}
         {header_nav_html}
@@ -289,10 +286,6 @@ name = "Test Docs""#,
         SearchProvider::Oxidoc { model_path: None }
     }
 
-    fn test_theme() -> crate::theme::ResolvedTheme {
-        crate::theme::builtin_theme("oxidoc").unwrap()
-    }
-
     /// Render a page with test defaults; only title, content, slug, and description vary.
     fn render_test_page(
         config: &OxidocConfig,
@@ -317,7 +310,6 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
-            &test_theme(),
         )
     }
 
@@ -331,20 +323,7 @@ name = "Test Docs""#,
         let i18n = default_i18n_state();
         let provider = default_search_provider();
         render_page(
-            config,
-            title,
-            "",
-            "",
-            "",
-            "",
-            slug,
-            None,
-            "",
-            assets,
-            "en",
-            &i18n,
-            &provider,
-            &test_theme(),
+            config, title, "", "", "", "", slug, None, "", assets, "en", &i18n, &provider,
         )
     }
 

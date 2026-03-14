@@ -20,16 +20,8 @@
   var loadedChunks = {};
   var aiMode = false; // true when user clicked "Ask AI"
 
-  // Preload search result icons so they're cached before results render
-  var searchIcons = ["material-symbols:tag-rounded", "material-symbols:description-rounded"];
-  searchIcons.forEach(function (name) {
-    var el = document.createElement("iconify-icon");
-    el.setAttribute("icon", name);
-    el.style.position = "absolute";
-    el.style.visibility = "hidden";
-    el.style.pointerEvents = "none";
-    document.body.appendChild(el);
-  });
+  var TAG_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" class="oxidoc-search-result-icon"><path fill="currentColor" d="m9 16l-.825 3.275q-.075.325-.325.525t-.6.2q-.475 0-.775-.375T6.3 18.8L7 16H4.275q-.5 0-.8-.387T3.3 14.75q.075-.35.35-.55t.625-.2H7.5l1-4H5.775q-.5 0-.8-.387T4.8 8.75q.075-.35.35-.55t.625-.2H9l.825-3.275Q9.9 4.4 10.15 4.2t.6-.2q.475 0 .775.375t.175.825L11 8h4l.825-3.275q.075-.325.325-.525t.6-.2q.475 0 .775.375t.175.825L17 8h2.725q.5 0 .8.387t.175.863q-.075.35-.35.55t-.625.2H16.5l-1 4h2.725q.5 0 .8.388t.175.862q-.075.35-.35.55t-.625.2H15l-.825 3.275q-.075.325-.325.525t-.6.2q-.475 0-.775-.375T12.3 18.8L13 16zm.5-2h4l1-4h-4z"/></svg>';
+  var DESC_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" class="oxidoc-search-result-icon"><path fill="currentColor" d="M9 18h6q.425 0 .713-.288T16 17t-.288-.712T15 16H9q-.425 0-.712.288T8 17t.288.713T9 18m0-4h6q.425 0 .713-.288T16 13t-.288-.712T15 12H9q-.425 0-.712.288T8 13t.288.713T9 14m-3 8q-.825 0-1.412-.587T4 20V4q0-.825.588-1.412T6 2h7.175q.4 0 .763.15t.637.425l4.85 4.85q.275.275.425.638t.15.762V20q0 .825-.587 1.413T18 22zm7-14q0 .425.288.713T14 9h4l-5-5z"/></svg>';
 
   // Probe whether semantic assets exist (non-blocking HEAD request)
   function detectSemantic() {
@@ -275,7 +267,7 @@
     row.className = "oxidoc-search-ask-ai";
     row.type = "button";
     row.innerHTML =
-      '<iconify-icon icon="material-symbols:auto-awesome" width="18" height="18" class="oxidoc-search-ask-ai-icon"></iconify-icon>' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" class="oxidoc-search-ask-ai-icon"><path fill="currentColor" d="m19 9l-1.25-2.75L15 5l2.75-1.25L19 1l1.25 2.75L23 5l-2.75 1.25L19 9Zm0 14l-1.25-2.75L15 19l2.75-1.25L19 15l1.25 2.75L23 19l-2.75 1.25L19 23ZM9 20l-2.5-5.5L1 12l5.5-2.5L9 4l2.5 5.5L17 12l-5.5 2.5L9 20Z"/></svg>' +
       '<span class="oxidoc-search-ask-ai-label">Search using AI:</span> ' +
       '<span class="oxidoc-search-ask-ai-query">' + escapeHtml(query) + '</span>';
     row.addEventListener("click", function () {
@@ -296,7 +288,7 @@
     var loading = document.createElement("div");
     loading.className = "oxidoc-search-ai-loading";
     loading.innerHTML =
-      '<iconify-icon icon="material-symbols:auto-awesome" width="18" height="18" class="oxidoc-search-ask-ai-icon"></iconify-icon>' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" class="oxidoc-search-ask-ai-icon"><path fill="currentColor" d="m19 9l-1.25-2.75L15 5l2.75-1.25L19 1l1.25 2.75L23 5l-2.75 1.25L19 9Zm0 14l-1.25-2.75L15 19l2.75-1.25L19 15l1.25 2.75L23 19l-2.75 1.25L19 23ZM9 20l-2.5-5.5L1 12l5.5-2.5L9 4l2.5 5.5L17 12l-5.5 2.5L9 20Z"/></svg>' +
       '<span>Loading AI search...</span>';
     resultsEl.appendChild(loading);
 
@@ -322,10 +314,10 @@
     banner.className = "oxidoc-search-ai-banner";
     banner.innerHTML =
       '<button type="button" class="oxidoc-search-ai-banner-back">' +
-        '<iconify-icon icon="material-symbols:arrow-back-rounded" width="14" height="14"></iconify-icon>' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="m7.825 13l4.9 4.9q.3.3.288.7t-.313.7q-.3.275-.7.288t-.7-.288l-6.6-6.6q-.15-.15-.213-.325T4.426 12t.063-.375t.212-.325l6.6-6.6q.275-.275.688-.275t.712.275q.3.3.3.713t-.3.712L7.825 11H19q.425 0 .713.288T20 12t-.288.713T19 13z"/></svg>' +
       '</button>' +
       '<div class="oxidoc-search-ai-banner-label">' +
-        '<iconify-icon icon="material-symbols:auto-awesome" width="16" height="16"></iconify-icon>' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="m19 9l-1.25-2.75L15 5l2.75-1.25L19 1l1.25 2.75L23 5l-2.75 1.25L19 9Zm0 14l-1.25-2.75L15 19l2.75-1.25L19 15l1.25 2.75L23 19l-2.75 1.25L19 23ZM9 20l-2.5-5.5L1 12l5.5-2.5L9 4l2.5 5.5L17 12l-5.5 2.5L9 20Z"/></svg>' +
         '<span>AI search results</span>' +
       '</div>';
     banner.querySelector(".oxidoc-search-ai-banner-back").addEventListener("click", function () {
@@ -368,11 +360,9 @@
           '<div class="oxidoc-search-result-title">' + highlight(title, query, ht) + "</div>" +
           '<div class="oxidoc-search-result-snippet">' + highlight(doc.snippet || "", query, ht) + "</div>";
       }
-      var icon = bc.length > 1
-        ? "material-symbols:tag-rounded"
-        : "material-symbols:description-rounded";
+      var icon = bc.length > 1 ? TAG_ICON : DESC_ICON;
       a.innerHTML =
-        '<iconify-icon icon="' + icon + '" width="18" height="18" class="oxidoc-search-result-icon"></iconify-icon>' +
+        icon +
         '<div class="oxidoc-search-result-content">' + inner + "</div>";
       resultsEl.appendChild(a);
     }
@@ -438,11 +428,9 @@
           '<div class="oxidoc-search-result-title">' + highlight(title, query, ht) + "</div>" +
           '<div class="oxidoc-search-result-snippet">' + highlight(doc.snippet || "", query, ht) + "</div>";
       }
-      var icon = bc.length > 1
-        ? "material-symbols:tag-rounded"
-        : "material-symbols:description-rounded";
+      var icon = bc.length > 1 ? TAG_ICON : DESC_ICON;
       a.innerHTML =
-        '<iconify-icon icon="' + icon + '" width="18" height="18" class="oxidoc-search-result-icon"></iconify-icon>' +
+        icon +
         '<div class="oxidoc-search-result-content">' + inner + "</div>";
       resultsEl.appendChild(a);
     }

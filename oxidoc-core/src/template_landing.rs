@@ -9,7 +9,6 @@ use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
 };
 use crate::template_parts::{render_analytics_script, render_footer};
-use crate::theme::ResolvedTheme;
 
 /// Render a full-width landing page (no sidebar, no TOC, no breadcrumbs).
 #[allow(clippy::too_many_arguments)]
@@ -23,7 +22,6 @@ pub fn render_landing_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
-    theme: &ResolvedTheme,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -34,7 +32,7 @@ pub fn render_landing_page(
 
     let base_url = config.project.base_url.as_deref().unwrap_or("/");
     let (logo_html, safe_name) = render_logo_html(config);
-    let footer_html = render_footer(config, theme);
+    let footer_html = render_footer(config);
 
     let default_description = format!("{} documentation", project_name);
     let page_description = description
@@ -96,7 +94,6 @@ pub fn render_landing_page(
     <meta name="twitter:title" content="{page_title_escaped}">
     <script type="application/ld+json">{json_ld}</script>
     <link rel="canonical" href="{base_url}{active_slug}">
-    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
 {css_preload}
 {js_preload}
 {stylesheet_link}
@@ -104,7 +101,7 @@ pub fn render_landing_page(
     {search_head_tags}
 </head>
 <body data-locale="{locale}">
-    <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
+<a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header oxidoc-header-landing" role="banner">
         {logo_html}
         {locale_switcher_html}
@@ -179,7 +176,6 @@ name = "Test Docs""#,
         let config = test_config();
         let i18n = crate::i18n::I18nState::from_config("en", &[]);
         let provider = SearchProvider::Oxidoc { model_path: None };
-        let theme = crate::theme::builtin_theme("oxidoc").unwrap();
         let html = render_landing_page(
             &config,
             "Welcome",
@@ -190,7 +186,6 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
-            &theme,
         );
         assert!(html.contains("oxidoc-landing"));
         assert!(html.contains("oxidoc-header-landing"));

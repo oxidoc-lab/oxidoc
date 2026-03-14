@@ -50,9 +50,10 @@ pub(crate) fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
                 crate::utils::heading_anchor(&crate::utils::extract_plain_text(node))
             });
             let _ = write!(out, "<h{level} id=\"{id}\" class=\"oxidoc-heading\">");
+            let link_icon = crate::icons::svg_icon(crate::icons::LINK, "0.75em", "0.75em", "");
             let _ = write!(
                 out,
-                "<a href=\"#{id}\" class=\"oxidoc-heading-anchor\" aria-label=\"Link to this section\"><iconify-icon icon=\"lucide:link\" width=\"0.75em\" height=\"0.75em\"></iconify-icon></a>"
+                "<a href=\"#{id}\" class=\"oxidoc-heading-anchor\" aria-label=\"Link to this section\">{link_icon}</a>"
             );
             render_children(&h.children, out, ctx);
             let _ = write!(out, "</h{level}>");

@@ -6,7 +6,6 @@ use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
 };
 use crate::template_parts::{render_analytics_script, render_footer};
-use crate::theme::ResolvedTheme;
 
 /// Generate a 404 error page using the site template.
 pub fn render_404_page(
@@ -15,10 +14,9 @@ pub fn render_404_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
-    theme: &ResolvedTheme,
 ) -> String {
     let (logo_html, safe_name) = render_logo_html(config);
-    let footer_html = render_footer(config, theme);
+    let footer_html = render_footer(config);
 
     let css_href = assets.css_path.unwrap_or("/oxidoc.css");
     let js_src = assets.js_path.unwrap_or("/oxidoc-loader.js");
@@ -42,7 +40,6 @@ pub fn render_404_page(
     <title>Page Not Found - {project_name}</title>
     <meta name="description" content="The page you are looking for could not be found.">
     <meta name="generator" content="oxidoc">
-    <script src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.0/dist/iconify-icon.min.js"></script>
 {css_preload}
 {js_preload}
 {stylesheet_link}
@@ -50,7 +47,7 @@ pub fn render_404_page(
     {search_head_tags}
 </head>
 <body data-locale="{locale}">
-    <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
+<a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header" role="banner">
         {logo_html}
         {header_nav_html}
@@ -105,10 +102,6 @@ mod tests {
         SearchProvider::Oxidoc { model_path: None }
     }
 
-    fn test_theme() -> ResolvedTheme {
-        crate::theme::builtin_theme("oxidoc").unwrap()
-    }
-
     #[test]
     fn render_404_page_contains_essentials() {
         let config = test_config();
@@ -118,7 +111,6 @@ mod tests {
             "en",
             &default_i18n_state(),
             &default_search_provider(),
-            &test_theme(),
         );
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("404"));
@@ -141,7 +133,6 @@ mod tests {
             "en",
             &default_i18n_state(),
             &default_search_provider(),
-            &test_theme(),
         );
         assert!(html.contains(r#"href="/oxidoc.a1b2c3d4.css""#));
         assert!(html.contains(r#"src="/oxidoc-loader.h5i6j7k8.js""#));

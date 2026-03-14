@@ -17,16 +17,17 @@ impl SocialConfig {
     pub fn render_header_icons(&self) -> String {
         let mut html = String::new();
         let links: &[(&Option<String>, &str, &str)] = &[
-            (&self.github, "mdi:github", "GitHub"),
-            (&self.discord, "ic:baseline-discord", "Discord"),
-            (&self.twitter, "ri:twitter-x-fill", "Twitter"),
-            (&self.mastodon, "ri:mastodon-fill", "Mastodon"),
+            (&self.github, crate::icons::GITHUB, "GitHub"),
+            (&self.discord, crate::icons::DISCORD, "Discord"),
+            (&self.twitter, crate::icons::TWITTER, "Twitter"),
+            (&self.mastodon, crate::icons::MASTODON, "Mastodon"),
         ];
-        for (url, icon, label) in links {
+        for (url, icon_svg, label) in links {
             if let Some(url) = url {
                 let safe_url = crate::utils::html_escape(url);
+                let icon = crate::icons::svg_icon(icon_svg, "20", "20", "");
                 html.push_str(&format!(
-                    r#"<a href="{}" class="oxidoc-social-link" target="_blank" rel="noopener noreferrer" aria-label="{}" title="{}"><iconify-icon icon="{}" width="20" height="20"></iconify-icon></a>"#,
+                    r#"<a href="{}" class="oxidoc-social-link" target="_blank" rel="noopener noreferrer" aria-label="{}" title="{}">{}</a>"#,
                     safe_url, label, label, icon
                 ));
             }

@@ -11,6 +11,7 @@ pub mod css;
 pub mod error;
 pub mod feed;
 pub mod i18n;
+pub mod icons;
 pub mod incremental;
 pub mod island_props;
 pub mod loader;
