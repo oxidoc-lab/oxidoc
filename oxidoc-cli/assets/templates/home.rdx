@@ -4,8 +4,8 @@ layout: landing
 ---
 
 <Hero title="Oxidoc">
-<HeroAction label="Get Started" href="/quickstart" variant="primary" />
-<HeroAction label="View on GitHub" href="https://github.com/oxidoc/oxidoc" variant="secondary" />
+<HeroAction label="Get Started" href="/docs/quickstart" variant="primary" />
+<HeroAction label="View on GitHub" href="https://github.com/oxidoc-lab/oxidoc" variant="secondary" />
 
 Oxidoc is a documentation engine written in Rust. It generates fast static sites with interactive WebAssembly components.
 </Hero>
@@ -43,7 +43,7 @@ The built-in search is fantastic. Our users find what they need instantly.
 
 <Section bg="muted">
 <CTA title="Ready to build?" description="Get started with Oxidoc in under a minute.">
-<HeroAction label="Quickstart Guide" href="/quickstart" variant="primary" />
-<HeroAction label="API Reference" href="/api-reference" variant="secondary" />
+<HeroAction label="Quickstart Guide" href="/docs/quickstart" variant="primary" />
+<HeroAction label="API Reference" href="/docs/api-reference" variant="secondary" />
 </CTA>
 </Section>

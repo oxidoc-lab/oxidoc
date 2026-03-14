@@ -237,7 +237,7 @@ fn run_init(
             .replace("{project_name}", project_name),
     )?;
     write_file(
-        &docs_dir.join("home.rdx"),
+        &target.join("home.rdx"),
         include_str!("../assets/templates/home.rdx"),
     )?;
     write_file(

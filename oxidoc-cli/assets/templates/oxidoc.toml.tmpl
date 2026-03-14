@@ -9,15 +9,18 @@ edit_url = "https://github.com/oxidoc-lab/oxidoc-docs/blob/main/docs"
 primary = "#3b82f6"
 dark_mode = "system"
 
+[routing.root]
+homepage = "home.rdx"
+# pages = ["about.rdx", "contact.rdx"]
+
 [routing]
-homepage = "home"
 header_links = [
-  { label = "Docs", href = "/" },
+  { label = "Docs", href = "/docs" },
   { label = "Lib", href = "/lib" },
   { label = "API", href = "/api" },
 ]
 navigation = [
-  { path = "/", dir = "docs", groups = [
+  { path = "/docs", dir = "docs", groups = [
     { group = "Getting Started", pages = [
       "quickstart",
       "api-reference",

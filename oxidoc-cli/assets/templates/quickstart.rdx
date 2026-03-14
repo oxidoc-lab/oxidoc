@@ -73,7 +73,7 @@ More hidden content.
 Responsive grid of cards. Each `Card` supports `title`, `icon`, `href` (makes it a link), and body content.
 
 <CardGrid>
-<Card title="Getting Started" icon="🚀" href="/quickstart">
+<Card title="Getting Started" icon="🚀" href="/docs/quickstart">
 Learn the basics of Oxidoc.
 </Card>
 <Card title="Components" icon="🧩">
