@@ -65,17 +65,24 @@ impl LexicalSearcher {
         let tokens = oxidoc_text::tokenize(query);
         let mut needed: HashSet<u32> = HashSet::new();
 
+        let prefix_to_chunks: HashMap<&str, Vec<u32>> = {
+            let mut map: HashMap<&str, Vec<u32>> = HashMap::new();
+            for chunk in &metadata.manifest.chunks {
+                for p in &chunk.prefixes {
+                    map.entry(p.as_str()).or_default().push(chunk.id);
+                }
+            }
+            map
+        };
+
         for token in &tokens {
-            let prefix = if token.len() >= 2 {
-                &token[..2]
-            } else {
-                token.as_str()
+            let prefix = match token.char_indices().nth(2) {
+                Some((idx, _)) => &token[..idx],
+                None => token.as_str(),
             };
 
-            for chunk in &metadata.manifest.chunks {
-                if chunk.prefixes.iter().any(|p| p == prefix) {
-                    needed.insert(chunk.id);
-                }
+            if let Some(chunk_ids) = prefix_to_chunks.get(prefix) {
+                needed.extend(chunk_ids);
             }
         }
 
@@ -107,8 +114,11 @@ impl LexicalSearcher {
         let num_tokens = tokens.len();
         let mut all_results: Vec<DocResult> = Vec::new();
 
+        let doc_map: HashMap<u32, &DocMetadata> =
+            self.documents.iter().map(|d| (d.id, d)).collect();
+
         for doc_id in &resolved.candidate_docs {
-            let doc = match self.documents.iter().find(|d| d.id == *doc_id) {
+            let doc = match doc_map.get(doc_id) {
                 Some(d) => d,
                 None => continue,
             };
