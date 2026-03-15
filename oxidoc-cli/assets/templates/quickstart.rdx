@@ -35,14 +35,14 @@ This highlights an error or danger.
 Switchable content panels. Each `Tab` needs a `title`. Selection persists via localStorage when a `group` is set.
 
 <Tabs>
-<Tab title="npm">
-npm install oxidoc
+<Tab title="Linux / macOS">
+curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
 </Tab>
-<Tab title="yarn">
-yarn add oxidoc
+<Tab title="Windows">
+Download from https://github.com/oxidoc-lab/oxidoc/releases
 </Tab>
-<Tab title="pnpm">
-pnpm add oxidoc
+<Tab title="From Source">
+cargo install --git https://github.com/oxidoc-lab/oxidoc oxidoc-cli
 </Tab>
 </Tabs>
 
