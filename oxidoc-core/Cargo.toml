@@ -30,7 +30,6 @@ lazy_static.workspace = true
 oxidoc-highlight.workspace = true
 boostr.workspace = true
 numr.workspace = true
-splintr.workspace = true
 oxidoc-text.workspace = true
 rkyv.workspace = true
 
