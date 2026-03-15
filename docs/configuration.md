@@ -27,17 +27,25 @@ description = "Complete API documentation for My SDK"
 
 ### `[theme]` (optional)
 
-| Field       | Type   | Default     | Description                                                                               |
-| :---------- | :----- | :---------- | :---------------------------------------------------------------------------------------- |
-| `primary`   | string | `"#2563eb"` | Primary brand color (hex format). Used for buttons, links, and highlights.                |
-| `dark_mode` | string | `"system"`  | Dark mode behavior. Options: `"light"`, `"dark"`, or `"system"` (respects OS preference). |
+| Field        | Type   | Default     | Description                                                                               |
+| :----------- | :----- | :---------- | :---------------------------------------------------------------------------------------- |
+| `primary`    | string | `"#2563eb"` | Primary brand color (hex format). Used for buttons, links, and highlights.                |
+| `accent`     | string | `"#f59e0b"` | Accent color (hex format). Used for secondary highlights.                                 |
+| `dark_mode`  | string | `"system"`  | Dark mode behavior. Options: `"light"`, `"dark"`, or `"system"` (respects OS preference). |
+| `custom_css` | array  | `[]`        | List of custom CSS file paths layered on top of the default styles.                       |
+| `font`       | string | `None`      | Override the default sans-serif font family.                                              |
+| `code_font`  | string | `None`      | Override the default monospace font family.                                               |
 
 Example:
 
 ```toml
 [theme]
 primary = "#3b82f6"
+accent = "#f59e0b"
 dark_mode = "system"
+custom_css = ["assets/custom.css"]
+font = '"Inter", system-ui, sans-serif'
+code_font = '"JetBrains Mono", monospace'
 ```
 
 ## Routing Configuration
@@ -90,49 +98,34 @@ default = "v2.0"
 versions = ["v1.0", "v1.5", "v2.0"]
 ```
 
-## Internationalization (i18n)
-
-### `[i18n]` (optional)
-
-Multi-language documentation support.
-
-| Field            | Type   | Default | Description                                                           |
-| :--------------- | :----- | :------ | :-------------------------------------------------------------------- |
-| `default_locale` | string | `"en"`  | Default language locale (e.g., `"en"`, `"es"`, `"ja"`).               |
-| `locales`        | array  | `[]`    | List of available locales. If empty, only the default locale is used. |
-
-Example:
-
-```toml
-[i18n]
-default_locale = "en"
-locales = ["en", "es", "ja"]
-```
-
 ## Search Configuration
 
 ### `[search]` (optional)
 
 Configure the search backend.
 
-| Field      | Type   | Default           | Description                                                                      |
-| :--------- | :----- | :---------------- | :------------------------------------------------------------------------------- |
-| `provider` | string | `"oxidoc-boostr"` | Search provider. Options: `"oxidoc-boostr"`, `"oxidoc-tantivy"`, or `"algolia"`. |
+| Field        | Type   | Default    | Description                                                                                            |
+| :----------- | :----- | :--------- | :----------------------------------------------------------------------------------------------------- |
+| `provider`   | string | `"oxidoc"` | Search provider. Options: `"oxidoc"`, `"algolia"`, `"typesense"`, `"meilisearch"`, or `"custom"`.      |
+| `semantic`   | bool   | `false`    | Enable hybrid semantic search. Adds build time due to embedding generation but improves search recall. |
+| `model_path` | string | `None`     | Path to a custom GGUF embedding model. Uses the bundled model if not set.                              |
+| `app_id`     | string | `None`     | Algolia application ID (required for Algolia provider).                                                |
+| `api_key`    | string | `None`     | Algolia search API key (required for Algolia provider).                                                |
+| `index_name` | string | `None`     | Algolia index name (required for Algolia provider).                                                    |
 
 Example:
 
 ```toml
 [search]
-provider = "oxidoc-boostr"
+provider = "oxidoc"
+semantic = true
 ```
 
 ## Components Configuration
 
 ### `[components.custom]` (optional)
 
-Register custom Vanilla Web Components (HTML5 Custom Elements) as an escape hatch for rapid UI iteration without Rust.
-
-Maps custom tag names to JavaScript file paths.
+Register custom Vanilla Web Components (HTML5 Custom Elements) as an escape hatch for rapid UI iteration without Rust. Maps component tag names to JavaScript file paths.
 
 Example:
 
@@ -143,7 +136,7 @@ FeedbackWidget = "assets/js/feedback-widget.js"
 Timeline = "assets/js/timeline.js"
 ```
 
-When Oxidoc encounters a component tag matching an entry (e.g., `<PromoBanner>`), it bypasses the Wasm pipeline and renders the custom element directly.
+When Oxidoc encounters a component tag matching an entry (e.g., `<PromoBanner>`), it bypasses the Wasm pipeline and renders the custom element directly with a `<script type="module">` tag pointing to the JS file.
 
 ## Footer Configuration
 
@@ -151,10 +144,11 @@ When Oxidoc encounters a component tag matching an entry (e.g., `<PromoBanner>`)
 
 Configure the site footer.
 
-| Field       | Type   | Default | Description                               |
-| :---------- | :----- | :------ | :---------------------------------------- |
-| `copyright` | string | `None`  | Copyright notice displayed in the footer. |
-| `links`     | array  | `[]`    | Array of footer links (see below).        |
+| Field                 | Type   | Default | Description                                                        |
+| :-------------------- | :----- | :------ | :----------------------------------------------------------------- |
+| `copyright_owner`     | string | `None`  | Copyright owner name. Auto-generates "Copyright © {year} {owner}." |
+| `copyright_owner_url` | string | `None`  | Optional URL for the copyright owner name.                         |
+| `links`               | array  | `[]`    | Array of footer links (see below).                                 |
 
 #### Footer Links
 
@@ -169,7 +163,8 @@ Example:
 
 ```toml
 [footer]
-copyright = "Copyright 2024 My Company. All rights reserved."
+copyright_owner = "My Company"
+copyright_owner_url = "https://example.com"
 
 [[footer.links]]
 label = "GitHub"
@@ -178,10 +173,6 @@ href = "https://github.com/mycompany/my-sdk"
 [[footer.links]]
 label = "Issues"
 href = "https://github.com/mycompany/my-sdk/issues"
-
-[[footer.links]]
-label = "License"
-href = "/LICENSE"
 ```
 
 ## Redirects Configuration
@@ -189,12 +180,6 @@ href = "/LICENSE"
 ### `[redirects]` (optional)
 
 Define URL redirects for moved or renamed pages.
-
-| Field       | Type  | Description                          |
-| :---------- | :---- | :----------------------------------- |
-| `redirects` | array | Array of redirect rules (see below). |
-
-#### Redirect Entries
 
 Each redirect has:
 
@@ -259,19 +244,12 @@ navigation = [
 default = "v2.0"
 versions = ["v1.0", "v1.5", "v2.0"]
 
-[i18n]
-default_locale = "en"
-locales = ["en", "es", "fr", "ja"]
-
 [search]
-provider = "oxidoc-boostr"
-
-[components.custom]
-HighlightBox = "assets/js/highlight-box.js"
-DemoPlayer = "assets/js/demo-player.js"
+provider = "oxidoc"
 
 [footer]
-copyright = "Copyright 2024 Acme Inc. All rights reserved."
+copyright_owner = "Acme Inc."
+copyright_owner_url = "https://acme.com"
 
 [[footer.links]]
 label = "GitHub Repository"
@@ -281,21 +259,12 @@ href = "https://github.com/acme/sdk"
 label = "Issue Tracker"
 href = "https://github.com/acme/sdk/issues"
 
-[[footer.links]]
-label = "Community Forum"
-href = "https://forum.acme.com"
-
 [[redirects.redirects]]
 from = "/v1-docs"
 to = "/"
 
-[[redirects.redirects]]
-from = "/old-authentication"
-to = "/authentication"
-
 [analytics]
 google_analytics = "G-1234567890"
-script = "<script async src=\"https://cdn.example.com/custom-analytics.js\"></script>"
 ```
 
 ## Notes
@@ -303,5 +272,4 @@ script = "<script async src=\"https://cdn.example.com/custom-analytics.js\"></sc
 - All configuration is optional except for `[project].name`.
 - File-system routing (without explicit `[routing]` config) orders pages alphabetically or by numeric prefix (e.g., `1-intro.rdx`, `2-basics.rdx`).
 - OpenAPI specs are automatically parsed and generate interactive API documentation pages.
-- Custom Web Components specified in `[components.custom]` are loaded asynchronously and do not block page rendering.
 - Analytics scripts are inserted into the document head; ensure they follow security best practices and comply with user privacy policies.

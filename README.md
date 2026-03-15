@@ -7,45 +7,40 @@ A next-generation documentation engine written entirely in Rust. Zero Node.js de
 ### Authoring & Content
 
 - **RDX Format** — Author in Rust Document eXpressions: Markdown with embedded reactive components
-- **Built-in Components** — Callout, Tabs, CodeBlock, CardGrid, Accordion with full ARIA keyboard navigation
+- **Built-in Components** — Callout, Tabs, CodeBlock, CardGrid, Accordion, Steps, Badge, ThemedImage with full ARIA keyboard navigation
 - **Custom Web Components** — Vanilla JS escape hatch for rapid UI iteration via `[components.custom]`
 - **OpenAPI Native** — First-class `openapi.yaml`/`json` ingestion with auto-generated API reference pages
 
 ### Performance & Build
 
-- **Static Site Generation** — Sub-second builds for 1,000+ page sites (275ms for 1,000 pages, 3.3ms incremental)
+- **Static Site Generation** — Fast parallel builds with sub-second incremental rebuilds
 - **Live Dev Server** — `oxidoc dev` with file watching and hot reload — edit `.rdx` or `oxidoc.toml`, browser refreshes instantly
-- **Islands Architecture** — Partial hydration with three-binary Wasm code-splitting (~50KB core, ~200KB API, ~2MB search)
+- **Islands Architecture** — Partial hydration with three-binary Wasm code-splitting (registry, API playground, search)
 - **Incremental Builds** — Hash-based change detection rebuilds only modified pages
 - **Parallel Rendering** — Rayon-powered multi-core page processing
 - **Asset Pipeline** — Content-hashed filenames, CSS minification via LightningCSS, HTML minification
 
 ### Search
 
-- **Built-in Hybrid Search** — Lexical (BM25) + semantic (WebGPU-accelerated via boostr) with RRF fusion
-- **Three-tier Fallback** — WebGPU → CPU Wasm → lexical, automatic degradation
-- **Pluggable Providers** — Algolia, Typesense, Meilisearch presets, or custom script injection
+- **Built-in Lexical Search** — BM25 scoring with tokenization, fast to build and query
+- **Optional Semantic Search** — Enable `semantic = true` for hybrid BM25 + embedding search with RRF fusion (adds build time due to embedding generation)
+- **Pluggable Providers** — Algolia, Typesense, Meilisearch, or custom script injection via `[search]` config
 
-### Internationalization
+### Styling
 
-- **Multi-locale Builds** — Per-locale HTML output (`/en/`, `/es/`, `/ja/`)
-- **Fluent Translations** — W3C-standard `.ftl` files with variable substitution
-- **Locale Switcher** — Auto-generated language picker with 25+ language display names
-
-### Theming
-
-- **Built-in Themes** — Three polished themes out of the box: `oxidoc` (default), `ocean`, `forest`
-- **Community Themes** — Create and share themes as `.toml` files with full light/dark palettes
-- **Dual Light/Dark** — Every theme ships with both modes; toggle via system preference or manual switch
-- **Customizable** — Override primary/accent colors, fonts, and spacing; layer custom CSS on top
+- **CSS Variables** — Semantic design tokens for colors, fonts, spacing, and radii
+- **CSS @layer** — Base styles scoped to `@layer oxidoc` for clean override semantics
+- **Animations** — Entrance animations on landing pages, search dialog, and interactive components
+- **Dual Light/Dark** — Light and dark palettes; toggle via system preference or manual switch
+- **Customizable** — Override primary/accent colors and fonts via `[theme]` config; layer custom CSS on top
 
 ### Enterprise & SEO
 
 - **OpenAPI Playground** — Interactive request builder with auth, code generation (curl/Python/JS/Rust), Shadow DOM isolation
-- **SEO** — Open Graph, Twitter Cards, JSON-LD, canonical URLs, sitemap.xml, robots.txt
-- **RSS/Atom Feed** — Auto-generated for changelog/blog sections
+- **SEO** — Open Graph, JSON-LD, canonical URLs, sitemap.xml, robots.txt
+- **RSS/Atom Feed** — Auto-generated Atom feed from all documentation pages
 - **Versioning** — Multi-version output (`/v1.0/`, `/v2.0/`) with version switcher
-- **Security** — SRI hashes, CSP documentation, content-hashed assets
+- **Security** — SRI hashes, content-hashed assets
 - **Analytics** — Google Analytics or custom script injection
 - **Redirects** — URL migration via `[redirects]` config
 - **LLM-ready** — Auto-generated `llms.txt` and `llms-full.txt` for RAG pipelines
@@ -60,7 +55,6 @@ A next-generation documentation engine written entirely in Rust. Zero Node.js de
 
 - **WCAG 2.1** — All components meet AA contrast, ARIA roles, keyboard navigation
 - **Shadow DOM Bridging** — Focus trapping and ARIA sync across shadow boundaries
-- **Skip Navigation** — Jump-to-content link, semantic heading hierarchy, landmark roles
 
 ## Quick Start
 
@@ -106,9 +100,6 @@ my-docs/
 │       └── deployment.rdx
 ├── assets/                  # Static files (images, fonts, etc.)
 │   └── logo.svg
-├── i18n/                    # Translation files (optional)
-│   ├── en.ftl
-│   └── ja.ftl
 └── openapi.yaml             # API spec (optional)
 ```
 
@@ -146,10 +137,9 @@ logo = "/assets/logo.svg"
 base_url = "https://docs.example.com"
 
 [theme]
-theme = "oxidoc"                   # "oxidoc", "ocean", "forest", or path to .toml
-primary = "#2563eb"                # optional override
+primary = "#2563eb"                # optional color override
 dark_mode = "system"               # "system", "light", "dark"
-custom_css = "assets/custom.css"   # optional, layered on top
+custom_css = ["assets/custom.css"] # optional, layered on top
 
 [routing]
 navigation = [
@@ -157,38 +147,9 @@ navigation = [
   { group = "API Reference", openapi = "./openapi.yaml" }
 ]
 
-[i18n]
-default_locale = "en"
-locales = ["en", "es", "ja"]
-
 [search]
 provider = "oxidoc"
 ```
-
-### Community Themes
-
-Create a `.toml` file with light and dark color palettes:
-
-```toml
-[meta]
-name = "My Theme"
-
-[colors.light]
-bg = "#ffffff"
-primary = "#2563eb"
-text = "#1e293b"
-
-[colors.dark]
-bg = "#0f172a"
-primary = "#3b82f6"
-text = "#e2e8f0"
-
-[fonts]
-sans = '"Inter", system-ui, sans-serif'
-mono = '"JetBrains Mono", monospace'
-```
-
-Then reference it: `theme = "./themes/my-theme.toml"`
 
 See [docs/configuration.md](docs/configuration.md) for the full reference.
 
@@ -202,7 +163,8 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | `oxidoc-components` | Library | Built-in Leptos components                                |
 | `oxidoc-registry`   | cdylib  | Wasm entry point: DOM scanning + hydration                |
 | `oxidoc-openapi`    | cdylib  | Wasm: API playground island                               |
-| `oxidoc-search`     | cdylib  | Wasm: hybrid search island                                |
+| `oxidoc-search`     | cdylib  | Wasm: search island (lexical + optional semantic)         |
+| `oxidoc-text`       | Library | Shared tokenization pipeline for search                   |
 
 ## Development Setup
 
