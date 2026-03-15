@@ -211,4 +211,8 @@ RDX (Rust Document eXpressions) is a standalone language project. See [github.co
 
 ## License
 
-Apache-2.0
+[FSL-1.1-ALv2](LICENSE.md) — Functional Source License, Version 1.1, with Apache License 2.0 future grant.
+
+You're free to use oxidoc for internal use, public-facing documentation, education, and research. The license restricts offering oxidoc itself as a competing commercial product or managed service.
+
+For commercial licensing inquiries, contact [@farhan-syah](https://github.com/farhan-syah).
