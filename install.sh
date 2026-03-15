@@ -1,14 +1,15 @@
 #!/bin/sh
 # Oxidoc CLI installer
 #
-# Install:
+# Install latest stable:
 #   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
+# 
+# Install latest prerelease:
+#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --pre
 #
-# Install specific version:
+# Install/switch to a specific version:
 #   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --version v0.1.0
-#
-# Upgrade (same command as install):
-#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --version v0.1.0-beta.6
 #
 # Uninstall:
 #   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --uninstall
@@ -25,19 +26,20 @@ INSTALL_DIR="${OXIDOC_INSTALL_DIR:-$HOME/.local/bin}"
 main() {
     action="install"
     version="latest"
+    channel="stable"
 
     while [ $# -gt 0 ]; do
         case "$1" in
             --help|-h)   usage; exit 0 ;;
             --uninstall) action="uninstall"; shift ;;
-            --version)   version="$2"; shift 2 ;;
-            v*)          version="$1"; shift ;;
+            --pre)       channel="pre"; shift ;;
+            --version)   version="$2"; channel="exact"; shift 2 ;;
             *)           echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
         esac
     done
 
     case "$action" in
-        install)   do_install "$version" ;;
+        install)   do_install "$version" "$channel" ;;
         uninstall) do_uninstall ;;
     esac
 }
@@ -50,9 +52,17 @@ Usage:
   install.sh [OPTIONS]
 
 Options:
-  --version VERSION  Install a specific version (e.g., v0.1.0)
+  --pre              Install the latest prerelease version
+  --version VERSION  Install a specific version (e.g., v0.1.0, v0.1.0-beta.6)
   --uninstall        Remove oxidoc from the install directory
   --help, -h         Show this help message
+
+Examples:
+  install.sh                        Install latest stable release
+  install.sh --pre                  Install latest prerelease
+  install.sh --version v0.1.0       Switch to a specific stable version
+  install.sh --version v0.2.0-rc.1  Switch to a specific prerelease
+  install.sh --uninstall            Remove oxidoc
 
 Environment:
   OXIDOC_INSTALL_DIR  Override install directory (default: ~/.local/bin)
@@ -61,6 +71,7 @@ EOF
 
 do_install() {
     version="$1"
+    channel="$2"
 
     # Check prerequisites
     check_prereqs
@@ -70,28 +81,33 @@ do_install() {
     target="$(detect_target "$os" "$arch")"
 
     if [ "$version" = "latest" ]; then
-        version="$(fetch_latest_version)"
+        case "$channel" in
+            stable) version="$(fetch_latest_stable)" ;;
+            pre)    version="$(fetch_latest_pre)" ;;
+        esac
         if [ -z "$version" ]; then
-            echo "Error: could not determine latest version." >&2
+            echo "Error: no ${channel} release found." >&2
             echo "Check https://github.com/${REPO}/releases" >&2
             exit 1
         fi
     fi
 
-    # Check if already installed and same version
+    # Determine what action we're taking
+    current=""
     if command -v "$BINARY" > /dev/null 2>&1; then
         current="$("$BINARY" --version 2>/dev/null | awk '{print $2}' || echo "")"
-        if [ "$current" = "${version#v}" ]; then
-            echo "oxidoc ${version#v} is already installed."
-            exit 0
-        fi
-        if [ -n "$current" ]; then
-            echo "Upgrading oxidoc ${current} -> ${version#v} (${target})..."
-        else
-            echo "Installing oxidoc ${version#v} (${target})..."
-        fi
+    fi
+
+    requested="${version#v}"
+    if [ "$current" = "$requested" ]; then
+        echo "oxidoc ${requested} is already installed."
+        exit 0
+    fi
+
+    if [ -n "$current" ]; then
+        echo "Switching oxidoc ${current} -> ${requested} (${target})..."
     else
-        echo "Installing oxidoc ${version#v} (${target})..."
+        echo "Installing oxidoc ${requested} (${target})..."
     fi
 
     ext="tar.gz"
@@ -101,7 +117,7 @@ do_install() {
         bin_name="${BINARY}.exe"
     fi
 
-    url="https://github.com/${REPO}/releases/download/${version}/oxidoc-${version#v}-${target}.${ext}"
+    url="https://github.com/${REPO}/releases/download/${version}/oxidoc-${requested}-${target}.${ext}"
 
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
@@ -125,7 +141,6 @@ do_install() {
         mv "$tmpdir/$bin_name" "$INSTALL_DIR/$bin_name"
         chmod +x "$INSTALL_DIR/$bin_name" 2>/dev/null || true
     else
-        echo "Installing to $(display_path "$INSTALL_DIR") (requires sudo)..."
         sudo mkdir -p "$INSTALL_DIR"
         sudo mv "$tmpdir/$bin_name" "$INSTALL_DIR/$bin_name"
         sudo chmod +x "$INSTALL_DIR/$bin_name" 2>/dev/null || true
@@ -196,7 +211,6 @@ setup_path() {
     case "$shell_name" in
         zsh)  rc="$HOME/.zshrc" ;;
         bash)
-            # Prefer .bashrc, fall back to .bash_profile for login shells
             if [ -f "$HOME/.bashrc" ]; then
                 rc="$HOME/.bashrc"
             else
@@ -250,8 +264,8 @@ display_path() {
 
 detect_os() {
     case "$(uname -s)" in
-        Linux*)              echo "linux" ;;
-        Darwin*)             echo "macos" ;;
+        Linux*)               echo "linux" ;;
+        Darwin*)              echo "macos" ;;
         MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
         *) echo "Error: unsupported OS: $(uname -s)" >&2; exit 1 ;;
     esac
@@ -278,12 +292,32 @@ detect_target() {
     esac
 }
 
-fetch_latest_version() {
+# Fetch latest stable release (skips prereleases)
+fetch_latest_stable() {
+    _fetch_releases | _filter_stable | head -1
+}
+
+# Fetch latest prerelease
+fetch_latest_pre() {
+    _fetch_releases | _filter_pre | head -1
+}
+
+_fetch_releases() {
     if command -v curl > /dev/null 2>&1; then
-        curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4
+        curl -fsSL "https://api.github.com/repos/${REPO}/releases?per_page=20" | grep '"tag_name"' | cut -d'"' -f4
     elif command -v wget > /dev/null 2>&1; then
-        wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4
+        wget -qO- "https://api.github.com/repos/${REPO}/releases?per_page=20" | grep '"tag_name"' | cut -d'"' -f4
     fi
+}
+
+# Tags without hyphen after version (v0.1.0, v1.0.0 — not v0.1.0-beta.1)
+_filter_stable() {
+    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'
+}
+
+# Tags with hyphen (v0.1.0-beta.1, v0.2.0-rc.1)
+_filter_pre() {
+    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-'
 }
 
 main "$@"

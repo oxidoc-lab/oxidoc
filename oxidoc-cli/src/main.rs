@@ -78,6 +78,17 @@ enum Command {
     },
     /// Remove build artifacts (.oxidoc-dev/ and dist/)
     Clean,
+    /// Update to the latest version
+    Update {
+        /// Install the latest prerelease instead of stable
+        #[arg(long)]
+        pre: bool,
+    },
+    /// Switch to a specific version
+    SetVersion {
+        /// Version to switch to (e.g., v0.1.0, v0.1.0-beta.6)
+        version: String,
+    },
 }
 
 fn main() -> ExitCode {
@@ -116,6 +127,8 @@ fn main() -> ExitCode {
             ArchiveAction::Delete { version } => run_archive_delete(&project_root, &version),
         },
         Command::Clean => run_clean(&project_root),
+        Command::Update { pre } => run_self_update(pre),
+        Command::SetVersion { version } => run_set_version(&version),
     };
 
     match result {
@@ -447,4 +460,66 @@ fn run_init(
 fn write_file(path: &std::path::Path, content: &str) -> miette::Result<()> {
     std::fs::write(path, content)
         .map_err(|e| miette::miette!("Failed to write {}: {e}", path.display()))
+}
+
+const INSTALL_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh";
+
+fn run_self_update(pre: bool) -> miette::Result<()> {
+    let mut args = vec!["sh", "-s", "--"];
+    if pre {
+        args.push("--pre");
+    }
+
+    run_install_script(&args)
+}
+
+fn run_set_version(version: &str) -> miette::Result<()> {
+    let tag = if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{version}")
+    };
+
+    run_install_script(&["sh", "-s", "--", "--version", &tag])
+}
+
+fn run_install_script(sh_args: &[&str]) -> miette::Result<()> {
+    // Determine which downloader is available
+    let (dl_cmd, dl_args): (&str, &[&str]) = if which("curl") {
+        ("curl", &["-fsSL", INSTALL_SCRIPT_URL])
+    } else if which("wget") {
+        ("wget", &["-qO-", INSTALL_SCRIPT_URL])
+    } else {
+        miette::bail!("curl or wget is required for self-update");
+    };
+
+    // Pipe: curl/wget -> sh -s -- [args]
+    let downloader = std::process::Command::new(dl_cmd)
+        .args(dl_args)
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| miette::miette!("Failed to start {dl_cmd}: {e}"))?;
+
+    let status = std::process::Command::new(sh_args[0])
+        .args(&sh_args[1..])
+        .stdin(downloader.stdout.unwrap())
+        .status()
+        .map_err(|e| miette::miette!("Failed to run install script: {e}"))?;
+
+    if !status.success() {
+        miette::bail!("Install script failed");
+    }
+
+    Ok(())
+}
+
+fn which(cmd: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(cmd)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
