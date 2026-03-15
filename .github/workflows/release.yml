@@ -295,21 +295,12 @@ jobs:
           pattern: binaries-*
           merge-multiple: true
 
-      - name: Create release notes
-        run: |
-          VERSION="${{ needs.validate-version.outputs.version }}"
-          echo "# Oxidoc $VERSION" > release-notes.md
-          echo "" >> release-notes.md
-          echo "### Release Notes" >> release-notes.md
-          echo "" >> release-notes.md
-          echo "Refer to [CHANGELOG.md](./CHANGELOG.md) for details." >> release-notes.md
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.validate-version.outputs.version }}
           name: Oxidoc ${{ needs.validate-version.outputs.version }}
-          body_path: release-notes.md
+          generate_release_notes: true
           draft: false
           prerelease: ${{ contains(needs.validate-version.outputs.version, '-') }}
           files: artifacts/*
