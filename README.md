@@ -47,6 +47,7 @@ A next-generation documentation engine written entirely in Rust. Zero Node.js de
 
 ### Developer Experience
 
+- **Cross-platform** — Single binary, zero dependencies. Runs on Linux, macOS, and Windows without Node.js, Python, or any runtime
 - **`oxidoc init`** — Scaffold a new project in seconds
 - **Error Diagnostics** — miette-powered errors with source spans, file paths, and suggestions
 - **Config Validation** — Unknown key detection with did-you-mean suggestions
@@ -60,11 +61,19 @@ A next-generation documentation engine written entirely in Rust. Zero Node.js de
 
 ### Install
 
+Oxidoc ships as a single binary with zero runtime dependencies — no Node.js, no Python, no Rust toolchain needed.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
 ```
 
 Or download a binary directly from [GitHub Releases](https://github.com/oxidoc-lab/oxidoc/releases).
+
+| Platform | Architecture                       |
+| :------- | :--------------------------------- |
+| Linux    | x64, ARM64                         |
+| macOS    | x64 (Intel), ARM64 (Apple Silicon) |
+| Windows  | x64                                |
 
 ### Create a Project
 

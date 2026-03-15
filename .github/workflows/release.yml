@@ -200,7 +200,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   build-binaries:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.label }})
     needs: [validate-version, prepare-release-assets]
     runs-on: ${{ matrix.runs-on }}
     strategy:
@@ -210,19 +210,24 @@ jobs:
           - runs-on: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: oxidoc
+            label: linux-x64
           - runs-on: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             artifact: oxidoc
+            label: linux-arm64
             cross: true
           - runs-on: macos-latest
             target: x86_64-apple-darwin
             artifact: oxidoc
+            label: macos-x64
           - runs-on: macos-latest
             target: aarch64-apple-darwin
             artifact: oxidoc
+            label: macos-arm64
           - runs-on: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: oxidoc.exe
+            label: windows-x64
     steps:
       - uses: actions/checkout@v5
 
@@ -255,7 +260,7 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           chmod +x ${{ matrix.artifact }}
-          tar czf oxidoc-${{ needs.validate-version.outputs.version }}-${{ matrix.target }}.tar.gz ${{ matrix.artifact }}
+          tar czf oxidoc-${{ needs.validate-version.outputs.version }}-${{ matrix.label }}.tar.gz ${{ matrix.artifact }}
           ls -lh oxidoc-*.tar.gz
 
       - name: Prepare binary artifact (Windows)
@@ -265,15 +270,15 @@ jobs:
           cd target/${{ matrix.target }}/release
           $version = "${{ needs.validate-version.outputs.version }}"
           $artifact = "${{ matrix.artifact }}"
-          $target = "${{ matrix.target }}"
-          $zipname = "oxidoc-${version}-${target}.zip"
+          $label = "${{ matrix.label }}"
+          $zipname = "oxidoc-${version}-${label}.zip"
           Compress-Archive -Path $artifact -DestinationPath $zipname
           ls -l $zipname
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: binaries-${{ matrix.target }}
+          name: binaries-${{ matrix.label }}
           path: |
             target/${{ matrix.target }}/release/oxidoc-*.tar.gz
             target/${{ matrix.target }}/release/oxidoc-*.zip
