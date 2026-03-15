@@ -1,4 +1,4 @@
-# Reusable test workflow: lint, check, and test.
+# Reusable test workflow: lint, check, test, package, and build verification.
 #
 # Called by:
 #   - ci.yml      (PR checks)
@@ -116,3 +116,77 @@ jobs:
 
       - name: Run tests
         run: cargo test -p oxidoc-core -p oxidoc-cli -p oxidoc-island
+
+  package-check:
+    name: Package Dry Run
+    needs: prepare-assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download bundled assets
+        uses: actions/download-artifact@v5
+        with:
+          name: bundled-assets
+          path: oxidoc-cli/assets
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: package
+
+      - name: Verify crate packaging
+        run: |
+          for crate in oxidoc-island oxidoc-text oxidoc-core oxidoc-cli; do
+            echo "::group::Packaging $crate"
+            cargo package -p "$crate" --allow-dirty --no-verify
+            echo "::endgroup::"
+          done
+
+  build-binaries:
+    name: Build (${{ matrix.target }})
+    needs: prepare-assets
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runs-on: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            cross: true
+          - runs-on: macos-latest
+            target: x86_64-apple-darwin
+          - runs-on: macos-latest
+            target: aarch64-apple-darwin
+          - runs-on: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download bundled assets
+        uses: actions/download-artifact@v5
+        with:
+          name: bundled-assets
+          path: oxidoc-cli/assets
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: build-${{ matrix.target }}
+
+      - name: Build oxidoc binary
+        run: cargo build -p oxidoc-cli --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.cross && 'aarch64-linux-gnu-gcc' || '' }}
