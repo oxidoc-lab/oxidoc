@@ -1,6 +1,6 @@
 # Oxidoc
 
-A next-generation documentation engine written entirely in Rust. Zero Node.js dependency. Sub-second builds. Interactive WebAssembly islands.
+A documentation engine written in Rust. Single binary, zero runtime dependencies. Interactive WebAssembly islands.
 
 ## Features
 
