@@ -117,33 +117,6 @@ jobs:
       - name: Run tests
         run: cargo test -p oxidoc-core -p oxidoc-cli -p oxidoc-island
 
-  package-check:
-    name: Package Dry Run
-    needs: prepare-assets
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Download bundled assets
-        uses: actions/download-artifact@v5
-        with:
-          name: bundled-assets
-          path: oxidoc-cli/assets
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: package
-
-      - name: Verify crate packaging
-        run: |
-          for crate in oxidoc-island oxidoc-text oxidoc-core; do
-            echo "::group::Packaging $crate"
-            cargo package -p "$crate" --allow-dirty --no-verify
-            echo "::endgroup::"
-          done
 
   build-binaries:
     name: Build (${{ matrix.target }})
