@@ -252,6 +252,12 @@ jobs:
           CURRENT=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "oxidoc-cli") | .version')
           if [[ "$VERSION" != "$CURRENT" ]]; then
             sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+
+            if [[ "$VERSION" == *-* ]]; then
+              sed -i -E 's/(oxidoc-(core|island|components|registry|openapi|search|text) = \{ version = )"[^"]*"/\1"='$VERSION'"/' Cargo.toml
+              echo "Updated internal dep versions to =$VERSION"
+            fi
+
             echo "Updated workspace version: $CURRENT -> $VERSION"
           fi
         shell: bash
