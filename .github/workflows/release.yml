@@ -248,16 +248,15 @@ jobs:
 
       - name: Set version from tag
         run: |
-          # Cross-platform sed -i (macOS requires backup extension)
-          sedi() { if [[ "$(uname)" == "Darwin" ]]; then sed -i '' "$@"; else sed -i "$@"; fi; }
-
           VERSION="${{ needs.validate-version.outputs.version }}"
           CURRENT=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "oxidoc-cli") | .version')
           if [[ "$VERSION" != "$CURRENT" ]]; then
-            sedi "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+            # Replace workspace version (perl for cross-platform sed -i)
+            perl -i -pe "if (!\$done && /^version = \"/) { s/^version = \".*\"/version = \"$VERSION\"/; \$done=1 }" Cargo.toml
 
+            # For prerelease, pin internal dep versions
             if [[ "$VERSION" == *-* ]]; then
-              sedi -E 's/(oxidoc-(core|island|components|registry|openapi|search|text) = \{ version = )"[^"]*"/\1"='$VERSION'"/' Cargo.toml
+              perl -i -pe "s/(oxidoc-(?:core|island|components|registry|openapi|search|text) = \\{ version = )\"[^\"]*\"/\${1}\"=$VERSION\"/" Cargo.toml
               echo "Updated internal dep versions to =$VERSION"
             fi
 
