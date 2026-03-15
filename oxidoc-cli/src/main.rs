@@ -24,7 +24,8 @@ use std::process::ExitCode;
 #[derive(Parser)]
 #[command(
     name = "oxidoc",
-    about = "Blazing-fast documentation engine powered by Rust and WebAssembly"
+    about = "Documentation engine powered by Rust and WebAssembly",
+    version
 )]
 struct Cli {
     #[command(subcommand)]
@@ -134,22 +135,38 @@ fn main() -> ExitCode {
 /// In development (inside the oxidoc workspace), builds from source to get the latest code.
 /// Otherwise, writes the pre-compiled bundled assets — no Rust toolchain required.
 fn write_wasm_assets(output_dir: &std::path::Path) {
-    // Try building from source first (dev workflow)
-    match oxidoc_core::wasm::build_wasm(output_dir) {
-        Ok(()) => return,
-        Err(e) => {
-            let msg = format!("{e}");
-            if msg.contains("locate") {
-                tracing::debug!("Not in oxidoc workspace, using bundled wasm assets");
-            } else {
+    if is_oxidoc_workspace() {
+        match oxidoc_core::wasm::build_wasm(output_dir) {
+            Ok(()) => return,
+            Err(e) => {
                 tracing::warn!("Wasm source build failed ({e}), falling back to bundled assets");
             }
         }
     }
 
-    // Fall back to bundled assets
     if let Err(e) = oxidoc_core::wasm::write_bundled_wasm(output_dir, &BUNDLED_WASM) {
         tracing::warn!("Failed to write bundled wasm assets: {e}");
+    }
+}
+
+/// Check if we're running inside the oxidoc development workspace.
+fn is_oxidoc_workspace() -> bool {
+    let output = std::process::Command::new("cargo")
+        .arg("locate-project")
+        .arg("--workspace")
+        .arg("--message-format=plain")
+        .output();
+
+    let Ok(output) = output else { return false };
+    if !output.status.success() {
+        return false;
+    }
+
+    let manifest = String::from_utf8_lossy(&output.stdout);
+    let workspace_root = std::path::Path::new(manifest.trim()).parent();
+    match workspace_root {
+        Some(root) => root.join("oxidoc-registry").is_dir(),
+        None => false,
     }
 }
 
