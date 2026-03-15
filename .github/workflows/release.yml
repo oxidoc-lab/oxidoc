@@ -13,6 +13,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   validate-version:
     name: Validate Version Tag
@@ -20,7 +23,10 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Validate tag against Cargo.toml
         id: version
@@ -28,11 +34,13 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           TAG_VERSION="${TAG#v}"
 
-          # Extract version from root Cargo.toml workspace.package section
-          TOML_VERSION=$(grep -A 10 "^\[workspace.package\]" Cargo.toml | grep "^version" | head -1 | cut -d'"' -f2)
+          CARGO_VERSION=$(cargo metadata --no-deps --format-version=1 \
+            | jq -r '.packages[] | select(.name == "oxidoc-cli") | .version')
+          CARGO_BASE=$(echo "$CARGO_VERSION" | grep -oP '^\d+\.\d+\.\d+')
 
           echo "Tag version: $TAG_VERSION"
-          echo "Cargo.toml version: $TOML_VERSION"
+          echo "Cargo.toml version: $CARGO_VERSION"
+          echo "Cargo.toml base: $CARGO_BASE"
 
           if [[ ! "$TAG_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-[a-zA-Z]+\.[0-9]+)?$ ]]; then
             echo "::error::Invalid tag format '$TAG'. Expected: vX.Y.Z or vX.Y.Z-label.N"
@@ -40,10 +48,9 @@ jobs:
           fi
 
           TAG_BASE="${BASH_REMATCH[1]}"
-          TOML_BASE=$(echo "$TOML_VERSION" | grep -oP '^\d+\.\d+\.\d+')
 
-          if [[ "$TAG_BASE" != "$TOML_BASE" ]]; then
-            echo "::error::Base version mismatch! Tag '$TAG_BASE' != Cargo.toml '$TOML_BASE'"
+          if [[ "$TAG_BASE" != "$CARGO_BASE" ]]; then
+            echo "::error::Base version mismatch! Tag '$TAG_BASE' != Cargo.toml '$CARGO_BASE'"
             exit 1
           fi
 
@@ -54,42 +61,12 @@ jobs:
     needs: validate-version
     uses: ./.github/workflows/ci.yml
 
-  publish-crates:
-    name: Publish Crates
-    needs: [validate-version, ci]
-    runs-on: ubuntu-latest
-    environment: crates.io
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Publish oxidoc-island
-        run: |
-          cargo publish -p oxidoc-island --token ${{ secrets.CARGO_TOKEN }}
-          echo "Waiting 30s for crates.io to process oxidoc-island..."
-          sleep 30
-
-      - name: Publish oxidoc-core
-        run: |
-          cargo publish -p oxidoc-core --token ${{ secrets.CARGO_TOKEN }}
-          echo "Waiting 30s for crates.io to process oxidoc-core..."
-          sleep 30
-
-      - name: Publish oxidoc-cli
-        run: |
-          cargo publish -p oxidoc-cli --token ${{ secrets.CARGO_TOKEN }}
-
-  # Build Wasm assets and download model once, shared across all binary targets
   prepare-assets:
     name: Prepare Bundled Assets
     needs: validate-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -99,10 +76,9 @@ jobs:
       - name: Install wasm-bindgen-cli
         run: cargo install wasm-bindgen-cli
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          key: wasm-assets
+          prefix-key: wasm-assets
 
       - name: Build Wasm assets
         run: |
@@ -119,48 +95,133 @@ jobs:
             https://huggingface.co/fs90/bge-micro-v2-i1-GGUF/resolve/main/bge-micro-v2.i1-Q4_K_M.gguf
 
       - name: Upload bundled assets
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: bundled-assets
+          name: release-assets
           path: |
             oxidoc-cli/assets/wasm/
             oxidoc-cli/assets/models/bge-micro-v2.gguf
           retention-days: 1
 
+  publish-crates:
+    name: Publish to crates.io
+    needs: [validate-version, ci, prepare-assets]
+    runs-on: ubuntu-latest
+    environment: crates.io
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download bundled assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: oxidoc-cli/assets
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set version from tag
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          CURRENT=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "oxidoc-cli") | .version')
+          if [[ "$VERSION" != "$CURRENT" ]]; then
+            sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+            echo "Updated workspace version: $CURRENT -> $VERSION"
+          else
+            echo "Version already matches, no change needed"
+          fi
+
+      # Publish in dependency order:
+      #   Tier 1: oxidoc-island, oxidoc-text (no internal deps)
+      #   Tier 2: oxidoc-core (depends on tier 1)
+      #   Tier 3: oxidoc-cli (depends on tier 2)
+      - name: Publish to crates.io
+        run: |
+          TIER1="oxidoc-island oxidoc-text"
+          TIER2="oxidoc-core"
+          TIER3="oxidoc-cli"
+
+          is_published() {
+            curl -sf -H "User-Agent: oxidoc-ci (github.com/oxidoc/oxidoc)" "https://crates.io/api/v1/crates/$1/$2" > /dev/null 2>&1
+          }
+
+          wait_for() {
+            local crate="$1" version="$2"
+            echo -n "  Waiting for $crate@$version..."
+            for i in $(seq 1 30); do
+              if is_published "$crate" "$version"; then
+                echo " ready"
+                return 0
+              fi
+              sleep 5
+            done
+            echo " timed out!"
+            return 1
+          }
+
+          publish_tier() {
+            local tier_name="$1"; shift
+            local crates=("$@")
+            local need_wait=()
+
+            echo "::group::Tier: $tier_name"
+            for crate in "${crates[@]}"; do
+              VERSION=$(cargo metadata --no-deps --format-version=1 \
+                | jq -r --arg name "$crate" '.packages[] | select(.name == $name) | .version')
+              if is_published "$crate" "$VERSION"; then
+                echo "  $crate@$VERSION already published — skipping"
+              else
+                echo "  Publishing $crate@$VERSION..."
+                cargo publish -p "$crate" --allow-dirty --no-verify
+                need_wait+=("$crate:$VERSION")
+              fi
+            done
+
+            for entry in "${need_wait[@]}"; do
+              wait_for "${entry%%:*}" "${entry##*:}"
+            done
+            echo "::endgroup::"
+          }
+
+          publish_tier "1 (no deps)"    $TIER1
+          publish_tier "2 (core)"       $TIER2
+          publish_tier "3 (cli)"        $TIER3
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
   build-binaries:
-    name: Build Binary
+    name: Build (${{ matrix.target }})
     needs: [validate-version, prepare-assets]
     runs-on: ${{ matrix.runs-on }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runs-on: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: oxidoc
-            extension: ""
           - runs-on: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             artifact: oxidoc
-            extension: ""
+            cross: true
           - runs-on: macos-latest
             target: x86_64-apple-darwin
             artifact: oxidoc
-            extension: ""
           - runs-on: macos-latest
             target: aarch64-apple-darwin
             artifact: oxidoc
-            extension: ""
           - runs-on: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: oxidoc.exe
-            extension: .exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: bundled-assets
+          name: release-assets
           path: oxidoc-cli/assets
 
       - name: Install Rust
@@ -168,13 +229,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          prefix-key: ${{ matrix.target }}
 
       - name: Build oxidoc binary
         run: cargo build -p oxidoc-cli --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.cross && 'aarch64-linux-gnu-gcc' || '' }}
 
       - name: Prepare binary artifact (Unix)
         if: runner.os != 'Windows'
@@ -197,7 +263,7 @@ jobs:
           ls -l $zipname
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.target }}
           path: |
@@ -207,20 +273,19 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: [validate-version, build-binaries]
+    needs: [validate-version, build-binaries, publish-crates]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: ./artifacts
 
       - name: Create release notes
-        id: release_notes
         run: |
           VERSION="${{ needs.validate-version.outputs.version }}"
           echo "# Oxidoc $VERSION" > release-notes.md
@@ -230,7 +295,7 @@ jobs:
           echo "Refer to [CHANGELOG.md](./CHANGELOG.md) for details." >> release-notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.validate-version.outputs.version }}
           name: Oxidoc ${{ needs.validate-version.outputs.version }}

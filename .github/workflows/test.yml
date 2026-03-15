@@ -12,13 +12,15 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  # Build Wasm assets and download model once, shared across lint + test matrix
   prepare-assets:
     name: Prepare Assets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -28,10 +30,9 @@ jobs:
       - name: Install wasm-bindgen-cli
         run: cargo install wasm-bindgen-cli
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          key: wasm-assets
+          prefix-key: wasm-assets
 
       - name: Build Wasm assets
         run: |
@@ -41,14 +42,13 @@ jobs:
             wasm-bindgen target/wasm32-unknown-unknown/release/${stem}.wasm --out-dir oxidoc-cli/assets/wasm --target web --no-typescript
           done
 
-      - name: Download embedding model
+      - name: Create stub embedding model
         run: |
           mkdir -p oxidoc-cli/assets/models
-          curl -L -o oxidoc-cli/assets/models/bge-micro-v2.gguf \
-            https://huggingface.co/fs90/bge-micro-v2-i1-GGUF/resolve/main/bge-micro-v2.i1-Q4_K_M.gguf
+          dd if=/dev/zero of=oxidoc-cli/assets/models/bge-micro-v2.gguf bs=1 count=1
 
       - name: Upload bundled assets
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bundled-assets
           path: |
@@ -61,10 +61,10 @@ jobs:
     needs: prepare-assets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: bundled-assets
           path: oxidoc-cli/assets
@@ -74,8 +74,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: lint
 
       - name: Check formatting
         run: cargo fmt --all --check
@@ -90,18 +91,18 @@ jobs:
         run: cargo test --workspace --doc
 
   test:
-    name: Test Suite
+    name: Test (${{ matrix.os }})
     needs: prepare-assets
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: bundled-assets
           path: oxidoc-cli/assets
@@ -109,8 +110,9 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: test
 
       - name: Run tests
         run: cargo test -p oxidoc-core -p oxidoc-cli -p oxidoc-island
