@@ -288,10 +288,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Download all artifacts
+      - name: Download binary artifacts
         uses: actions/download-artifact@v5
         with:
           path: ./artifacts
+          pattern: binaries-*
+          merge-multiple: true
 
       - name: Create release notes
         run: |
@@ -310,4 +312,5 @@ jobs:
           body_path: release-notes.md
           draft: false
           prerelease: ${{ contains(needs.validate-version.outputs.version, '-') }}
-          files: artifacts/**/*
+          files: artifacts/*
+          fail_on_unmatched_files: true
