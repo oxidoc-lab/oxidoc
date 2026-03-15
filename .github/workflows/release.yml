@@ -146,12 +146,11 @@ jobs:
       # Publish in dependency order:
       #   Tier 1: oxidoc-island, oxidoc-text (no internal deps)
       #   Tier 2: oxidoc-core (depends on tier 1)
-      #   Tier 3: oxidoc-cli (depends on tier 2)
+      #   oxidoc-cli is not published (distributed via GitHub releases)
       - name: Publish to crates.io
         run: |
           TIER1="oxidoc-island oxidoc-text"
           TIER2="oxidoc-core"
-          TIER3="oxidoc-cli"
 
           is_published() {
             curl -sf -H "User-Agent: oxidoc-ci (github.com/oxidoc/oxidoc)" "https://crates.io/api/v1/crates/$1/$2" > /dev/null 2>&1
@@ -197,7 +196,6 @@ jobs:
 
           publish_tier "1 (no deps)"    $TIER1
           publish_tier "2 (core)"       $TIER2
-          publish_tier "3 (cli)"        $TIER3
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 

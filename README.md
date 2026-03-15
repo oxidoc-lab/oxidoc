@@ -61,8 +61,10 @@ A next-generation documentation engine written entirely in Rust. Zero Node.js de
 ### Install
 
 ```bash
-cargo install oxidoc-cli
+curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
 ```
+
+Or download a binary directly from [GitHub Releases](https://github.com/oxidoc-lab/oxidoc/releases).
 
 ### Create a Project
 
@@ -176,7 +178,7 @@ curl -L -o oxidoc-cli/assets/models/bge-micro-v2.gguf \
   https://huggingface.co/fs90/bge-micro-v2-i1-GGUF/resolve/main/bge-micro-v2.i1-Q4_K_M.gguf
 ```
 
-This ~17MB GGUF model is embedded into the binary at compile time via `include_bytes!()` and is required for `cargo build` to succeed. End users installing via `cargo install oxidoc-cli` receive it automatically.
+This ~17MB GGUF model is embedded into the binary at compile time via `include_bytes!()` and is required for `cargo build` to succeed. Pre-built binaries from [GitHub Releases](https://github.com/oxidoc-lab/oxidoc/releases) include it already.
 
 ## Architecture
 

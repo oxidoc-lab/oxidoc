@@ -139,7 +139,7 @@ jobs:
 
       - name: Verify crate packaging
         run: |
-          for crate in oxidoc-island oxidoc-text oxidoc-core oxidoc-cli; do
+          for crate in oxidoc-island oxidoc-text oxidoc-core; do
             echo "::group::Packaging $crate"
             cargo package -p "$crate" --allow-dirty --no-verify
             echo "::endgroup::"

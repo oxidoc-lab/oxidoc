@@ -90,7 +90,7 @@ Numbered step-by-step instructions with a connecting line. Each `Step` takes a `
 
 <Steps>
 <Step title="Install Oxidoc">
-Run `cargo install oxidoc-cli` or use your package manager.
+Run `curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh` or download from [GitHub Releases](https://github.com/oxidoc-lab/oxidoc/releases).
 </Step>
 <Step title="Initialize a project">
 Run `oxidoc init my-docs` to scaffold a new documentation site.
