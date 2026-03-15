@@ -127,7 +127,16 @@ jobs:
           VERSION="${{ needs.validate-version.outputs.version }}"
           CURRENT=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "oxidoc-cli") | .version')
           if [[ "$VERSION" != "$CURRENT" ]]; then
+            # Update workspace.package version
             sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+
+            # For prerelease versions, update internal dependency requirements
+            # (semver "0.1" won't match "0.1.0-beta.1")
+            if [[ "$VERSION" == *-* ]]; then
+              sed -i -E 's/(oxidoc-(core|island|components|registry|openapi|search|text) = \{ version = )"[^"]*"/\1"='$VERSION'"/' Cargo.toml
+              echo "Updated internal dep versions to =$VERSION"
+            fi
+
             echo "Updated workspace version: $CURRENT -> $VERSION"
           else
             echo "Version already matches, no change needed"
