@@ -19,13 +19,13 @@ repository = "https://github.com/oxidoc-lab/oxidoc"
 
 [workspace.dependencies]
 # Internal crates
-oxidoc-core = { version = "0.1.0", path = "oxidoc-core" }
-oxidoc-island = { version = "0.1.0", path = "oxidoc-island" }
-oxidoc-components = { version = "0.1.0", path = "oxidoc-components" }
-oxidoc-registry = { version = "0.1.0", path = "oxidoc-registry" }
-oxidoc-openapi = { version = "0.1.0", path = "oxidoc-openapi" }
-oxidoc-search = { version = "0.1.0", path = "oxidoc-search" }
-oxidoc-text = { version = "0.1.0", path = "oxidoc-text" }
+oxidoc-core = { version = "0.1", path = "oxidoc-core" }
+oxidoc-island = { version = "0.1", path = "oxidoc-island" }
+oxidoc-components = { version = "0.1", path = "oxidoc-components" }
+oxidoc-registry = { version = "0.1", path = "oxidoc-registry" }
+oxidoc-openapi = { version = "0.1", path = "oxidoc-openapi" }
+oxidoc-search = { version = "0.1", path = "oxidoc-search" }
+oxidoc-text = { version = "0.1", path = "oxidoc-text" }
 
 # RDX (published crate references — local override via .cargo/config.toml)
 rdx-parser = "0.1"
@@ -36,7 +36,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rkyv = "0.8"
 toml = "1"
-serde-saphyr = "0.0.21"
+serde-saphyr = "0.0"
 
 # CLI
 clap = { version = "4", features = ["derive"] }

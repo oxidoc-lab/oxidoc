@@ -6,6 +6,15 @@ license.workspace = true
 repository.workspace = true
 description = "The Oxidoc documentation engine CLI — oxidoc dev & oxidoc build"
 
+include = [
+    "Cargo.toml",
+    "build.rs",
+    "src/**/*",
+    "tests/**/*",
+    "assets/models/**/*",
+    "assets/wasm/**/*",
+]
+
 [[bin]]
 name = "oxidoc"
 path = "src/main.rs"
