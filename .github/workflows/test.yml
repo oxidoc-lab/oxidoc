@@ -48,7 +48,7 @@ jobs:
           dd if=/dev/zero of=oxidoc-cli/assets/models/bge-micro-v2.gguf bs=1 count=1
 
       - name: Upload bundled assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bundled-assets
           path: |
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bundled-assets
           path: oxidoc-cli/assets
@@ -102,7 +102,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: bundled-assets
           path: oxidoc-cli/assets

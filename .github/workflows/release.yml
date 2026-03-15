@@ -95,7 +95,7 @@ jobs:
             https://huggingface.co/fs90/bge-micro-v2-i1-GGUF/resolve/main/bge-micro-v2.i1-Q4_K_M.gguf
 
       - name: Upload bundled assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-assets
           path: |
@@ -114,7 +114,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: release-assets
           path: oxidoc-cli/assets
@@ -219,7 +219,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download bundled assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: release-assets
           path: oxidoc-cli/assets
@@ -263,7 +263,7 @@ jobs:
           ls -l $zipname
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: binaries-${{ matrix.target }}
           path: |
@@ -281,7 +281,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: ./artifacts
 
