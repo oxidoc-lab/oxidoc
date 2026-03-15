@@ -11,8 +11,7 @@ include = [
     "build.rs",
     "src/**/*",
     "tests/**/*",
-    "assets/models/**/*",
-    "assets/wasm/**/*",
+    "assets/**/*",
 ]
 
 [[bin]]
