@@ -3,7 +3,7 @@ use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
 use crate::template::{
     BACK_TO_TOP_JS, HEADER_SCROLL_JS, SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS,
-    build_header_actions, render_logo_html,
+    build_header_actions, build_menu_toggle, build_mobile_nav_links, render_logo_html,
 };
 use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
@@ -117,10 +117,17 @@ pub fn render_landing_page(
 <body data-locale="{locale}">
 <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header oxidoc-header-landing" role="banner">
+        {menu_toggle_html}
         {logo_html}
         {locale_switcher_html}
         {header_actions_html}
     </header>
+    <div class="oxidoc-sidebar-overlay"></div>
+    <aside class="oxidoc-sidebar oxidoc-sidebar-landing" role="navigation" aria-label="Main navigation">
+        <div class="oxidoc-sidebar-inner">
+            {mobile_nav_links}
+        </div>
+    </aside>
     <main id="oxidoc-main" class="oxidoc-landing" role="main">
         <article>
             {content_html}
@@ -134,7 +141,9 @@ pub fn render_landing_page(
 </html>"##,
         lang = locale,
         locale = locale,
+        menu_toggle_html = build_menu_toggle(),
         header_actions_html = build_header_actions(&config.social),
+        mobile_nav_links = build_mobile_nav_links(&config.routing.header_links),
     );
 
     let mut html = html;
@@ -169,8 +178,8 @@ pub fn render_landing_page(
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, mermaid_script
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, crate::template::MOBILE_MENU_JS, mermaid_script
         ),
     )
 }

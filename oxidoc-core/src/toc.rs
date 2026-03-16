@@ -47,6 +47,32 @@ pub fn extract_heading_text(node: &Node) -> String {
     extract_plain_text(node)
 }
 
+/// Render a mobile TOC dropdown (collapsible, shown only on small screens).
+pub fn render_mobile_toc(entries: &[TocEntry]) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+
+    let mut html = String::from(
+        r#"<div class="oxidoc-toc-mobile">
+<button class="oxidoc-toc-mobile-toggle" aria-expanded="false" aria-controls="oxidoc-toc-mobile-dropdown">
+<span>On this page</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6l-6-6z"/></svg>
+</button>
+<nav id="oxidoc-toc-mobile-dropdown" class="oxidoc-toc-mobile-dropdown" aria-label="Table of contents"><ul>"#,
+    );
+    for entry in entries {
+        let indent_class = format!("toc-level-{}", entry.level);
+        html.push_str(&format!(
+            r##"<li class="{indent_class}"><a href="#{}">{}</a></li>"##,
+            crate::utils::html_escape(&entry.anchor),
+            crate::utils::html_escape(&entry.text),
+        ));
+    }
+    html.push_str("</ul></nav></div>");
+    html
+}
+
 /// Render TOC entries into an HTML `<nav>` element.
 pub fn render_toc(entries: &[TocEntry]) -> String {
     if entries.is_empty() {

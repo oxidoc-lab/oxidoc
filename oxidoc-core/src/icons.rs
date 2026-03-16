@@ -18,6 +18,7 @@ pub const AUTO_AWESOME: &str = include_str!("icons/auto-awesome.svg");
 pub const TAG: &str = include_str!("icons/tag.svg");
 pub const DESCRIPTION: &str = include_str!("icons/description.svg");
 pub const LINK: &str = include_str!("icons/link.svg");
+pub const MENU: &str = include_str!("icons/menu.svg");
 
 /// Wrap an SVG string with a given width/height and optional class.
 pub fn svg_icon(svg: &str, width: &str, height: &str, class: &str) -> String {

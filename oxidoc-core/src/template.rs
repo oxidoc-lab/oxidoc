@@ -14,6 +14,7 @@ pub(crate) const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.
 pub(crate) const API_TABS_JS: &str = include_str!("templates/api_tabs.js");
 pub(crate) const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
 pub(crate) const HEADER_ACTIONS_HTML: &str = include_str!("templates/header_actions.html");
+pub(crate) const MOBILE_MENU_JS: &str = include_str!("templates/mobile_menu.js");
 pub(crate) const ERROR_404_HTML: &str = include_str!("templates/error_404.html");
 
 use crate::config::SocialConfig;
@@ -37,14 +38,61 @@ pub(crate) fn build_header_nav(links: &[crate::config::HeaderLink]) -> String {
     html
 }
 
-/// Build the header actions HTML with social links injected before the static buttons.
+/// Build the mobile menu links (header links rendered as a list for mobile sidebar).
+pub(crate) fn build_mobile_nav_links(links: &[crate::config::HeaderLink]) -> String {
+    if links.is_empty() {
+        return String::new();
+    }
+    let mut html =
+        String::from(r#"<nav class="oxidoc-mobile-nav-links" aria-label="Main navigation"><ul>"#);
+    for link in links {
+        use std::fmt::Write;
+        let _ = write!(
+            html,
+            r#"<li><a href="{}">{}</a></li>"#,
+            crate::utils::html_escape(&link.href),
+            crate::utils::html_escape(&link.label),
+        );
+    }
+    html.push_str("</ul></nav>");
+    html
+}
+
+/// Build the header actions HTML with social links and icons injected.
 pub(crate) fn build_header_actions(social: &SocialConfig) -> String {
+    use crate::icons;
+
     let social_html = social.render_header_icons();
-    // Insert social links before the theme toggle (first element in HEADER_ACTIONS_HTML)
-    HEADER_ACTIONS_HTML.replacen(
-        r#"<div class="oxidoc-header-actions">"#,
-        &format!(r#"<div class="oxidoc-header-actions">{social_html}"#),
-        1,
+    let theme_icon = icons::svg_icon(icons::CONTRAST, "20", "20", "");
+    let search_icon = icons::svg_icon(icons::SEARCH, "16", "16", "");
+
+    HEADER_ACTIONS_HTML
+        .replacen(
+            r#"<div class="oxidoc-header-actions">"#,
+            &format!(r#"<div class="oxidoc-header-actions">{social_html}"#),
+            1,
+        )
+        .replacen(
+            r#"class="oxidoc-theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"></button>"#,
+            &format!(r#"class="oxidoc-theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">{theme_icon}</button>"#),
+            1,
+        )
+        .replacen(
+            r#"<span>Search</span>"#,
+            &format!(r#"{search_icon}<span>Search</span>"#),
+            1,
+        )
+}
+
+/// Build the mobile menu toggle button (placed before logo in header).
+pub(crate) fn build_menu_toggle() -> String {
+    use crate::icons;
+
+    let menu_icon = icons::svg_icon(icons::MENU, "24", "24", "oxidoc-menu-icon");
+    let close_icon = icons::svg_icon(icons::CLOSE, "24", "24", "oxidoc-close-icon");
+
+    format!(
+        r#"<button class="oxidoc-menu-toggle" aria-label="Open navigation menu" aria-expanded="false">{menu_icon}{close_icon}</button>"#
     )
 }
 
@@ -150,6 +198,20 @@ pub fn render_page(
         String::new()
     };
 
+    // Mobile TOC dropdown (shown only on small screens via CSS)
+    let mobile_toc_html = if toc_html.is_empty() {
+        String::new()
+    } else {
+        // Extract the <ul>...</ul> from the toc_html nav
+        let toc_list = toc_html
+            .find("<ul>")
+            .and_then(|start| toc_html.rfind("</ul>").map(|end| &toc_html[start..end + 5]))
+            .unwrap_or(toc_html);
+        format!(
+            r#"<div class="oxidoc-toc-mobile"><button class="oxidoc-toc-mobile-toggle" aria-expanded="false"><span>On this page</span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6l-6-6z"/></svg></button><nav class="oxidoc-toc-mobile-dropdown" aria-label="Table of contents">{toc_list}</nav></div>"#
+        )
+    };
+
     let toc_aside = if toc_html.is_empty() {
         r#"<aside class="oxidoc-toc-sidebar" role="complementary" aria-label="Table of contents"></aside>"#.to_string()
     } else {
@@ -186,18 +248,25 @@ pub fn render_page(
 <body data-locale="{locale}">
 <a href="#oxidoc-main" class="oxidoc-skip-nav">Skip to content</a>
     <header class="oxidoc-header" role="banner">
+        {menu_toggle_html}
         {logo_html}
         {header_nav_html}
         {locale_switcher_html}
         {header_actions_html}
     </header>
+    <div class="oxidoc-sidebar-overlay"></div>
     <div class="oxidoc-layout">
         <aside class="oxidoc-sidebar" role="navigation" aria-label="Documentation navigation">
             <div class="oxidoc-sidebar-inner">
-                {sidebar_html}
+                {mobile_nav_links}
+                <button class="oxidoc-mobile-back-btn">&#8592; Back to main menu</button>
+                <div class="oxidoc-sidebar-doc-nav">
+                    {sidebar_html}
+                </div>
             </div>
         </aside>
         <main id="oxidoc-main" class="oxidoc-content" role="main">
+            {mobile_toc_html}
             {breadcrumb_html}
             <article>
                 {content_html}
@@ -237,7 +306,10 @@ pub fn render_page(
         search_head_tags = search_head_tags,
         search_scripts = search_scripts,
         header_nav_html = build_header_nav(&config.routing.header_links),
+        menu_toggle_html = build_menu_toggle(),
         header_actions_html = build_header_actions(&config.social),
+        mobile_nav_links = build_mobile_nav_links(&config.routing.header_links),
+        mobile_toc_html = mobile_toc_html,
     );
     let mut html = html;
     // Extract <Head> component content and move to <head>
@@ -272,8 +344,8 @@ pub fn render_page(
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, mermaid_script
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
+            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, MOBILE_MENU_JS, mermaid_script
         ),
     )
 }

@@ -1,141 +1,154 @@
 /* Header */
 .oxidoc-header {
-    position: sticky;
-    top: 0;
-    z-index: var(--oxidoc-z-header);
-    height: var(--oxidoc-header-height);
-    display: flex;
-    align-items: center;
-    padding: 0 1.5rem;
-    background: var(--oxidoc-bg);
-    border-bottom: 1px solid var(--oxidoc-border);
-    transition: transform var(--oxidoc-transition-normal);
+  position: sticky;
+  top: 0;
+  z-index: var(--oxidoc-z-header);
+  height: var(--oxidoc-header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  background: var(--oxidoc-bg);
+  border-bottom: 1px solid var(--oxidoc-border);
+  transition: transform var(--oxidoc-transition-normal);
 }
 .oxidoc-header.oxidoc-header-hidden {
-    transform: translateY(-100%);
+  transform: translateY(-100%);
 }
 .oxidoc-logo {
-    font-weight: 700;
-    font-size: 1.125rem;
-    color: var(--oxidoc-text);
-    text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--oxidoc-text);
+  text-decoration: none;
 }
-.oxidoc-logo:hover { color: var(--oxidoc-primary); }
+.oxidoc-logo span {
+  padding-bottom: 2px;
+}
+.oxidoc-logo:hover {
+  color: var(--oxidoc-primary);
+}
 
 /* Header navigation links */
 .oxidoc-header-nav {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    margin-left: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 1.5rem;
 }
 .oxidoc-header-nav-link {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--oxidoc-text-muted);
-    text-decoration: none;
-    border-radius: 0.375rem;
-    transition: color var(--oxidoc-transition-fast), background var(--oxidoc-transition-fast);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--oxidoc-text-muted);
+  text-decoration: none;
+  border-radius: 0.375rem;
+  transition:
+    color var(--oxidoc-transition-fast),
+    background var(--oxidoc-transition-fast);
 }
 .oxidoc-header-nav-link:hover {
-    color: var(--oxidoc-primary);
-    background: var(--oxidoc-bg-hover);
+  color: var(--oxidoc-primary);
+  background: var(--oxidoc-bg-hover);
 }
 
 /* Version switcher */
 .oxidoc-version-switcher {
-    position: relative;
-    margin-right: 0.5rem;
-    align-self: center;
+  position: relative;
+  margin-right: 0.5rem;
+  align-self: center;
 }
 .oxidoc-version-switcher-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--oxidoc-text);
-    cursor: pointer;
-    font-family: inherit;
-    line-height: 1.4;
-    transition: color var(--oxidoc-transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--oxidoc-text);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+  transition: color var(--oxidoc-transition-fast);
 }
 .oxidoc-version-switcher-toggle:hover {
-    color: var(--oxidoc-primary);
+  color: var(--oxidoc-primary);
 }
 .oxidoc-version-switcher-toggle svg {
-    width: 10px;
-    height: 10px;
-    opacity: 0.5;
-    transition: transform var(--oxidoc-transition-fast);
+  width: 10px;
+  height: 10px;
+  opacity: 0.5;
+  transition: transform var(--oxidoc-transition-fast);
 }
 .oxidoc-version-switcher.open .oxidoc-version-switcher-toggle svg {
-    transform: rotate(180deg);
+  transform: rotate(180deg);
 }
 .oxidoc-version-switcher-menu {
-    display: none;
-    position: absolute;
-    top: calc(100% + 0.375rem);
-    right: 0;
-    min-width: 7rem;
-    background: var(--oxidoc-bg);
-    border: 1px solid var(--oxidoc-border);
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    padding: 0.25rem;
-    z-index: 100;
-    list-style: none;
-    margin: 0;
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  min-width: 7rem;
+  background: var(--oxidoc-bg);
+  border: 1px solid var(--oxidoc-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 0.25rem;
+  z-index: 100;
+  list-style: none;
+  margin: 0;
 }
 .oxidoc-version-switcher.open .oxidoc-version-switcher-menu {
-    display: block;
+  display: block;
 }
 .oxidoc-version-switcher-menu a {
-    display: block;
-    padding: 0.375rem 0.75rem;
-    font-size: 0.8125rem;
-    color: var(--oxidoc-text);
-    text-decoration: none;
-    border-radius: 0.375rem;
-    transition: background var(--oxidoc-transition-fast);
+  display: block;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--oxidoc-text);
+  text-decoration: none;
+  border-radius: 0.375rem;
+  transition: background var(--oxidoc-transition-fast);
 }
 .oxidoc-version-switcher-menu a:hover {
-    background: var(--oxidoc-bg-hover);
+  background: var(--oxidoc-bg-hover);
 }
 .oxidoc-version-switcher-menu a.active {
-    color: var(--oxidoc-primary);
-    font-weight: 600;
+  color: var(--oxidoc-primary);
+  font-weight: 600;
 }
 
 /* Outdated version banner */
 .oxidoc-outdated-banner {
-    background: #fef3c7;
-    border-bottom: 1px solid #f59e0b;
-    padding: 0.5rem 1.5rem;
-    font-size: 0.875rem;
-    color: #92400e;
-    text-align: center;
+  background: #fef3c7;
+  border-bottom: 1px solid #f59e0b;
+  padding: 0.5rem 1.5rem;
+  font-size: 0.875rem;
+  color: #92400e;
+  text-align: center;
 }
 [data-theme="dark"] .oxidoc-outdated-banner {
-    background: #451a03;
-    border-bottom-color: #b45309;
-    color: #fde68a;
+  background: #451a03;
+  border-bottom-color: #b45309;
+  color: #fde68a;
 }
 .oxidoc-outdated-banner a {
-    color: #d97706;
-    font-weight: 600;
-    text-decoration: underline;
+  color: #d97706;
+  font-weight: 600;
+  text-decoration: underline;
 }
 .oxidoc-outdated-banner a:hover {
-    color: #b45309;
+  color: #b45309;
 }
 [data-theme="dark"] .oxidoc-outdated-banner a {
-    color: #fbbf24;
+  color: #fbbf24;
 }
 [data-theme="dark"] .oxidoc-outdated-banner a:hover {
-    color: #f59e0b;
+  color: #f59e0b;
 }
