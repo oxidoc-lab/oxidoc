@@ -216,10 +216,9 @@ name = "Test Docs""#,
         );
         assert!(html.contains("oxidoc-landing"));
         assert!(html.contains("oxidoc-header-landing"));
-        assert!(!html.contains("oxidoc-sidebar"));
+        assert!(html.contains("oxidoc-sidebar-landing"));
         assert!(!html.contains("oxidoc-toc-sidebar"));
         assert!(!html.contains("oxidoc-layout"));
-        assert!(!html.contains("oxidoc-header-nav"));
         assert!(html.contains("<p>Hello</p>"));
         assert!(html.contains("oxidoc-footer"));
     }

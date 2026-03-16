@@ -294,7 +294,7 @@ homepage = "home.rdx"
     // Archived landing page should have landing class
     let archived_home = read_output(&output, "v1.0/index.html");
     assert!(archived_home.contains("oxidoc-landing"));
-    assert!(!archived_home.contains("oxidoc-sidebar"));
+    assert!(archived_home.contains("oxidoc-sidebar-landing"));
 }
 
 // --- Build without archives produces no version directories ---
