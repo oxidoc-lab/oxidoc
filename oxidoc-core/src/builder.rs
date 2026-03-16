@@ -127,7 +127,7 @@ pub fn build_site_with_model(
     let css_path = format!("/{}", css_filename);
     let css_sri = generate_sri_hash(css.as_bytes());
 
-    let js = generate_loader_js();
+    let js = generate_loader_js(env!("CARGO_PKG_VERSION"));
     let js_hash = hash_content(js.as_bytes());
     let js_filename = format!("oxidoc-loader.{}.js", js_hash);
     let js_path = format!("/{}", js_filename);
