@@ -76,6 +76,19 @@ pub fn render_landing_page(
     let current_path = format!("/{}", active_slug);
     let locale_switcher_html = i18n_state.render_locale_switcher(locale, &current_path);
 
+    let favicon_html = if let Some(ref favicon) = config.project.favicon {
+        let favicon_escaped = crate::utils::html_escape(favicon);
+        if favicon.ends_with(".svg") {
+            format!(r#"    <link rel="icon" type="image/svg+xml" href="{favicon_escaped}">"#)
+        } else if favicon.ends_with(".png") {
+            format!(r#"    <link rel="icon" type="image/png" href="{favicon_escaped}">"#)
+        } else {
+            format!(r#"    <link rel="icon" href="{favicon_escaped}">"#)
+        }
+    } else {
+        String::new()
+    };
+
     let html = format!(
         r##"<!DOCTYPE html>
 <html lang="{lang}" data-locale="{locale}">
@@ -94,6 +107,7 @@ pub fn render_landing_page(
     <meta name="twitter:title" content="{page_title_escaped}">
     <script type="application/ld+json">{json_ld}</script>
     <link rel="canonical" href="{base_url}{active_slug}">
+{favicon_html}
 {css_preload}
 {js_preload}
 {stylesheet_link}

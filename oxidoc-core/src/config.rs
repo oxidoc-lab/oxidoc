@@ -37,6 +37,9 @@ pub struct ProjectConfig {
     pub name: String,
     #[serde(default)]
     pub logo: Option<String>,
+    /// Path to favicon (e.g. "/assets/favicon.ico", "/assets/favicon.svg")
+    #[serde(default)]
+    pub favicon: Option<String>,
     #[serde(default)]
     pub base_url: Option<String>,
     #[serde(default)]
