@@ -76,10 +76,7 @@ pub fn render_footer(config: &OxidocConfig) -> String {
         }
 
         if config.attribution.oxidoc {
-            parts.push(
-                r#"Built with <a href="https://oxidoc.dev">Oxidoc</a>."#
-                    .to_string(),
-            );
+            parts.push(r#"Built with <a href="https://oxidoc.dev">Oxidoc</a>."#.to_string());
         }
 
         let _ = write!(html, "{}", parts.join(" "));
