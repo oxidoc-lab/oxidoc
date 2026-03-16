@@ -91,7 +91,9 @@
     border: none;
     border-radius: 0;
     background: transparent;
+    position: static;
 }
+.oxidoc-codeblock-body .oxidoc-copy-code,
 .oxidoc-copy-btn {
     position: absolute;
     top: 0.5rem;
@@ -105,9 +107,12 @@
     cursor: pointer;
     opacity: 0;
     transition: opacity var(--oxidoc-transition-fast);
+    z-index: 1;
 }
+.oxidoc-codeblock:hover .oxidoc-copy-code,
 .oxidoc-codeblock:hover .oxidoc-copy-btn { opacity: 1; }
-.oxidoc-copy-btn.copied { color: var(--oxidoc-success); }
+.oxidoc-copy-btn.copied,
+.oxidoc-codeblock .oxidoc-copy-code.copied { color: var(--oxidoc-success); }
 .oxidoc-line {
     display: block;
     margin-left: -1rem;
@@ -302,6 +307,15 @@ a.oxidoc-card:hover {
 .oxidoc-step-body p { margin-bottom: 0.5rem; }
 .oxidoc-step-body p:last-child { margin-bottom: 0; }
 
+/* Component: Badge — block-level spacing when standalone */
+h1 + div > .oxidoc-badge,
+h1 + div > .oxidoc-tag,
+h2 + div > .oxidoc-badge,
+h2 + div > .oxidoc-tag,
+h3 + div > .oxidoc-badge,
+h3 + div > .oxidoc-tag {
+    margin-top: -0.25rem;
+}
 /* Component: Badge */
 .oxidoc-badge {
     display: inline-flex;
