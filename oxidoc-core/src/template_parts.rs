@@ -77,7 +77,7 @@ pub fn render_footer(config: &OxidocConfig) -> String {
 
         if config.attribution.oxidoc {
             parts.push(
-                r#"Built with <a href="https://github.com/oxidoc-lab/oxidoc">Oxidoc</a>."#
+                r#"Built with <a href="https://oxidoc.dev">Oxidoc</a>."#
                     .to_string(),
             );
         }
