@@ -210,8 +210,36 @@ fn spawn_watcher(
     output_dir: PathBuf,
     reload_tx: Arc<broadcast::Sender<()>>,
 ) -> miette::Result<notify::RecommendedWatcher> {
-    let docs_dir = project_root.join("docs");
     let config_path = project_root.join("oxidoc.toml");
+    let assets_dir = project_root.join("assets");
+
+    // Build list of watched directories: all content dirs + assets + root .rdx files
+    let mut watch_dirs: Vec<PathBuf> = vec![project_root.join("docs"), assets_dir];
+
+    // Parse config to discover additional content directories
+    if let Ok(config) = oxidoc_core::config::load_config(&project_root) {
+        for nav in &config.routing.navigation {
+            if let Some(dir) = &nav.dir {
+                let content_dir = project_root.join(dir);
+                if !watch_dirs.contains(&content_dir) {
+                    watch_dirs.push(content_dir);
+                }
+            }
+        }
+    }
+
+    // Also watch root .rdx files (home.rdx, etc.)
+    let watch_root_rdx: Vec<PathBuf> = std::fs::read_dir(&project_root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|ext| ext == "rdx" || ext == "toml")
+        })
+        .map(|e| e.path())
+        .collect();
 
     let root_clone = project_root.clone();
     let last_rebuild = std::sync::Arc::new(std::sync::Mutex::new(std::time::Instant::now()));
@@ -234,11 +262,12 @@ fn spawn_watcher(
                 return;
             }
 
-            // Only rebuild on file modifications/creates/deletes in docs/ or oxidoc.toml
-            let dominated = event
-                .paths
-                .iter()
-                .any(|p| p.starts_with(&docs_dir) || p == &config_path);
+            // Rebuild on changes in content dirs, assets, config, or root .rdx files
+            let dominated = event.paths.iter().any(|p| {
+                watch_dirs.iter().any(|d| p.starts_with(d))
+                    || p == &config_path
+                    || watch_root_rdx.iter().any(|f| p == f)
+            });
             if !dominated {
                 return;
             }

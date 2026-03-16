@@ -109,7 +109,9 @@ fn main() -> ExitCode {
 
     let project_root = cli
         .project
-        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
+        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"))
+        .canonicalize()
+        .expect("cannot resolve project path — does the directory exist?");
 
     let result = match cli.command {
         Command::Build { output } => run_build(&project_root, &output),
