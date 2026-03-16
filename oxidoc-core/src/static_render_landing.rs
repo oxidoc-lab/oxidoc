@@ -25,27 +25,30 @@ pub(crate) fn render_static_hero(
         );
     }
 
-    // Separate HeroAction children from body content (tagline text)
+    // Separate children into actions, tagline text, and extra components
     let mut actions: Vec<&rdx_ast::Node> = Vec::new();
-    let mut body: Vec<&rdx_ast::Node> = Vec::new();
+    let mut tagline_nodes: Vec<&rdx_ast::Node> = Vec::new();
+    let mut extra: Vec<&rdx_ast::Node> = Vec::new();
     for child in children {
         if matches!(child, rdx_ast::Node::Component(c) if c.name == "HeroAction") {
             actions.push(child);
+        } else if matches!(child, rdx_ast::Node::Component(_)) {
+            extra.push(child);
         } else {
-            body.push(child);
+            tagline_nodes.push(child);
         }
     }
 
-    // Render tagline: prefer prop, fall back to body content
+    // Render tagline: prefer prop, fall back to body text
     if !tagline.is_empty() {
         let _ = write!(
             out,
             r#"<p class="oxidoc-hero-tagline">{}</p>"#,
             crate::utils::html_escape(tagline)
         );
-    } else if !body.is_empty() {
+    } else if !tagline_nodes.is_empty() {
         out.push_str(r#"<div class="oxidoc-hero-tagline">"#);
-        for node in &body {
+        for node in &tagline_nodes {
             crate::renderer::render_node(node, out, ctx);
         }
         out.push_str("</div>");
@@ -58,6 +61,11 @@ pub(crate) fn render_static_hero(
             crate::renderer::render_node(node, out, ctx);
         }
         out.push_str("</div>");
+    }
+
+    // Render extra components (e.g., install tabs) after buttons
+    for node in &extra {
+        crate::renderer::render_node(node, out, ctx);
     }
 
     out.push_str("</div>");
