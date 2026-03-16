@@ -19,19 +19,25 @@ pub fn extract_toc(root: &Root) -> Vec<TocEntry> {
 }
 
 fn collect_headings(node: &Node, entries: &mut Vec<TocEntry>) {
-    if let Node::Heading(h) = node {
-        let level = h.depth.unwrap_or(1).clamp(1, 6);
-        let text = extract_plain_text(node);
-        let anchor = h.id.clone().unwrap_or_else(|| heading_anchor(&text));
-        entries.push(TocEntry {
-            level,
-            text,
-            anchor,
-        });
-    }
-    if let Some(children) = node.children() {
-        for child in children {
-            collect_headings(child, entries);
+    match node {
+        Node::Heading(h) => {
+            let level = h.depth.unwrap_or(1).clamp(1, 6);
+            let text = extract_plain_text(node);
+            let anchor = h.id.clone().unwrap_or_else(|| heading_anchor(&text));
+            entries.push(TocEntry {
+                level,
+                text,
+                anchor,
+            });
+        }
+        // Skip components and code blocks — only collect top-level headings
+        Node::Component(_) | Node::CodeBlock(_) => {}
+        _ => {
+            if let Some(children) = node.children() {
+                for child in children {
+                    collect_headings(child, entries);
+                }
+            }
         }
     }
 }

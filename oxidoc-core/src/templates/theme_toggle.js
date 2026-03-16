@@ -22,6 +22,12 @@
     try { localStorage.setItem("oxidoc-theme", v); } catch (e) {}
   }
 
+  function isDark(mode) {
+    if (mode === "dark") return true;
+    if (mode === "light") return false;
+    return window.matchMedia("(prefers-color-scheme:dark)").matches;
+  }
+
   function apply(mode) {
     var html = document.documentElement;
     if (mode === "system") {
@@ -32,6 +38,21 @@
     btn.innerHTML = icons[mode];
     btn.setAttribute("aria-label", labels[mode]);
     btn.setAttribute("title", labels[mode]);
+    // Re-render mermaid diagrams with correct theme
+    if (typeof window.mermaid !== "undefined") {
+      var theme = isDark(mode) ? "dark" : "default";
+      window.mermaid.initialize({ startOnLoad: false, theme: theme });
+      var els = document.querySelectorAll("pre.mermaid");
+      els.forEach(function (el) {
+        if (!el.getAttribute("data-mermaid-src")) {
+          el.setAttribute("data-mermaid-src", el.textContent);
+        }
+        var src = el.getAttribute("data-mermaid-src");
+        el.removeAttribute("data-processed");
+        el.textContent = src;
+      });
+      if (els.length) window.mermaid.run();
+    }
   }
 
   var current = getStored() || "system";
