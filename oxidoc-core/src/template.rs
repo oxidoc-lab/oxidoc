@@ -341,11 +341,20 @@ pub fn render_page(
     };
 
     // Inject search dialog + scripts (contain curly braces, can't go in format!)
+    let search_html = if config.search.semantic {
+        SEARCH_DIALOG_HTML.replacen(
+            r#"class="oxidoc-search-dialog""#,
+            r#"class="oxidoc-search-dialog" data-semantic="true""#,
+            1,
+        )
+    } else {
+        SEARCH_DIALOG_HTML.to_string()
+    };
     html.replace(
         "</body>",
         &format!(
             "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
-            SEARCH_DIALOG_HTML, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, MOBILE_MENU_JS, mermaid_script
+            search_html, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, MOBILE_MENU_JS, mermaid_script
         ),
     )
 }

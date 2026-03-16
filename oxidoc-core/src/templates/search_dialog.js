@@ -23,26 +23,21 @@
   var TAG_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" class="oxidoc-search-result-icon"><path fill="currentColor" d="m9 16l-.825 3.275q-.075.325-.325.525t-.6.2q-.475 0-.775-.375T6.3 18.8L7 16H4.275q-.5 0-.8-.387T3.3 14.75q.075-.35.35-.55t.625-.2H7.5l1-4H5.775q-.5 0-.8-.387T4.8 8.75q.075-.35.35-.55t.625-.2H9l.825-3.275Q9.9 4.4 10.15 4.2t.6-.2q.475 0 .775.375t.175.825L11 8h4l.825-3.275q.075-.325.325-.525t.6-.2q.475 0 .775.375t.175.825L17 8h2.725q.5 0 .8.387t.175.863q-.075.35-.35.55t-.625.2H16.5l-1 4h2.725q.5 0 .8.388t.175.862q-.075.35-.35.55t-.625.2H15l-.825 3.275q-.075.325-.325.525t-.6.2q-.475 0-.775-.375T12.3 18.8L13 16zm.5-2h4l1-4h-4z"/></svg>';
   var DESC_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" class="oxidoc-search-result-icon"><path fill="currentColor" d="M9 18h6q.425 0 .713-.288T16 17t-.288-.712T15 16H9q-.425 0-.712.288T8 17t.288.713T9 18m0-4h6q.425 0 .713-.288T16 13t-.288-.712T15 12H9q-.425 0-.712.288T8 13t.288.713T9 14m-3 8q-.825 0-1.412-.587T4 20V4q0-.825.588-1.412T6 2h7.175q.4 0 .763.15t.637.425l4.85 4.85q.275.275.425.638t.15.762V20q0 .825-.587 1.413T18 22zm7-14q0 .425.288.713T14 9h4l-5-5z"/></svg>';
 
-  // Probe whether semantic assets exist (non-blocking HEAD request)
+  // Check if semantic search is enabled (set by build via data attribute)
   function detectSemantic() {
-    var x = new XMLHttpRequest();
-    x.open("HEAD", "/search-vectors.json", true);
-    x.onload = function () {
-      if (x.status === 200) {
-        semanticEnabled = true;
-        // Re-render current results to show "Ask AI" row if query is active
-        var q = input.value.trim();
-        if (q && !aiMode) {
-          lastResultKey = ""; // force re-render
-          ensureSearch(function () {
-            ensureChunks(q, function () {
-              render(searchLexical(q), q);
-            });
+    var dialog = document.querySelector(".oxidoc-search-dialog");
+    if (dialog && dialog.getAttribute("data-semantic") === "true") {
+      semanticEnabled = true;
+      var q = input ? input.value.trim() : "";
+      if (q && !aiMode) {
+        lastResultKey = "";
+        ensureSearch(function () {
+          ensureChunks(q, function () {
+            render(searchLexical(q), q);
           });
-        }
+        });
       }
-    };
-    x.send();
+    }
   }
 
   // Load the Wasm search module and initialize with the metadata
