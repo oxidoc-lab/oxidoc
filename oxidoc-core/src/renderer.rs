@@ -99,13 +99,19 @@ pub(crate) fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
                 } else {
                     format!(r#" class="language-{}""#, crate::utils::html_escape(lang))
                 };
+                out.push_str(r#"<div class="oxidoc-code-wrapper">"#);
                 let _ = write!(out, "<pre><code{lang_attr}>");
                 if !lang.is_empty() && oxidoc_highlight::is_supported(lang) {
                     out.push_str(&oxidoc_highlight::highlight(&c.value, lang));
                 } else {
                     push_escaped(&c.value, out);
                 }
-                out.push_str(r#"</code><button class="oxidoc-copy-code" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})">Copy</button></pre>"#);
+                out.push_str("</code></pre>");
+                let copy_js = include_str!("templates/copy_button.js");
+                let _ = write!(
+                    out,
+                    r#"<button class="oxidoc-copy-code" onclick="{copy_js}">Copy</button></div>"#
+                );
             }
         }
         Node::List(l) => {
@@ -258,11 +264,11 @@ fn render_island_component(
         "Card" => render_static_card(&props, children, out, ctx),
         "Steps" => render_static_steps(children, out, ctx),
         "Step" => render_static_step(&props, children, out, ctx),
-        "Badge" => render_static_badge(&props, children, out, ctx),
+        "Badge" => render_static_badge(&props, children, out),
         "ThemedImage" => render_static_themed_image(&props, out),
         "Tooltip" => render_static_tooltip(&props, children, out, ctx),
         "Banner" => render_static_banner(&props, children, out, ctx),
-        "Tag" => render_static_tag(&props, children, out, ctx),
+        "Tag" => render_static_tag(&props, children, out),
         "Hero" => render_static_hero(&props, children, out, ctx),
         "HeroAction" => render_static_hero_action(&props, children, out, ctx),
         "FeatureGrid" => render_static_feature_grid(&props, children, out, ctx),
@@ -292,9 +298,7 @@ fn render_island_component(
                     "Tabs" => render_static_tabs(children, out, ctx),
                     "Tab" => render_static_tab(&props, children, out, ctx),
                     "Accordion" => render_static_accordion(&props, children, out, ctx),
-                    "CodeBlock" => {
-                        render_static_code_block(&props, children, raw_content, out, ctx)
-                    }
+                    "CodeBlock" => render_static_code_block(&props, children, raw_content, out),
                     _ => unreachable!(),
                 }
                 out.push_str("</oxidoc-island>");

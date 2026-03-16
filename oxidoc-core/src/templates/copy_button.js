@@ -1,0 +1,1 @@
+navigator.clipboard.writeText(this.previousElementSibling.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})

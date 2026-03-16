@@ -143,7 +143,11 @@ pub fn render_landing_page(
     }
 
     let mermaid_script = if html.contains(r#"<pre class="mermaid">"#) {
-        r#"<script type="module">import mermaid from"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.getAttribute("data-theme")==="dark"?"dark":"default"});</script>"#
+        concat!(
+            "<script type=\"module\">",
+            include_str!("templates/mermaid_init.js"),
+            "</script>"
+        )
     } else {
         ""
     };

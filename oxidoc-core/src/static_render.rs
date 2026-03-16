@@ -287,7 +287,6 @@ pub(crate) fn render_static_tag(
     props: &HashMap<String, serde_json::Value>,
     children: &[Node],
     out: &mut String,
-    ctx: &RenderCtx<'_>,
 ) {
     let kind = prop_str(props, "variant")
         .or_else(|| prop_str(props, "kind"))
@@ -297,7 +296,8 @@ pub(crate) fn render_static_tag(
     if !text.is_empty() {
         out.push_str(&crate::utils::html_escape(text));
     } else {
-        render_children(children, out, ctx);
+        let plain = crate::utils::extract_plain_text_from_nodes(children);
+        out.push_str(&crate::utils::html_escape(&plain));
     }
     out.push_str("</span>");
 }
@@ -327,7 +327,6 @@ pub(crate) fn render_static_badge(
     props: &HashMap<String, serde_json::Value>,
     children: &[Node],
     out: &mut String,
-    ctx: &RenderCtx<'_>,
 ) {
     let kind = prop_str(props, "variant")
         .or_else(|| prop_str(props, "kind"))
@@ -345,7 +344,8 @@ pub(crate) fn render_static_badge(
     if !text.is_empty() {
         out.push_str(&crate::utils::html_escape(text));
     } else {
-        render_children(children, out, ctx);
+        let plain = crate::utils::extract_plain_text_from_nodes(children);
+        out.push_str(&crate::utils::html_escape(&plain));
     }
     out.push_str("</span>");
 }
@@ -355,7 +355,6 @@ pub(crate) fn render_static_code_block(
     children: &[Node],
     raw_content: &str,
     out: &mut String,
-    _ctx: &RenderCtx<'_>,
 ) {
     let language = prop_str(props, "language").unwrap_or("");
     let filename = prop_str(props, "filename");
@@ -380,7 +379,8 @@ pub(crate) fn render_static_code_block(
 
     let highlighted = crate::utils::wrap_lines_with_highlights(&raw_html, &hl_lines);
 
-    let copy_btn = r#"<button class="oxidoc-copy-code" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)})">Copy</button>"#;
+    let copy_js = include_str!("templates/copy_button.js");
+    let copy_btn = format!(r#"<button class="oxidoc-copy-code" onclick="{copy_js}">Copy</button>"#);
 
     if let Some(fname) = filename {
         // Wrapped CodeBlock with header
@@ -393,7 +393,7 @@ pub(crate) fn render_static_code_block(
         );
         let _ = write!(
             out,
-            r#"<div class="oxidoc-codeblock-body"><pre><code class="language-{}">{}</code>{}</pre></div></div>"#,
+            r#"<div class="oxidoc-codeblock-body"><div class="oxidoc-code-wrapper"><pre><code class="language-{}">{}</code></pre>{}</div></div></div>"#,
             crate::utils::html_escape(language),
             highlighted,
             copy_btn,
@@ -402,7 +402,7 @@ pub(crate) fn render_static_code_block(
         // Plain code block (same as markdown fenced code)
         let _ = write!(
             out,
-            r#"<pre><code class="language-{}">{}</code>{}</pre>"#,
+            r#"<div class="oxidoc-code-wrapper"><pre><code class="language-{}">{}</code></pre>{}</div>"#,
             crate::utils::html_escape(language),
             highlighted,
             copy_btn,
