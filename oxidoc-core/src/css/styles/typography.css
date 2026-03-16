@@ -76,6 +76,8 @@ article pre {
     line-height: 1.6;
     position: relative;
     color: var(--oxidoc-code-text, #425e5e);
+    scrollbar-width: thin;
+    scrollbar-color: var(--oxidoc-border) transparent;
 }
 article pre code {
     background: none;
