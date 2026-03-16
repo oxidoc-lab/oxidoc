@@ -2,17 +2,17 @@
 # Oxidoc CLI installer
 #
 # Install latest stable:
-#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
-# 
+#   curl -fsSL https://oxidoc.dev/install.sh | sh
+#
 # Install latest prerelease:
-#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --pre
+#   curl -fsSL https://oxidoc.dev/install.sh | sh -s -- --pre
 #
 # Install/switch to a specific version:
-#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --version v0.1.0
-#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --version v0.1.0-beta.6
+#   curl -fsSL https://oxidoc.dev/install.sh | sh -s -- --version v0.1.0
+#   curl -fsSL https://oxidoc.dev/install.sh | sh -s -- --version v0.1.0-beta.6
 #
 # Uninstall:
-#   curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh -s -- --uninstall
+#   curl -fsSL https://oxidoc.dev/install.sh | sh -s -- --uninstall
 #
 # Environment variables:
 #   OXIDOC_INSTALL_DIR  Install directory (default: ~/.local/bin)

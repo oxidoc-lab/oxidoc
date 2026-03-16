@@ -464,8 +464,7 @@ fn write_file(path: &std::path::Path, content: &str) -> miette::Result<()> {
         .map_err(|e| miette::miette!("Failed to write {}: {e}", path.display()))
 }
 
-const INSTALL_SCRIPT_URL: &str =
-    "https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh";
+const INSTALL_SCRIPT_URL: &str = "https://oxidoc.dev/install.sh";
 
 fn run_self_update(pre: bool) -> miette::Result<()> {
     let mut args = vec!["sh", "-s", "--"];

@@ -64,7 +64,13 @@ A documentation engine written in Rust. Single binary, zero runtime dependencies
 Oxidoc ships as a single binary with zero runtime dependencies — no Node.js, no Python, no Rust toolchain needed.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh
+curl -fsSL https://oxidoc.dev/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://oxidoc.dev/install.ps1 | iex
 ```
 
 Or download a binary directly from [GitHub Releases](https://github.com/oxidoc-lab/oxidoc/releases).
