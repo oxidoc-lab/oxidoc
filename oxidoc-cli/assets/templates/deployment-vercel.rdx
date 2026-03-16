@@ -18,7 +18,7 @@ Set the following in the project settings:
 
 | Setting | Value |
 |:--------|:------|
-| **Build Command** | `curl -fsSL https://raw.githubusercontent.com/oxidoc-lab/oxidoc/main/install.sh | sh && oxidoc build` |
+| **Build Command** | `curl -fsSL https://oxidoc.dev/install.sh | sh && oxidoc build` |
 | **Output Directory** | `dist` |
 | **Install Command** | _(leave empty)_ |
 
