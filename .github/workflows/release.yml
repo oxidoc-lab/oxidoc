@@ -134,7 +134,7 @@ jobs:
             # For prerelease versions, update internal dependency requirements
             # (semver "0.1" won't match "0.1.0-beta.1")
             if [[ "$VERSION" == *-* ]]; then
-              sed -i -E 's/(oxidoc-(core|island|components|registry|openapi|search|text) = \{ version = )"[^"]*"/\1"='$VERSION'"/' Cargo.toml
+              sed -i -E 's/(oxidoc-(core|island|components|registry|openapi|search|print|text) = \{ version = )"[^"]*"/\1"='$VERSION'"/' Cargo.toml
               echo "Updated internal dep versions to =$VERSION"
             fi
 
@@ -256,7 +256,7 @@ jobs:
 
             # For prerelease, pin internal dep versions
             if [[ "$VERSION" == *-* ]]; then
-              perl -i -pe "s/(oxidoc-(?:core|island|components|registry|openapi|search|text) = \\{ version = )\"[^\"]*\"/\${1}\"=$VERSION\"/" Cargo.toml
+              perl -i -pe "s/(oxidoc-(?:core|island|components|registry|openapi|search|print|text) = \\{ version = )\"[^\"]*\"/\${1}\"=$VERSION\"/" Cargo.toml
               echo "Updated internal dep versions to =$VERSION"
             fi
 
