@@ -14,13 +14,17 @@
   width: 100%;
 }
 
-/* Constrain Hero inside landing pages */
+/* Hero stretches full-width (for backgrounds); body is constrained */
 .oxidoc-landing .oxidoc-hero {
+  width: 100%;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.oxidoc-landing .oxidoc-hero-body {
   max-width: 72rem;
   margin-left: auto;
   margin-right: auto;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
 }
 
 /* Section */
