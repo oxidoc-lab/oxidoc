@@ -41,7 +41,8 @@ pub fn heading_anchor(text: &str) -> String {
 pub fn extract_plain_text(node: &Node) -> String {
     let mut text = String::new();
     match node {
-        Node::Text(t) | Node::CodeInline(t) => text.push_str(&t.value),
+        Node::Text(t) => text.push_str(&t.value),
+        Node::CodeInline(t) => text.push_str(&t.value),
         _ => {
             if let Some(children) = node.children() {
                 for child in children {

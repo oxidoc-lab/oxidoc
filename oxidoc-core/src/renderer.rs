@@ -188,12 +188,12 @@ pub(crate) fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
         }
         Node::MathInline(m) => {
             let _ = write!(out, r#"<span class="math math-inline">"#);
-            push_escaped(&m.value, out);
+            push_escaped(&m.raw, out);
             out.push_str("</span>");
         }
         Node::MathDisplay(m) => {
             let _ = write!(out, r#"<div class="math math-display">"#);
-            push_escaped(&m.value, out);
+            push_escaped(&m.raw, out);
             out.push_str("</div>");
         }
         Node::FootnoteDefinition(f) => {
@@ -231,6 +231,34 @@ pub(crate) fn render_node(node: &Node, out: &mut String, ctx: &RenderCtx<'_>) {
                 r#"<div class="oxidoc-error" data-line="{}">{}</div>"#,
                 e.position.start.line, e.message
             );
+        }
+        Node::DefinitionList(dl) => {
+            out.push_str("<dl>");
+            render_children(&dl.children, out, ctx);
+            out.push_str("</dl>");
+        }
+        Node::DefinitionTerm(dt) => {
+            out.push_str("<dt>");
+            render_children(&dt.children, out, ctx);
+            out.push_str("</dt>");
+        }
+        Node::DefinitionDescription(dd) => {
+            out.push_str("<dd>");
+            render_children(&dd.children, out, ctx);
+            out.push_str("</dd>");
+        }
+        Node::Citation(c) => {
+            let keys: Vec<_> = c.keys.iter().map(|k| format!("@{}", k.id)).collect();
+            let _ = write!(
+                out,
+                r#"<span class="citation">[{}]</span>"#,
+                keys.join("; ")
+            );
+        }
+        Node::CrossRef(r) => {
+            let _ = write!(out, "<a href=\"#{}\" class=\"crossref\">", r.target);
+            push_escaped(&r.target, out);
+            out.push_str("</a>");
         }
     }
 }
