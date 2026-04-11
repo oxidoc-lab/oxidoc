@@ -1,0 +1,18 @@
+[package]
+name = "oxidoc-print"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Print/PDF pipeline for Oxidoc — converts RDX AST to publication-quality PDFs via oxipdf"
+publish = false
+
+[dependencies]
+rdx-ast.workspace = true
+rdx-parser.workspace = true
+rdx-transform.workspace = true
+oxipdf.workspace = true
+oxidoc-highlight.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+fontdb = "0.21"
