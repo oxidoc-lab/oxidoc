@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "oxidoc-cli",
     "oxidoc-core",
+    "oxidoc-print",
     "oxidoc-island",
     "oxidoc-components",
     "oxidoc-registry",
@@ -12,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "FSL-1.1-ALv2"
 repository = "https://github.com/oxidoc-lab/oxidoc"
@@ -25,11 +26,16 @@ oxidoc-components = { version = "0.1", path = "oxidoc-components" }
 oxidoc-registry = { version = "0.1", path = "oxidoc-registry" }
 oxidoc-openapi = { version = "0.1", path = "oxidoc-openapi" }
 oxidoc-search = { version = "0.1", path = "oxidoc-search" }
+oxidoc-print = { version = "0.1", path = "oxidoc-print" }
 oxidoc-text = { version = "0.1", path = "oxidoc-text" }
 
 # RDX (published crate references — local override via .cargo/config.toml)
 rdx-parser = "0.1"
 rdx-ast = "0.1"
+rdx-transform = "0.1"
+
+# PDF engine
+oxipdf = "0.1"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -126,3 +132,6 @@ lazy_static = "1.4"
 
 # Syntax highlighting
 oxidoc-highlight = "0.1"
+
+# Font discovery
+fontdb = "0.21"

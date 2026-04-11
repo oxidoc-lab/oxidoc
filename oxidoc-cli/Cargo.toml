@@ -13,6 +13,10 @@ path = "src/main.rs"
 
 [dependencies]
 oxidoc-core.workspace = true
+oxidoc-print.workspace = true
+rdx-parser.workspace = true
+rdx-ast.workspace = true
+rdx-transform.workspace = true
 clap.workspace = true
 miette.workspace = true
 axum.workspace = true

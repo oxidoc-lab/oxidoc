@@ -1,6 +1,6 @@
 mod server;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Subcommand)]
 enum ArchiveAction {
@@ -20,6 +20,16 @@ enum ArchiveAction {
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum BuildTarget {
+    /// Build web documentation (HTML + Wasm islands)
+    Web,
+    /// Build PDF output from .rdx files
+    Pdf,
+    /// Build both web and PDF
+    All,
+}
 
 #[derive(Parser)]
 #[command(
@@ -51,6 +61,14 @@ enum Command {
         /// Output directory
         #[arg(short, long, default_value = "dist")]
         output: String,
+
+        /// Build target: web (default), pdf, or all
+        #[arg(short, long, default_value = "web")]
+        target: BuildTarget,
+
+        /// (PDF only) Draw debug borders on every element to visualize layout boxes
+        #[arg(long)]
+        debug_boxes: bool,
     },
     /// Start the development server with hot module replacement
     Dev {
@@ -114,7 +132,11 @@ fn main() -> ExitCode {
         .expect("cannot resolve project path — does the directory exist?");
 
     let result = match cli.command {
-        Command::Build { output } => run_build(&project_root, &output),
+        Command::Build {
+            output,
+            target,
+            debug_boxes,
+        } => run_build(&project_root, &output, target, debug_boxes),
         Command::Dev { port } => run_dev(&project_root, port),
         Command::Init { name, force, yes } => {
             let target = match name {
@@ -198,7 +220,24 @@ const BUNDLED_WASM: oxidoc_core::wasm::BundledWasm = oxidoc_core::wasm::BundledW
     search_wasm: include_bytes!("../assets/wasm/oxidoc_search_bg.wasm"),
 };
 
-fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()> {
+fn run_build(
+    project_root: &std::path::Path,
+    output: &str,
+    target: BuildTarget,
+    debug_boxes: bool,
+) -> miette::Result<()> {
+    match target {
+        BuildTarget::Web => run_build_web(project_root, output),
+        BuildTarget::Pdf => run_build_pdf(project_root, output, debug_boxes),
+        BuildTarget::All => {
+            run_build_web(project_root, output)?;
+            run_build_pdf(project_root, output, debug_boxes)?;
+            Ok(())
+        }
+    }
+}
+
+fn run_build_web(project_root: &std::path::Path, output: &str) -> miette::Result<()> {
     let output_dir = project_root.join(output);
     tracing::info!("Building site to {}/", output_dir.display());
 
@@ -216,6 +255,98 @@ fn run_build(project_root: &std::path::Path, output: &str) -> miette::Result<()>
         "Build complete"
     );
     Ok(())
+}
+
+fn run_build_pdf(
+    project_root: &std::path::Path,
+    output: &str,
+    debug_boxes: bool,
+) -> miette::Result<()> {
+    let output_dir = project_root.join(output);
+    std::fs::create_dir_all(&output_dir)
+        .map_err(|e| miette::miette!("Failed to create output directory: {e}"))?;
+
+    tracing::info!("Building PDF to {}/", output_dir.display());
+    let start = std::time::Instant::now();
+
+    // Discover .rdx files
+    let docs_dir = project_root.join("docs");
+    if !docs_dir.is_dir() {
+        miette::bail!("No docs/ directory found in {}", project_root.display());
+    }
+
+    let rdx_files = discover_rdx_files(&docs_dir);
+    if rdx_files.is_empty() {
+        miette::bail!("No .rdx files found in {}", docs_dir.display());
+    }
+
+    let mut config =
+        oxidoc_print::config::PrintConfig::default_with_root(project_root.to_path_buf());
+    config.debug_boxes = debug_boxes;
+
+    // Concatenate all .rdx files into a single document (simple single-file approach)
+    // Multi-file book assembly comes in a later batch via [book] config
+    let mut combined_source = String::new();
+    for path in &rdx_files {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| miette::miette!("Failed to read {}: {e}", path.display()))?;
+        if !combined_source.is_empty() {
+            combined_source.push_str("\n\n---\n\n");
+        }
+        // Strip frontmatter from non-first files to avoid parser issues
+        let content = if !combined_source.is_empty() {
+            strip_frontmatter(&content)
+        } else {
+            content.as_str().to_string()
+        };
+        combined_source.push_str(&content);
+    }
+
+    let pdf_bytes = oxidoc_print::render_file_to_pdf(&combined_source, &config)
+        .map_err(|e| miette::miette!("PDF rendering failed: {e}"))?;
+
+    let pdf_path = output_dir.join("book.pdf");
+    std::fs::write(&pdf_path, &pdf_bytes)
+        .map_err(|e| miette::miette!("Failed to write {}: {e}", pdf_path.display()))?;
+
+    tracing::info!(
+        pages = rdx_files.len(),
+        bytes = pdf_bytes.len(),
+        elapsed_ms = start.elapsed().as_millis() as u64,
+        path = %pdf_path.display(),
+        "PDF build complete"
+    );
+    Ok(())
+}
+
+fn discover_rdx_files(dir: &std::path::Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                files.extend(discover_rdx_files(&path));
+            } else if path.extension().is_some_and(|e| e == "rdx") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+fn strip_frontmatter(content: &str) -> String {
+    if !content.starts_with("---") {
+        return content.to_string();
+    }
+    // Find the closing ---
+    if let Some(end) = content[3..].find("\n---") {
+        let after = end + 3 + 4; // skip past \n---
+        if after < content.len() {
+            return content[after..].to_string();
+        }
+    }
+    content.to_string()
 }
 
 fn run_dev(project_root: &std::path::Path, port: u16) -> miette::Result<()> {
