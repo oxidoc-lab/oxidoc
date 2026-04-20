@@ -32,9 +32,12 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-pub use crate::build_result::BuildResult;
-
 use crate::html_inject::inject_version_switcher;
+
+use super::folder_index::{FolderIndexContext, generate_folder_index_pages};
+use super::root_pages::build_root_pages;
+
+pub use crate::build_result::BuildResult;
 
 /// Build the documentation site from a project root to an output directory.
 pub fn build_site(project_root: &Path, output_dir: &Path) -> Result<BuildResult> {
@@ -305,6 +308,7 @@ pub fn build_site_with_model(
                         &locale_str,
                         &i18n_state_arc,
                         &search_provider_arc,
+                        is_homepage,
                     )
                 } else {
                     let page_nav =
@@ -333,12 +337,13 @@ pub fn build_site_with_model(
                         &locale_str,
                         &i18n_state_arc,
                         &search_provider_arc,
+                        is_homepage,
                     )
                 };
                 let page_output = if is_homepage {
                     locale_output_dir.join("index.html")
                 } else {
-                    locale_output_dir.join(format!("{}.html", page.slug))
+                    locale_output_dir.join(&page.slug).join("index.html")
                 };
                 if let Some(parent) = page_output.parent() {
                     std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
@@ -410,83 +415,17 @@ pub fn build_site_with_model(
 
     // Render root-level pages (homepage + extra pages at /)
     if let Some(ref root_cfg) = root_config {
-        let mut root_files = vec![(&root_cfg.homepage, true)];
-        for p in &root_cfg.pages {
-            root_files.push((p, false));
-        }
-        for (rdx_file, is_homepage) in &root_files {
-            let rdx_path = project_root.join(rdx_file);
-            let content =
-                std::fs::read_to_string(&rdx_path).map_err(|e| OxidocError::FileRead {
-                    path: rdx_path.display().to_string(),
-                    source: e,
-                })?;
-            let root = rdx_parser::parse(&content);
-            check_parse_errors(&root, &rdx_path.display().to_string())?;
-            let content_html = render_document(
-                &root,
-                &config.components.custom,
-                config.project.debug_islands,
-            );
-            let page_title =
-                extract_page_title(&root).unwrap_or_else(|| config.project.name.clone());
-            let page_description = extract_page_description(&root);
-            let page_layout = extract_page_layout(&root);
-
-            let slug = if *is_homepage {
-                ""
-            } else {
-                rdx_path.file_stem().and_then(|s| s.to_str()).unwrap_or("")
-            };
-
-            let full_html = if page_layout.as_deref() == Some("landing") {
-                render_landing_page(
-                    &config,
-                    &page_title,
-                    &content_html,
-                    slug,
-                    page_description.as_deref(),
-                    &assets,
-                    &i18n_state.default_locale,
-                    &i18n_state,
-                    &search_provider,
-                )
-            } else {
-                render_page(
-                    &config,
-                    &page_title,
-                    &content_html,
-                    "",
-                    "",
-                    "",
-                    slug,
-                    page_description.as_deref(),
-                    "",
-                    &assets,
-                    &i18n_state.default_locale,
-                    &i18n_state,
-                    &search_provider,
-                )
-            };
-
-            let out_path = if *is_homepage {
-                output_dir.join("index.html")
-            } else {
-                output_dir.join(format!("{slug}.html"))
-            };
-            let full_html = inject_version_switcher(&full_html, &version_switcher_html);
-            let minified = minify_html(&full_html);
-            std::fs::write(&out_path, minified).map_err(|e| OxidocError::FileWrite {
-                path: out_path.display().to_string(),
-                source: e,
-            })?;
-            pages_rendered_total += 1;
-            if *is_homepage {
-                tracing::info!("Rendered homepage");
-            } else {
-                tracing::info!(page = %slug, "Rendered root page");
-            }
-        }
+        let count = build_root_pages(
+            root_cfg,
+            project_root,
+            output_dir,
+            &config,
+            &assets,
+            &i18n_state,
+            &search_provider,
+            &version_switcher_html,
+        )?;
+        pages_rendered_total += count;
     }
 
     // Render archived versions (if any)
@@ -585,169 +524,6 @@ pub fn build_site_with_model(
     })
 }
 
-/// Context for generating folder index/category pages.
-struct FolderIndexContext<'a> {
-    config: &'a Arc<crate::config::OxidocConfig>,
-    assets: &'a AssetConfig<'a>,
-    search_provider: &'a Arc<SearchProvider>,
-    i18n_state: &'a Arc<crate::i18n::I18nState>,
-    homepage_slug: Option<&'a str>,
-    section_nav_map: &'a Arc<HashMap<String, Vec<crate::crawler::NavGroup>>>,
-    version_switcher_html: &'a str,
-}
-
-/// Write a redirect HTML page at `index_path` pointing to `target_url`.
-fn write_redirect_page(index_path: &Path, target_url: &str) -> Result<()> {
-    if index_path.is_file() {
-        return Ok(());
-    }
-    if let Some(parent) = index_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
-            path: parent.display().to_string(),
-            source: e,
-        })?;
-    }
-    let redirect_html = format!(
-        r#"<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/{target_url}"><link rel="canonical" href="/{target_url}"></head><body></body></html>"#
-    );
-    std::fs::write(index_path, redirect_html).map_err(|e| OxidocError::FileWrite {
-        path: index_path.display().to_string(),
-        source: e,
-    })?;
-    Ok(())
-}
-
-/// Convert a hyphenated basename to title case (e.g. "getting-started" → "Getting Started").
-fn title_case(basename: &str) -> String {
-    basename
-        .split('-')
-        .map(|w| {
-            let mut chars = w.chars();
-            match chars.next() {
-                Some(ch) => {
-                    let upper: String = ch.to_uppercase().collect();
-                    format!("{upper}{}", chars.as_str())
-                }
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Generate category index pages for folders that have child pages but no dedicated index.rdx.
-/// These pages list all child pages in the folder as a proper navigable page.
-fn generate_folder_index_pages(
-    nav_groups: &[crate::crawler::NavGroup],
-    output_dir: &Path,
-    ctx: &FolderIndexContext<'_>,
-) -> Result<()> {
-    use std::collections::HashSet;
-
-    let all_pages: Vec<_> = nav_groups.iter().flat_map(|g| g.pages.iter()).collect();
-
-    let all_slugs: Vec<&str> = all_pages.iter().map(|p| p.slug.as_str()).collect();
-
-    // Folders that have an explicit index page
-    let has_index: HashSet<&str> = all_slugs
-        .iter()
-        .filter(|s| s.ends_with("/index"))
-        .map(|s| &s[..s.len() - "/index".len()])
-        .collect();
-
-    // Collect children per folder (preserving navigation order)
-    let mut folder_children: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
-    for page in &all_pages {
-        if let Some(pos) = page.slug.rfind('/') {
-            let parent = &page.slug[..pos];
-            folder_children
-                .entry(parent)
-                .or_default()
-                .push((&page.slug, &page.title));
-        }
-    }
-
-    for (folder, children) in &folder_children {
-        if has_index.contains(folder) {
-            continue;
-        }
-
-        let index_path = output_dir.join(folder).join("index.html");
-        if index_path.is_file() {
-            continue;
-        }
-
-        // If the folder itself is a page (e.g., deployment.html), redirect trailing slash
-        let folder_html = output_dir.join(format!("{folder}.html"));
-        if folder_html.is_file() {
-            write_redirect_page(&index_path, folder)?;
-            continue;
-        }
-
-        // Generate a real category page
-        let basename = folder.rsplit('/').next().unwrap_or(folder);
-        let folder_title = title_case(basename);
-        let folder_title_escaped = crate::utils::html_escape(&folder_title);
-
-        // Build content HTML: list of child pages as cards
-        let mut content_html = format!(
-            "<h1 class=\"oxidoc-heading\">{folder_title_escaped}</h1><p>Browse the pages in this section:</p>"
-        );
-        content_html.push_str("<div class=\"oxidoc-card-grid\">");
-        for (slug, title) in children {
-            let slug_escaped = crate::utils::html_escape(slug);
-            let title_escaped = crate::utils::html_escape(title);
-            content_html.push_str(&format!(
-                "<a href=\"/{slug_escaped}\" class=\"oxidoc-card\"><div class=\"oxidoc-card-title\">{title_escaped}</div></a>"
-            ));
-        }
-        content_html.push_str("</div>");
-
-        // Get the sidebar for this folder's section
-        let sample_slug = children.first().map(|(s, _)| *s).unwrap_or(folder);
-        let sidebar_groups = ctx
-            .section_nav_map
-            .get(sample_slug)
-            .map(|g| g.as_slice())
-            .unwrap_or(nav_groups);
-        let sidebar_html = render_sidebar_with_homepage(sidebar_groups, "", ctx.homepage_slug);
-
-        let full_html = render_page(
-            ctx.config,
-            &folder_title,
-            &content_html,
-            "",
-            &sidebar_html,
-            "",
-            folder,
-            Some(&format!("Pages in the {folder_title} section")),
-            "",
-            ctx.assets,
-            "en",
-            ctx.i18n_state,
-            ctx.search_provider,
-        );
-
-        if let Some(parent) = index_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
-                path: parent.display().to_string(),
-                source: e,
-            })?;
-        }
-
-        let full_html = inject_version_switcher(&full_html, ctx.version_switcher_html);
-        let minified = minify_html(&full_html);
-        std::fs::write(&index_path, minified).map_err(|e| OxidocError::FileWrite {
-            path: index_path.display().to_string(),
-            source: e,
-        })?;
-
-        tracing::info!(folder = %folder, "Generated category index");
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -795,8 +571,6 @@ mod tests {
 
         assert_eq!(result.pages_rendered, 2);
         for f in [
-            "intro.html",
-            "setup.html",
             "index.html",
             "llms.txt",
             "llms-full.txt",
@@ -809,25 +583,30 @@ mod tests {
             assert!(output.join(f).exists(), "{f} should exist");
         }
 
-        let read = |f: &str| std::fs::read_to_string(output.join(f)).unwrap();
+        // Directory output: real pages go into {slug}/index.html
+        assert!(output.join("intro").join("index.html").exists(), "intro/index.html should exist");
+        assert!(output.join("setup").join("index.html").exists(), "setup/index.html should exist");
+
         let css = std::fs::read_to_string(find_hashed_file(&output, "oxidoc.", ".css")).unwrap();
         assert!(css.contains("oxidoc-primary"));
         let js =
             std::fs::read_to_string(find_hashed_file(&output, "oxidoc-loader.", ".js")).unwrap();
         assert!(js.contains("oxidoc_registry.js"));
 
-        let intro = read("intro.html");
+        let intro = std::fs::read_to_string(output.join("intro").join("index.html")).unwrap();
         assert!(
             intro.contains("Introduction")
                 && intro.contains("<!DOCTYPE html>")
                 && intro.contains("Test Project")
         );
+        let read = |f: &str| std::fs::read_to_string(output.join(f)).unwrap();
         assert!(read("llms.txt").contains("/intro") && read("llms.txt").contains("/setup"));
         assert!(
             read("llms-full.txt").contains("Introduction")
                 && read("llms-full.txt").contains("(intro)")
         );
-        assert!(read("sitemap.xml").contains("intro.html"));
+        assert!(!read("sitemap.xml").contains(".html"), "sitemap must not contain .html extensions");
+        assert!(read("sitemap.xml").contains("/intro"), "sitemap should have clean URL for intro");
         assert!(read("robots.txt").contains("User-agent: *"));
         assert!(read("404.html").contains("404") && read("404.html").contains("Not Found"));
     }
@@ -854,7 +633,7 @@ mod tests {
         let (tmp3, out3) = setup_project(cfg2, &[("qs.rdx", "# QS\n\nGo!")]);
         assert_eq!(build_site(tmp3.path(), &out3).unwrap().pages_rendered, 1);
         assert!(
-            std::fs::read_to_string(out3.join("qs.html"))
+            std::fs::read_to_string(out3.join("qs").join("index.html"))
                 .unwrap()
                 .contains("Guide")
         );

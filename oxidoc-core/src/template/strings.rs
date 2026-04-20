@@ -1,0 +1,10 @@
+pub(crate) const SCROLLSPY_JS: &str = include_str!("../templates/scrollspy.js");
+pub(crate) const HEADER_SCROLL_JS: &str = include_str!("../templates/header_scroll.js");
+pub(crate) const BACK_TO_TOP_JS: &str = include_str!("../templates/back_to_top.js");
+pub(crate) const THEME_TOGGLE_JS: &str = include_str!("../templates/theme_toggle.js");
+pub(crate) const SEARCH_DIALOG_JS: &str = include_str!("../templates/search_dialog.js");
+pub(crate) const API_TABS_JS: &str = include_str!("../templates/api_tabs.js");
+pub(crate) const SEARCH_DIALOG_HTML: &str = include_str!("../templates/search_dialog.html");
+pub(crate) const HEADER_ACTIONS_HTML: &str = include_str!("../templates/header_actions.html");
+pub(crate) const MOBILE_MENU_JS: &str = include_str!("../templates/mobile_menu.js");
+pub(crate) const ERROR_404_HTML: &str = include_str!("../templates/error_404.html");

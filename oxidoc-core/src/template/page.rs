@@ -1,114 +1,19 @@
 use crate::config::OxidocConfig;
 use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
+use crate::template::{
+    API_TABS_JS, BACK_TO_TOP_JS, HEADER_SCROLL_JS, MOBILE_MENU_JS, SCROLLSPY_JS,
+    SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS,
+    collect_meta_keys, remove_overridden_meta_tags,
+};
+use crate::template::nav::{
+    build_header_actions, build_header_nav, build_menu_toggle, build_mobile_nav_links,
+    render_logo_html,
+};
 use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
 };
 use crate::template_parts::{render_analytics_script, render_footer};
-
-pub(crate) const SCROLLSPY_JS: &str = include_str!("templates/scrollspy.js");
-pub(crate) const HEADER_SCROLL_JS: &str = include_str!("templates/header_scroll.js");
-pub(crate) const BACK_TO_TOP_JS: &str = include_str!("templates/back_to_top.js");
-pub(crate) const THEME_TOGGLE_JS: &str = include_str!("templates/theme_toggle.js");
-pub(crate) const SEARCH_DIALOG_JS: &str = include_str!("templates/search_dialog.js");
-pub(crate) const API_TABS_JS: &str = include_str!("templates/api_tabs.js");
-pub(crate) const SEARCH_DIALOG_HTML: &str = include_str!("templates/search_dialog.html");
-pub(crate) const HEADER_ACTIONS_HTML: &str = include_str!("templates/header_actions.html");
-pub(crate) const MOBILE_MENU_JS: &str = include_str!("templates/mobile_menu.js");
-pub(crate) const ERROR_404_HTML: &str = include_str!("templates/error_404.html");
-
-use crate::config::SocialConfig;
-
-/// Build the header navigation links HTML.
-pub(crate) fn build_header_nav(links: &[crate::config::HeaderLink]) -> String {
-    if links.is_empty() {
-        return String::new();
-    }
-    let mut html = String::from(r#"<nav class="oxidoc-header-nav">"#);
-    for link in links {
-        use std::fmt::Write;
-        let _ = write!(
-            html,
-            r#"<a href="{}" class="oxidoc-header-nav-link">{}</a>"#,
-            crate::utils::html_escape(&link.href),
-            crate::utils::html_escape(&link.label),
-        );
-    }
-    html.push_str("</nav>");
-    html
-}
-
-/// Build the mobile menu links (header links rendered as a list for mobile sidebar).
-pub(crate) fn build_mobile_nav_links(links: &[crate::config::HeaderLink]) -> String {
-    if links.is_empty() {
-        return String::new();
-    }
-    let mut html =
-        String::from(r#"<nav class="oxidoc-mobile-nav-links" aria-label="Main navigation"><ul>"#);
-    for link in links {
-        use std::fmt::Write;
-        let _ = write!(
-            html,
-            r#"<li><a href="{}">{}</a></li>"#,
-            crate::utils::html_escape(&link.href),
-            crate::utils::html_escape(&link.label),
-        );
-    }
-    html.push_str("</ul></nav>");
-    html
-}
-
-/// Build the header actions HTML with social links and icons injected.
-pub(crate) fn build_header_actions(social: &SocialConfig) -> String {
-    use crate::icons;
-
-    let social_html = social.render_header_icons();
-    let theme_icon = icons::svg_icon(icons::CONTRAST, "20", "20", "");
-    let search_icon = icons::svg_icon(icons::SEARCH, "16", "16", "");
-
-    HEADER_ACTIONS_HTML
-        .replacen(
-            r#"<div class="oxidoc-header-actions">"#,
-            &format!(r#"<div class="oxidoc-header-actions">{social_html}"#),
-            1,
-        )
-        .replacen(
-            r#"class="oxidoc-theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"></button>"#,
-            &format!(r#"class="oxidoc-theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">{theme_icon}</button>"#),
-            1,
-        )
-        .replacen(
-            r#"<span>Search</span>"#,
-            &format!(r#"{search_icon}<span>Search</span>"#),
-            1,
-        )
-}
-
-/// Build the mobile menu toggle button (placed before logo in header).
-pub(crate) fn build_menu_toggle() -> String {
-    use crate::icons;
-
-    let menu_icon = icons::svg_icon(icons::MENU, "24", "24", "oxidoc-menu-icon");
-    let close_icon = icons::svg_icon(icons::CLOSE, "24", "24", "oxidoc-close-icon");
-
-    format!(
-        r#"<button class="oxidoc-menu-toggle" aria-label="Open navigation menu" aria-expanded="false">{menu_icon}{close_icon}</button>"#
-    )
-}
-
-/// Generate the logo HTML for the header.
-pub(crate) fn render_logo_html(config: &OxidocConfig) -> (String, String) {
-    let safe_name = crate::utils::html_escape(&config.project.name);
-    let logo_html = if let Some(ref logo) = config.project.logo {
-        let safe_logo = crate::utils::html_escape(logo);
-        format!(
-            r#"<a href="/" class="oxidoc-logo"><img src="{safe_logo}" alt="{safe_name}" class="oxidoc-logo-img"> <span>{safe_name}</span></a>"#
-        )
-    } else {
-        format!(r#"<a href="/" class="oxidoc-logo">{safe_name}</a>"#)
-    };
-    (logo_html, safe_name)
-}
 
 /// Wrap rendered page content in a full HTML document.
 #[allow(clippy::too_many_arguments)]
@@ -126,6 +31,7 @@ pub fn render_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
+    is_homepage: bool,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -158,8 +64,11 @@ pub fn render_page(
         format!("{}/{}", base_url, active_slug)
     };
 
+    let og_type = if is_homepage { "website" } else { "article" };
+    let jsonld_type = if is_homepage { "WebSite" } else { "WebPage" };
+
     let json_ld = format!(
-        r##"{{"@context":"https://schema.org","@type":"WebPage","name":{},"description":{},"url":{},"site":{{"name":{}}}}}"##,
+        r##"{{"@context":"https://schema.org","@type":"{jsonld_type}","name":{},"description":{},"url":{},"site":{{"name":{}}}}}"##,
         serde_json::to_string(&page_title).unwrap_or_else(|_| "null".into()),
         serde_json::to_string(&page_description).unwrap_or_else(|_| "null".into()),
         serde_json::to_string(&safe_url).unwrap_or_else(|_| "null".into()),
@@ -230,7 +139,7 @@ pub fn render_page(
     <meta name="description" content="{page_description_escaped}">
     <meta name="generator" content="oxidoc">
     <meta property="og:title" content="{page_title_escaped}">
-    <meta property="og:type" content="article">
+    <meta property="og:type" content="{og_type}">
     <meta property="og:url" content="{safe_url}">
     <meta property="og:site_name" content="{safe_name}">
     <meta property="og:description" content="{page_description_escaped}">
@@ -285,6 +194,7 @@ pub fn render_page(
         locale = locale,
         page_description_escaped = page_description_escaped,
         page_title_escaped = page_title_escaped,
+        og_type = og_type,
         safe_url = safe_url,
         safe_name = safe_name,
         json_ld = json_ld,
@@ -326,6 +236,7 @@ pub fn render_page(
         }
     }
     if !extra_head.is_empty() {
+        html = remove_overridden_meta_tags(html, &extra_head);
         html = html.replace("</head>", &format!("{extra_head}\n</head>"));
     }
 
@@ -333,7 +244,7 @@ pub fn render_page(
     let mermaid_script = if html.contains(r#"<pre class="mermaid">"#) {
         concat!(
             "<script type=\"module\">",
-            include_str!("templates/mermaid_init.js"),
+            include_str!("../templates/mermaid_init.js"),
             "</script>"
         )
     } else {
@@ -409,6 +320,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            false,
         )
     }
 
@@ -422,7 +334,7 @@ name = "Test Docs""#,
         let i18n = default_i18n_state();
         let provider = default_search_provider();
         render_page(
-            config, title, "", "", "", "", slug, None, "", assets, "en", &i18n, &provider,
+            config, title, "", "", "", "", slug, None, "", assets, "en", &i18n, &provider, false,
         )
     }
 
@@ -503,5 +415,30 @@ name = "Test Docs""#,
         .unwrap();
         let html = render_test_page(&custom_config, "", "", "", None);
         assert!(html.contains("custom"));
+    }
+
+    #[test]
+    fn render_page_og_type_homepage_vs_article() {
+        let config = test_config();
+        let i18n = default_i18n_state();
+        let provider = default_search_provider();
+
+        let homepage_html = render_page(
+            &config, "Home", "", "", "", "", "", None, "", &default_assets(), "en", &i18n,
+            &provider, true,
+        );
+        assert!(
+            homepage_html.contains(r#"<meta property="og:type" content="website""#),
+            "homepage should emit og:type=website"
+        );
+
+        let article_html = render_page(
+            &config, "Guide", "", "", "", "", "guide", None, "", &default_assets(), "en", &i18n,
+            &provider, false,
+        );
+        assert!(
+            article_html.contains(r#"<meta property="og:type" content="article""#),
+            "regular page should emit og:type=article"
+        );
     }
 }
