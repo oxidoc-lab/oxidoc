@@ -144,6 +144,7 @@ mod tests {
             title: "Test".to_string(),
             pages: vec![crate::crawler::PageEntry {
                 title: "Test".to_string(),
+                short_title: "Test".to_string(),
                 slug: "test".to_string(),
                 file_path: docs.join("test.rdx"),
                 group: None,

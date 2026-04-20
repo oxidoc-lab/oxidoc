@@ -3,7 +3,7 @@ mod nav;
 mod page;
 mod strings;
 
-pub(crate) use meta::{collect_meta_keys, remove_overridden_meta_tags};
+pub(crate) use meta::remove_overridden_meta_tags;
 pub(crate) use nav::{
     build_header_actions, build_header_nav, build_menu_toggle, build_mobile_nav_links,
     render_logo_html,

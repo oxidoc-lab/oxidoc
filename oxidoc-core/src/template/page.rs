@@ -1,14 +1,13 @@
 use crate::config::OxidocConfig;
 use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
-use crate::template::{
-    API_TABS_JS, BACK_TO_TOP_JS, HEADER_SCROLL_JS, MOBILE_MENU_JS, SCROLLSPY_JS,
-    SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS,
-    collect_meta_keys, remove_overridden_meta_tags,
-};
 use crate::template::nav::{
     build_header_actions, build_header_nav, build_menu_toggle, build_mobile_nav_links,
     render_logo_html,
+};
+use crate::template::{
+    API_TABS_JS, BACK_TO_TOP_JS, HEADER_SCROLL_JS, MOBILE_MENU_JS, SCROLLSPY_JS,
+    SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS, remove_overridden_meta_tags,
 };
 use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
@@ -424,8 +423,20 @@ name = "Test Docs""#,
         let provider = default_search_provider();
 
         let homepage_html = render_page(
-            &config, "Home", "", "", "", "", "", None, "", &default_assets(), "en", &i18n,
-            &provider, true,
+            &config,
+            "Home",
+            "",
+            "",
+            "",
+            "",
+            "",
+            None,
+            "",
+            &default_assets(),
+            "en",
+            &i18n,
+            &provider,
+            true,
         );
         assert!(
             homepage_html.contains(r#"<meta property="og:type" content="website""#),
@@ -433,8 +444,20 @@ name = "Test Docs""#,
         );
 
         let article_html = render_page(
-            &config, "Guide", "", "", "", "", "guide", None, "", &default_assets(), "en", &i18n,
-            &provider, false,
+            &config,
+            "Guide",
+            "",
+            "",
+            "",
+            "",
+            "guide",
+            None,
+            "",
+            &default_assets(),
+            "en",
+            &i18n,
+            &provider,
+            false,
         );
         assert!(
             article_html.contains(r#"<meta property="og:type" content="article""#),

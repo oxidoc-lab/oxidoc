@@ -27,16 +27,16 @@ pub(crate) fn remove_overridden_meta_tags(html: String, extra_head: &str) -> Str
     for key in &overridden {
         if let Some((attr, val)) = key.split_once(':') {
             let needle = format!("<meta {attr}=\"{val}\"");
-            if let Some(start) = result.find(&needle) {
-                if let Some(rel_end) = result[start..].find('>') {
-                    let end = start + rel_end + 1;
-                    let remove_end = if result.as_bytes().get(end) == Some(&b'\n') {
-                        end + 1
-                    } else {
-                        end
-                    };
-                    result.drain(start..remove_end);
-                }
+            if let Some(start) = result.find(&needle)
+                && let Some(rel_end) = result[start..].find('>')
+            {
+                let end = start + rel_end + 1;
+                let remove_end = if result.as_bytes().get(end) == Some(&b'\n') {
+                    end + 1
+                } else {
+                    end
+                };
+                result.drain(start..remove_end);
             }
         }
     }

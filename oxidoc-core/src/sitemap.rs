@@ -61,12 +61,14 @@ mod tests {
             pages: vec![
                 crate::crawler::PageEntry {
                     title: "Intro".into(),
+                    short_title: "Intro".into(),
                     slug: "intro".into(),
                     file_path: PathBuf::new(),
                     group: None,
                 },
                 crate::crawler::PageEntry {
                     title: "Setup".into(),
+                    short_title: "Setup".into(),
                     slug: "setup".into(),
                     file_path: PathBuf::new(),
                     group: None,
@@ -88,7 +90,10 @@ mod tests {
         assert!(content.contains("<urlset"));
         assert!(content.contains("https://example.com/intro"));
         assert!(content.contains("https://example.com/setup"));
-        assert!(!content.contains(".html"), "sitemap must not contain .html extensions");
+        assert!(
+            !content.contains(".html"),
+            "sitemap must not contain .html extensions"
+        );
         assert!(content.contains("</urlset>"));
     }
 

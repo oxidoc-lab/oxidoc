@@ -14,8 +14,8 @@ use crate::outputs::{
     generate_index_redirect, generate_llms_txt, generate_redirects, generate_seo_files,
 };
 use crate::page_extract::{
-    build_page_nav, build_title_map, check_parse_errors, extract_page_description,
-    extract_page_layout, extract_page_title, resolve_git_meta,
+    build_page_nav, build_title_map, check_parse_errors, extract_frontmatter_short_title,
+    extract_page_description, extract_page_layout, extract_page_title, resolve_git_meta,
 };
 use crate::renderer::render_document;
 use crate::search_provider::SearchProvider;
@@ -158,13 +158,17 @@ pub fn build_site_with_model(
         }
     })?;
 
-    // Patch nav group page titles from frontmatter so the sidebar uses them
+    // Patch nav group page titles from frontmatter.
+    // `title` (full) is used in the top bar; `short_title` (short_title frontmatter or slug-derived) is used in the sidebar.
     for group in &mut nav_groups {
         for page in &mut group.pages {
             if let Ok(content) = std::fs::read_to_string(&page.file_path) {
                 let root = rdx_parser::parse(&content);
                 if let Some(title) = extract_page_title(&root) {
                     page.title = title;
+                }
+                if let Some(short) = extract_frontmatter_short_title(&root) {
+                    page.short_title = short;
                 }
             }
         }
@@ -178,6 +182,9 @@ pub fn build_site_with_model(
                     let root = rdx_parser::parse(&content);
                     if let Some(title) = extract_page_title(&root) {
                         page.title = title;
+                    }
+                    if let Some(short) = extract_frontmatter_short_title(&root) {
+                        page.short_title = short;
                     }
                 }
             }
@@ -584,8 +591,14 @@ mod tests {
         }
 
         // Directory output: real pages go into {slug}/index.html
-        assert!(output.join("intro").join("index.html").exists(), "intro/index.html should exist");
-        assert!(output.join("setup").join("index.html").exists(), "setup/index.html should exist");
+        assert!(
+            output.join("intro").join("index.html").exists(),
+            "intro/index.html should exist"
+        );
+        assert!(
+            output.join("setup").join("index.html").exists(),
+            "setup/index.html should exist"
+        );
 
         let css = std::fs::read_to_string(find_hashed_file(&output, "oxidoc.", ".css")).unwrap();
         assert!(css.contains("oxidoc-primary"));
@@ -605,8 +618,14 @@ mod tests {
             read("llms-full.txt").contains("Introduction")
                 && read("llms-full.txt").contains("(intro)")
         );
-        assert!(!read("sitemap.xml").contains(".html"), "sitemap must not contain .html extensions");
-        assert!(read("sitemap.xml").contains("/intro"), "sitemap should have clean URL for intro");
+        assert!(
+            !read("sitemap.xml").contains(".html"),
+            "sitemap must not contain .html extensions"
+        );
+        assert!(
+            read("sitemap.xml").contains("/intro"),
+            "sitemap should have clean URL for intro"
+        );
         assert!(read("robots.txt").contains("User-agent: *"));
         assert!(read("404.html").contains("404") && read("404.html").contains("Not Found"));
     }

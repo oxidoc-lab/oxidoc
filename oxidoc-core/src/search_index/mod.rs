@@ -85,12 +85,14 @@ mod tests {
             pages: vec![
                 crate::crawler::PageEntry {
                     title: "Introduction".to_string(),
+                    short_title: "Introduction".to_string(),
                     slug: "intro".to_string(),
                     file_path: docs.join("intro.rdx"),
                     group: None,
                 },
                 crate::crawler::PageEntry {
                     title: "User Guide".to_string(),
+                    short_title: "User Guide".to_string(),
                     slug: "guide".to_string(),
                     file_path: docs.join("guide.rdx"),
                     group: None,

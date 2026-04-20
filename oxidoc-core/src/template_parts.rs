@@ -226,7 +226,7 @@ pub fn render_sidebar_with_homepage(
             let _ = write!(
                 html,
                 r#"<li><a href="{href}"{active}>{title}</a></li>"#,
-                title = crate::utils::html_escape(&page.title),
+                title = crate::utils::html_escape(&page.short_title),
             );
         }
         html.push_str("</ul></div>");
@@ -248,12 +248,14 @@ mod tests {
             pages: vec![
                 PageEntry {
                     title: "Intro".into(),
+                    short_title: "Intro".into(),
                     slug: "intro".into(),
                     file_path: PathBuf::new(),
                     group: None,
                 },
                 PageEntry {
                     title: "Setup".into(),
+                    short_title: "Setup".into(),
                     slug: "setup".into(),
                     file_path: PathBuf::new(),
                     group: None,

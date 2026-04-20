@@ -23,11 +23,27 @@ pub(crate) fn extract_page_title_from_file(path: &std::path::Path) -> Option<Str
 }
 
 pub(crate) fn extract_frontmatter_title(root: &rdx_ast::Root) -> Option<String> {
-    root.frontmatter.as_ref()?.get("title")?.as_str().map(|s| s.to_string())
+    root.frontmatter
+        .as_ref()?
+        .get("title")?
+        .as_str()
+        .map(|s| s.to_string())
+}
+
+pub(crate) fn extract_frontmatter_short_title(root: &rdx_ast::Root) -> Option<String> {
+    root.frontmatter
+        .as_ref()?
+        .get("short_title")?
+        .as_str()
+        .map(|s| s.to_string())
 }
 
 pub(crate) fn extract_frontmatter_description(root: &rdx_ast::Root) -> Option<String> {
-    root.frontmatter.as_ref()?.get("description")?.as_str().map(|s| s.to_string())
+    root.frontmatter
+        .as_ref()?
+        .get("description")?
+        .as_str()
+        .map(|s| s.to_string())
 }
 
 /// Extract the page title, preferring frontmatter over the first h1 heading.

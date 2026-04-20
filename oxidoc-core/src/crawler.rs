@@ -5,8 +5,10 @@ use std::path::{Path, PathBuf};
 /// A resolved page ready for rendering.
 #[derive(Debug, Clone)]
 pub struct PageEntry {
-    /// Display title derived from filename or frontmatter.
+    /// Full display title (from frontmatter `title` or first H1) — used in the top bar.
     pub title: String,
+    /// Short title for sidebar navigation (from frontmatter `short_title`, falls back to slug-derived title).
+    pub short_title: String,
     /// URL slug (e.g., "intro", "getting-started/quickstart").
     pub slug: String,
     /// Absolute path to the `.rdx` file.
@@ -79,6 +81,7 @@ pub fn discover_sections(project_root: &Path, config: &OxidocConfig) -> Result<V
                 };
                 pages.push(PageEntry {
                     title: slug_to_title(slug),
+                    short_title: slug_to_title(slug),
                     slug: full_slug,
                     file_path,
                     group: Some(grp.group.clone()),
@@ -137,6 +140,7 @@ fn collect_rdx_files(dir: &Path, docs_root: &Path) -> Result<Vec<PageEntry>> {
                 .replace('\\', "/");
             entries.push(PageEntry {
                 title: slug_to_title(&slug),
+                short_title: slug_to_title(&slug),
                 slug,
                 file_path: path,
                 group: None,

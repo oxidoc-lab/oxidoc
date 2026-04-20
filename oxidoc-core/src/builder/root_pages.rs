@@ -42,8 +42,7 @@ pub(super) fn build_root_pages(
             &config.components.custom,
             config.project.debug_islands,
         );
-        let page_title =
-            extract_page_title(&root).unwrap_or_else(|| config.project.name.clone());
+        let page_title = extract_page_title(&root).unwrap_or_else(|| config.project.name.clone());
         let page_description = extract_page_description(&root);
         let page_layout = extract_page_layout(&root);
 

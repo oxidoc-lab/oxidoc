@@ -3,8 +3,8 @@ use crate::i18n::I18nState;
 use crate::search_provider::SearchProvider;
 use crate::template::{
     BACK_TO_TOP_JS, HEADER_SCROLL_JS, SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS,
-    build_header_actions, build_menu_toggle, build_mobile_nav_links, render_logo_html,
-    collect_meta_keys, remove_overridden_meta_tags,
+    build_header_actions, build_menu_toggle, build_mobile_nav_links, remove_overridden_meta_tags,
+    render_logo_html,
 };
 use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,

@@ -31,8 +31,8 @@ fn snapshot_basic_page() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html =
-        std::fs::read_to_string(output.join("intro").join("index.html")).expect("Failed to read generated HTML");
+    let html = std::fs::read_to_string(output.join("intro").join("index.html"))
+        .expect("Failed to read generated HTML");
 
     // Assert structural elements
     assert!(html.contains("<!DOCTYPE html>"), "Missing DOCTYPE");
@@ -82,8 +82,8 @@ fn snapshot_page_with_metadata() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html =
-        std::fs::read_to_string(output.join("api").join("index.html")).expect("Failed to read generated HTML");
+    let html = std::fs::read_to_string(output.join("api").join("index.html"))
+        .expect("Failed to read generated HTML");
 
     // Assert SEO metadata
     assert!(html.contains(r#"<meta name="description""#));
@@ -223,7 +223,8 @@ fn snapshot_assets_are_hashed() {
     assert_eq!(js_files.len(), 1, "Should have exactly one hashed JS file");
 
     // Verify the HTML references the hashed assets
-    let html = std::fs::read_to_string(output.join("page").join("index.html")).expect("Failed to read HTML");
+    let html = std::fs::read_to_string(output.join("page").join("index.html"))
+        .expect("Failed to read HTML");
 
     let css_name = css_files[0].file_name().unwrap().to_string_lossy();
     let js_name = js_files[0].file_name().unwrap().to_string_lossy();
@@ -247,7 +248,8 @@ fn snapshot_sri_hashes_present() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("secure").join("index.html")).expect("Failed to read HTML");
+    let html = std::fs::read_to_string(output.join("secure").join("index.html"))
+        .expect("Failed to read HTML");
 
     // Check for SRI attributes
     assert!(
@@ -279,12 +281,19 @@ fn setup_root_project(
 #[test]
 fn frontmatter_title_used_on_landing_page() {
     let config = "[project]\nname = \"NodeDB\"\n\n[routing.root]\nhomepage = \"home.rdx\"\n";
-    let content = "---\ntitle: Hybrid Database for AI Workloads\nlayout: landing\n---\n\n<p>Welcome</p>";
+    let content =
+        "---\ntitle: Hybrid Database for AI Workloads\nlayout: landing\n---\n\n<p>Welcome</p>";
     let (tmp, output) = setup_root_project(config, "home.rdx", content);
     build_site(tmp.path(), &output).expect("Build failed");
     let html = std::fs::read_to_string(output.join("index.html")).expect("index.html missing");
-    assert!(html.contains("Hybrid Database for AI Workloads"), "frontmatter title should appear");
-    assert!(!html.contains("NodeDB - NodeDB"), "duplicated project name must not appear");
+    assert!(
+        html.contains("Hybrid Database for AI Workloads"),
+        "frontmatter title should appear"
+    );
+    assert!(
+        !html.contains("NodeDB - NodeDB"),
+        "duplicated project name must not appear"
+    );
 }
 
 #[test]
@@ -293,9 +302,16 @@ fn frontmatter_title_used_on_regular_page() {
     let content = "---\ntitle: Getting Started\n---\n\n# Different Heading\n\nWelcome!";
     let (tmp, output) = setup_project(config, &[("start.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("start").join("index.html")).expect("start/index.html missing");
-    assert!(html.contains("Getting Started - Docs"), "should use frontmatter title");
-    assert!(!html.contains("Different Heading - Docs"), "h1 should not override frontmatter title");
+    let html = std::fs::read_to_string(output.join("start").join("index.html"))
+        .expect("start/index.html missing");
+    assert!(
+        html.contains("Getting Started - Docs"),
+        "should use frontmatter title"
+    );
+    assert!(
+        !html.contains("Different Heading - Docs"),
+        "h1 should not override frontmatter title"
+    );
 }
 
 #[test]
@@ -304,8 +320,12 @@ fn frontmatter_description_used() {
     let content = "---\ndescription: Frontmatter description here.\n---\n\nFirst paragraph text.";
     let (tmp, output) = setup_project(config, &[("page.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("page").join("index.html")).expect("page/index.html missing");
-    assert!(html.contains("Frontmatter description here."), "should use frontmatter description");
+    let html = std::fs::read_to_string(output.join("page").join("index.html"))
+        .expect("page/index.html missing");
+    assert!(
+        html.contains("Frontmatter description here."),
+        "should use frontmatter description"
+    );
     // The meta description should use frontmatter, not the first paragraph text
     assert!(
         html.contains(r#"content="Frontmatter description here.""#),
@@ -325,8 +345,14 @@ fn homepage_emits_og_type_website() {
     let (tmp, output) = setup_root_project(config, "home.rdx", content);
     build_site(tmp.path(), &output).expect("Build failed");
     let html = std::fs::read_to_string(output.join("index.html")).expect("index.html missing");
-    assert!(html.contains(r#"og:type" content="website""#), "homepage must have og:type=website");
-    assert!(!html.contains(r#"og:type" content="article""#), "homepage must not have og:type=article");
+    assert!(
+        html.contains(r#"og:type" content="website""#),
+        "homepage must have og:type=website"
+    );
+    assert!(
+        !html.contains(r#"og:type" content="article""#),
+        "homepage must not have og:type=article"
+    );
 }
 
 #[test]
@@ -334,7 +360,8 @@ fn regular_page_emits_og_type_article() {
     let config = "[project]\nname = \"Docs\"\n";
     let (tmp, output) = setup_project(config, &[("guide.rdx", "# Guide\n\nContent.")]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("guide").join("index.html")).expect("guide/index.html missing");
+    let html = std::fs::read_to_string(output.join("guide").join("index.html"))
+        .expect("guide/index.html missing");
     assert!(html.contains(r#"og:type" content="article""#));
 }
 
@@ -351,7 +378,8 @@ fn head_block_override_no_duplicate_meta() {
     let content = "# Page\n\nContent.<!--oxidoc-head-start--><meta property=\"og:type\" content=\"website\"><!--oxidoc-head-end-->";
     let (tmp, output) = setup_project(config, &[("page.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("page").join("index.html")).expect("page/index.html missing");
+    let html = std::fs::read_to_string(output.join("page").join("index.html"))
+        .expect("page/index.html missing");
     assert_eq!(
         html.matches(r#"property="og:type""#).count(),
         1,
@@ -405,6 +433,12 @@ fn sitemap_uses_clean_urls() {
     );
     build_site(tmp.path(), &output).expect("Build failed");
     let sitemap = std::fs::read_to_string(output.join("sitemap.xml")).expect("sitemap.xml missing");
-    assert!(sitemap.contains("https://example.com/page"), "sitemap should use clean URL");
-    assert!(!sitemap.contains(".html"), "sitemap must not contain .html extensions");
+    assert!(
+        sitemap.contains("https://example.com/page"),
+        "sitemap should use clean URL"
+    );
+    assert!(
+        !sitemap.contains(".html"),
+        "sitemap must not contain .html extensions"
+    );
 }

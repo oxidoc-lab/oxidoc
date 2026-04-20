@@ -105,6 +105,7 @@ pub struct ArchivedNavGroup {
 pub struct ArchivedNavEntry {
     pub slug: String,
     pub title: String,
+    pub short_title: String,
 }
 
 /// A header link snapshot.
@@ -320,6 +321,7 @@ pub fn create_archive(project_root: &Path, version: &str) -> Result<VersionArchi
                                     &std::fs::read_to_string(&p.file_path).unwrap_or_default(),
                                 ))
                                 .unwrap_or_else(|| p.title.clone()),
+                                short_title: p.short_title.clone(),
                             })
                             .collect(),
                     })
@@ -466,6 +468,7 @@ pub(crate) fn build_archived_version(
                         .iter()
                         .map(|p| crate::crawler::PageEntry {
                             title: p.title.clone(),
+                            short_title: p.short_title.clone(),
                             slug: p.slug.clone(),
                             file_path: std::path::PathBuf::new(),
                             group: Some(g.title.clone()),
@@ -739,6 +742,7 @@ pub fn archive_to_nav_groups(archive: &VersionArchive) -> Vec<NavGroup> {
                     .iter()
                     .map(|p| crate::crawler::PageEntry {
                         title: p.title.clone(),
+                        short_title: p.short_title.clone(),
                         slug: p.slug.clone(),
                         file_path: std::path::PathBuf::new(), // No file path for archived pages
                         group: Some(group.title.clone()),
@@ -820,10 +824,12 @@ mod tests {
                             ArchivedNavEntry {
                                 slug: "intro".to_string(),
                                 title: "Introduction".to_string(),
+                                short_title: "Introduction".to_string(),
                             },
                             ArchivedNavEntry {
                                 slug: "setup".to_string(),
                                 title: "Setup".to_string(),
+                                short_title: "Setup".to_string(),
                             },
                         ],
                     }],
@@ -867,6 +873,7 @@ mod tests {
                             pages: vec![ArchivedNavEntry {
                                 slug: "intro".to_string(),
                                 title: "Intro".to_string(),
+                                short_title: "Intro".to_string(),
                             }],
                         }],
                     },
@@ -877,6 +884,7 @@ mod tests {
                             pages: vec![ArchivedNavEntry {
                                 slug: "api/users".to_string(),
                                 title: "Users".to_string(),
+                                short_title: "Users".to_string(),
                             }],
                         }],
                     },
@@ -939,6 +947,7 @@ mod tests {
                         pages: vec![ArchivedNavEntry {
                             slug: "quickstart".to_string(),
                             title: "Quick Start".to_string(),
+                            short_title: "Quick Start".to_string(),
                         }],
                     }],
                 }],

@@ -45,6 +45,7 @@ pub fn generate_api_nav_groups(
                     .or_else(|| ep.operation_id.clone())
                     .unwrap_or_else(|| format!("{} {}", ep.method, ep.path));
                 PageEntry {
+                    short_title: title.clone(),
                     title,
                     slug,
                     file_path: PathBuf::new(),
