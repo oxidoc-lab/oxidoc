@@ -527,6 +527,7 @@ pub(crate) fn build_archived_version(
                 &i18n_state.default_locale,
                 i18n_state,
                 search_provider,
+                false,
             )
         } else {
             let page_nav = crate::page_extract::build_page_nav(
@@ -558,6 +559,7 @@ pub(crate) fn build_archived_version(
                 &i18n_state.default_locale,
                 i18n_state,
                 search_provider,
+                false,
             )
         };
 
@@ -606,6 +608,7 @@ pub(crate) fn build_archived_version(
                 &i18n_state.default_locale,
                 i18n_state,
                 search_provider,
+                false,
             )
         } else {
             render_page(
@@ -622,6 +625,7 @@ pub(crate) fn build_archived_version(
                 &i18n_state.default_locale,
                 i18n_state,
                 search_provider,
+                false,
             )
         };
 
@@ -667,6 +671,7 @@ pub(crate) fn build_archived_version(
             &i18n_state.default_locale,
             i18n_state,
             search_provider,
+            false,
         );
 
         let page_output = version_dir.join(format!("{}.html", api_page.slug));

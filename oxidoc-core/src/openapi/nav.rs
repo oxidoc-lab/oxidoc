@@ -119,6 +119,7 @@ pub fn build_api_pages(
         &config.i18n.default_locale,
         &i18n_state,
         ctx.search_provider,
+        false,
     );
     let section_dir = output_dir.join(prefix);
     std::fs::create_dir_all(&section_dir).map_err(|e| OxidocError::DirCreate {
@@ -161,9 +162,10 @@ pub fn build_api_pages(
             &config.i18n.default_locale,
             &i18n_state,
             ctx.search_provider,
+            false,
         );
 
-        let page_output = output_dir.join(format!("{slug}.html"));
+        let page_output = output_dir.join(&slug).join("index.html");
         if let Some(parent) = page_output.parent() {
             std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
                 path: parent.display().to_string(),

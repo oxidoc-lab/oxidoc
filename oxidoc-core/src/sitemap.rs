@@ -13,11 +13,7 @@ pub fn generate_sitemap(nav_groups: &[NavGroup], base_url: &str, output_dir: &Pa
 
     for group in nav_groups {
         for page in &group.pages {
-            let url = if base_url.ends_with('/') {
-                format!("{}{}.html", base_url, page.slug)
-            } else {
-                format!("{}/{}.html", base_url, page.slug)
-            };
+            let url = format!("{}/{}", base_url.trim_end_matches('/'), page.slug);
             let _ = writeln!(xml, r##"  <url><loc>{}</loc></url>"##, html_escape(&url));
         }
     }
@@ -90,8 +86,9 @@ mod tests {
         let content = std::fs::read_to_string(output.join("sitemap.xml")).unwrap();
         assert!(content.contains(r#"<?xml version="1.0" encoding="UTF-8"?>"#));
         assert!(content.contains("<urlset"));
-        assert!(content.contains("https://example.com/intro.html"));
-        assert!(content.contains("https://example.com/setup.html"));
+        assert!(content.contains("https://example.com/intro"));
+        assert!(content.contains("https://example.com/setup"));
+        assert!(!content.contains(".html"), "sitemap must not contain .html extensions");
         assert!(content.contains("</urlset>"));
     }
 
@@ -104,8 +101,8 @@ mod tests {
         generate_sitemap(&nav_groups, "https://example.com/", output).unwrap();
 
         let content = std::fs::read_to_string(output.join("sitemap.xml")).unwrap();
-        assert!(content.contains("https://example.com/intro.html"));
-        assert!(!content.contains("https://example.com//intro.html"));
+        assert!(content.contains("https://example.com/intro"));
+        assert!(!content.contains("https://example.com//intro"));
     }
 
     #[test]

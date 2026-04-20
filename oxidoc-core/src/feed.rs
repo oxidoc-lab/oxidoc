@@ -36,7 +36,7 @@ pub fn generate_feed(
             let summary =
                 extract_first_paragraph(&root).unwrap_or_else(|| "(No summary)".to_string());
 
-            let page_url = format!("{}{}.html", feed_link, page.slug);
+            let page_url = format!("{}{}", feed_link, page.slug);
             let entry_id = format!("urn:oxidoc:page:{}", page.slug);
             let updated = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 

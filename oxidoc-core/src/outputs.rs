@@ -72,8 +72,8 @@ pub fn generate_index_redirect(nav_groups: &[NavGroup], output_dir: &Path) -> Re
         let html = format!(
             r#"<!DOCTYPE html>
 <html>
-<head><meta http-equiv="refresh" content="0; url=/{slug}.html"></head>
-<body><a href="/{slug}.html">Redirecting...</a></body>
+<head><meta http-equiv="refresh" content="0; url=/{slug}"></head>
+<body><a href="/{slug}">Redirecting...</a></body>
 </html>"#
         );
         std::fs::write(output_dir.join("index.html"), html).map_err(|e| {
