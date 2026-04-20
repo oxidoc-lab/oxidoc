@@ -243,10 +243,13 @@ fn test_build_with_multiple_pages() {
         "index.html should exist"
     );
     assert!(
-        dist_dir.join("guide.html").exists(),
-        "guide.html should exist"
+        dist_dir.join("guide").join("index.html").exists(),
+        "guide/index.html should exist"
     );
-    assert!(dist_dir.join("api.html").exists(), "api.html should exist");
+    assert!(
+        dist_dir.join("api").join("index.html").exists(),
+        "api/index.html should exist"
+    );
 }
 
 #[test]
