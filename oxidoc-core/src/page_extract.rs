@@ -22,8 +22,19 @@ pub(crate) fn extract_page_title_from_file(path: &std::path::Path) -> Option<Str
     extract_page_title(&root)
 }
 
-/// Extract the page title from the first h1 heading.
+pub(crate) fn extract_frontmatter_title(root: &rdx_ast::Root) -> Option<String> {
+    root.frontmatter.as_ref()?.get("title")?.as_str().map(|s| s.to_string())
+}
+
+pub(crate) fn extract_frontmatter_description(root: &rdx_ast::Root) -> Option<String> {
+    root.frontmatter.as_ref()?.get("description")?.as_str().map(|s| s.to_string())
+}
+
+/// Extract the page title, preferring frontmatter over the first h1 heading.
 pub(crate) fn extract_page_title(root: &rdx_ast::Root) -> Option<String> {
+    if let Some(t) = extract_frontmatter_title(root) {
+        return Some(t);
+    }
     for node in &root.children {
         if let rdx_ast::Node::Heading(h) = node
             && h.depth.unwrap_or(1) == 1
@@ -116,13 +127,15 @@ pub(crate) fn extract_page_layout(root: &rdx_ast::Root) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// Extract a description from the first paragraph of content.
+/// Extract a description, preferring frontmatter over the first paragraph of content.
 pub(crate) fn extract_page_description(root: &rdx_ast::Root) -> Option<String> {
+    if let Some(d) = extract_frontmatter_description(root) {
+        return Some(d);
+    }
     for node in &root.children {
         if let rdx_ast::Node::Paragraph(_) = node {
             let text = crate::utils::extract_plain_text(node);
             if !text.trim().is_empty() {
-                // Limit to 160 characters for SEO meta description
                 return Some(text.chars().take(160).collect());
             }
         }

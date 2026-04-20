@@ -4,6 +4,7 @@ use crate::search_provider::SearchProvider;
 use crate::template::{
     BACK_TO_TOP_JS, HEADER_SCROLL_JS, SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS,
     build_header_actions, build_menu_toggle, build_mobile_nav_links, render_logo_html,
+    collect_meta_keys, remove_overridden_meta_tags,
 };
 use crate::template_assets::{
     AssetConfig, build_preload_links, build_script_tag, build_stylesheet_link,
@@ -22,6 +23,7 @@ pub fn render_landing_page(
     locale: &str,
     i18n_state: &I18nState,
     search_provider: &SearchProvider,
+    is_homepage: bool,
 ) -> String {
     let project_name = &config.project.name;
     let page_title = if title.is_empty() {
@@ -51,8 +53,11 @@ pub fn render_landing_page(
         format!("{}/{}", base_url, active_slug)
     };
 
+    let og_type = if is_homepage { "website" } else { "article" };
+    let jsonld_type = if is_homepage { "WebSite" } else { "WebPage" };
+
     let json_ld = format!(
-        r##"{{"@context":"https://schema.org","@type":"WebPage","name":{},"description":{},"url":{},"site":{{"name":{}}}}}"##,
+        r##"{{"@context":"https://schema.org","@type":"{jsonld_type}","name":{},"description":{},"url":{},"site":{{"name":{}}}}}"##,
         serde_json::to_string(&page_title).unwrap_or_else(|_| "null".into()),
         serde_json::to_string(&page_description).unwrap_or_else(|_| "null".into()),
         serde_json::to_string(&safe_url).unwrap_or_else(|_| "null".into()),
@@ -99,7 +104,7 @@ pub fn render_landing_page(
     <meta name="description" content="{page_description_escaped}">
     <meta name="generator" content="oxidoc">
     <meta property="og:title" content="{page_title_escaped}">
-    <meta property="og:type" content="article">
+    <meta property="og:type" content="{og_type}">
     <meta property="og:url" content="{safe_url}">
     <meta property="og:site_name" content="{safe_name}">
     <meta property="og:description" content="{page_description_escaped}">
@@ -162,6 +167,7 @@ pub fn render_landing_page(
         }
     }
     if !extra_head.is_empty() {
+        html = remove_overridden_meta_tags(html, &extra_head);
         html = html.replace("</head>", &format!("{extra_head}\n</head>"));
     }
 
@@ -222,6 +228,7 @@ name = "Test Docs""#,
             "en",
             &i18n,
             &provider,
+            false,
         );
         assert!(html.contains("oxidoc-landing"));
         assert!(html.contains("oxidoc-header-landing"));
