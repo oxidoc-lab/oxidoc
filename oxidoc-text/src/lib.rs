@@ -64,6 +64,38 @@ pub fn split_camel_case(s: &str) -> Vec<&str> {
 /// 8. Stem via Snowball English stemmer
 /// 9. Return Vec<String>
 pub fn tokenize(text: &str) -> Vec<String> {
+    let mut result = Vec::new();
+
+    for (stem, _raw) in tokenize_with_raw(text) {
+        result.push(stem);
+    }
+    result
+}
+
+/// Like [`tokenize`] but returns `(stemmed, raw_lowercased)` pairs.
+///
+/// The raw form is useful for query-time matching: a partial-word query like
+/// "analy" stems to "anali" (Snowball's trailing y→i rule) and matches no
+/// indexed term, but "analy" as a raw prefix still matches stemmed postings
+/// like "analyt". Callers can try both forms.
+///
+/// Applies stop-word filtering (matches the index pipeline). Use
+/// [`tokenize_query`] at search time to keep partial tokens like `"an"`
+/// (prefix of "analytics") that would otherwise be dropped as stop words.
+pub fn tokenize_with_raw(text: &str) -> Vec<(String, String)> {
+    tokenize_with_raw_inner(text, true)
+}
+
+/// Query-time variant of [`tokenize_with_raw`] that does NOT drop stop words.
+///
+/// The index skips stop words for compactness, but a short query like `"an"`
+/// is usually a partial word (prefix of "analytics"), not a search for the
+/// article "an". Keep it so it can prefix-match stemmed postings.
+pub fn tokenize_query(text: &str) -> Vec<(String, String)> {
+    tokenize_with_raw_inner(text, false)
+}
+
+fn tokenize_with_raw_inner(text: &str, filter_stop_words: bool) -> Vec<(String, String)> {
     let stemmer = Stemmer::create(Algorithm::English);
     let mut result = Vec::new();
 
@@ -76,7 +108,6 @@ pub fn tokenize(text: &str) -> Vec<String> {
             continue;
         }
 
-        // Unicode normalize and strip diacritics
         let normalized = normalize_unicode(&cleaned);
         let lower = normalized.to_lowercase();
 
@@ -84,26 +115,22 @@ pub fn tokenize(text: &str) -> Vec<String> {
             continue;
         }
 
-        // Split camelCase/PascalCase into sub-words
+        let keep = |w: &str| -> bool { !filter_stop_words || !is_stop_word(w) };
+
         let parts = split_camel_case(&cleaned);
         if parts.len() > 1 {
-            // Emit the compound token (if not a stop word)
-            if !is_stop_word(&lower) {
-                let stemmed = stemmer.stem(&lower).into_owned();
-                result.push(stemmed);
+            if keep(&lower) {
+                result.push((stemmer.stem(&lower).into_owned(), lower.clone()));
             }
-            // Emit each sub-word
             for part in parts {
                 let normalized_part = normalize_unicode(part);
                 let p = normalized_part.to_lowercase();
-                if p.len() > 1 && !is_stop_word(&p) {
-                    let stemmed = stemmer.stem(&p).into_owned();
-                    result.push(stemmed);
+                if p.len() > 1 && keep(&p) {
+                    result.push((stemmer.stem(&p).into_owned(), p));
                 }
             }
-        } else if !is_stop_word(&lower) {
-            let stemmed = stemmer.stem(&lower).into_owned();
-            result.push(stemmed);
+        } else if keep(&lower) {
+            result.push((stemmer.stem(&lower).into_owned(), lower));
         }
     }
     result
