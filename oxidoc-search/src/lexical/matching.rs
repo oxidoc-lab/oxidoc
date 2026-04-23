@@ -79,9 +79,12 @@ pub(super) fn context_snippet_at(
         .unwrap_or(0);
 
     let before = max_len / 3;
-    let start = offset.saturating_sub(before);
-    let end = (start + max_len).min(text.len());
-    let end = end.max((offset + match_len + 20).min(text.len()));
+    let start = floor_char_boundary(text, offset.saturating_sub(before));
+    let end = floor_char_boundary(text, (start + max_len).min(text.len()));
+    let end = end.max(ceil_char_boundary(
+        text,
+        (offset + match_len + 20).min(text.len()),
+    ));
 
     // Align to word boundaries
     let start = if start > 0 {
@@ -107,6 +110,25 @@ pub(super) fn context_snippet_at(
         snippet.push_str("...");
     }
     snippet
+}
+
+/// Round `idx` down to the nearest UTF-8 char boundary in `text`.
+fn floor_char_boundary(text: &str, mut idx: usize) -> usize {
+    if idx >= text.len() {
+        return text.len();
+    }
+    while idx > 0 && !text.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
+}
+
+/// Round `idx` up to the nearest UTF-8 char boundary in `text`.
+fn ceil_char_boundary(text: &str, mut idx: usize) -> usize {
+    while idx < text.len() && !text.is_char_boundary(idx) {
+        idx += 1;
+    }
+    idx
 }
 
 /// Max edit distance based on term length.
@@ -182,6 +204,16 @@ mod tests {
         let tokens = oxidoc_text::tokenize("running jumps");
         assert!(tokens.contains(&"run".to_string()));
         assert!(tokens.contains(&"jump".to_string()));
+    }
+
+    #[test]
+    fn test_context_snippet_multibyte_char_boundary() {
+        // Regression: slicing at a byte index inside a multi-byte UTF-8 char
+        // (here, an em dash) must not panic.
+        let text = "API Reference — OpenAPI Integration Guide with extra trailing context words here so the window actually slides across the em dash boundary and triggers the failure case";
+        let terms = vec!["api".to_string()];
+        let s = context_snippet_at(text, 0, &terms, 40);
+        assert!(!s.is_empty());
     }
 
     #[test]

@@ -62,7 +62,10 @@ impl LexicalSearcher {
             None => return vec![],
         };
 
-        let tokens = oxidoc_text::tokenize(query);
+        let tokens: Vec<String> = oxidoc_text::tokenize_query(query)
+            .into_iter()
+            .flat_map(|(s, r)| if s == r { vec![s] } else { vec![s, r] })
+            .collect();
         let mut needed: HashSet<u32> = HashSet::new();
 
         let prefix_to_chunks: HashMap<&str, Vec<u32>> = {
@@ -105,17 +108,46 @@ impl LexicalSearcher {
             return Vec::new();
         }
 
-        let tokens = oxidoc_text::tokenize(text);
-        if tokens.is_empty() {
+        let pairs = oxidoc_text::tokenize_query(text);
+        if pairs.is_empty() {
             return Vec::new();
         }
+        let tokens: Vec<String> = pairs.iter().map(|(s, _)| s.clone()).collect();
+        let raw_tokens: Vec<String> = pairs.iter().map(|(_, r)| r.clone()).collect();
 
-        let resolved = resolve_tokens(&tokens, &self.postings);
+        let resolved = resolve_tokens(&tokens, &raw_tokens, &self.postings);
         let num_tokens = tokens.len();
         let mut all_results: Vec<DocResult> = Vec::new();
 
         let doc_map: HashMap<u32, &DocMetadata> =
             self.documents.iter().map(|d| (d.id, d)).collect();
+
+        // A doc whose title covers all query tokens is likely the canonical
+        // page for the query — boost its results so the dedicated page outranks
+        // sibling subsections that merely mention the term. A token counts as
+        // covering a title word if it's stem-equal OR a prefix of the title
+        // word (so "ve" still matches a title containing "Versioning").
+        let doc_title_full_match = |doc: &DocMetadata| -> bool {
+            let title_words: Vec<(String, String)> = doc
+                .title
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|w| !w.is_empty())
+                .map(|w| {
+                    let lower = w.to_lowercase();
+                    let stem = oxidoc_text::stem(&lower);
+                    (lower, stem)
+                })
+                .collect();
+            if title_words.is_empty() {
+                return false;
+            }
+            tokens.iter().enumerate().all(|(i, t)| {
+                let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(t.as_str());
+                title_words.iter().any(|(lower, stem)| {
+                    stem == t || lower.starts_with(t.as_str()) || lower.starts_with(raw)
+                })
+            })
+        };
 
         for doc_id in &resolved.candidate_docs {
             let doc = match doc_map.get(doc_id) {
@@ -175,6 +207,7 @@ impl LexicalSearcher {
                 continue;
             }
 
+            let title_match = doc_title_full_match(doc);
             let mut seen_anchors: Vec<String> = Vec::new();
             for offset in &offsets {
                 let (breadcrumb, anchor) =
@@ -191,9 +224,23 @@ impl LexicalSearcher {
                 } else {
                     &doc.title
                 };
-                let score = score_section(section_text, heading_title, &tokens, num_tokens)
-                    * and_penalty
-                    * phrase_boost;
+                // Page-title match: boost the intro section (no subheading) strongly
+                // so the dedicated page wins over subsections that share the term.
+                // Lesser boost for subsections of the same page.
+                let title_boost = if title_match {
+                    if breadcrumb.is_empty() { 2.0 } else { 1.2 }
+                } else {
+                    1.0
+                };
+                let score = score_section(
+                    section_text,
+                    heading_title,
+                    &tokens,
+                    &raw_tokens,
+                    num_tokens,
+                ) * and_penalty
+                    * phrase_boost
+                    * title_boost;
 
                 if score <= 0.0 {
                     continue;

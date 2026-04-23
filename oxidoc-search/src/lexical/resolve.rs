@@ -17,12 +17,25 @@ pub(super) struct ResolvedQuery<'a> {
 /// matched/fuzzy keys per document, and prepare phrase-boost data.
 pub(super) fn resolve_tokens<'a>(
     tokens: &[String],
+    raw_tokens: &[String],
     postings: &'a HashMap<String, Vec<Posting>>,
 ) -> ResolvedQuery<'a> {
     let posting_keys: Vec<&String> = postings.keys().collect();
     let mut token_matches: Vec<Vec<(&str, f32, bool)>> = Vec::new();
-    for token in tokens {
-        token_matches.push(find_matching_postings(token, &posting_keys));
+    for (i, token) in tokens.iter().enumerate() {
+        let mut matches = find_matching_postings(token, &posting_keys);
+        // Also try the raw (unstemmed) form — partial queries like "analy"
+        // stem to "anali" but still prefix-match stemmed postings like "analyt".
+        if let Some(raw) = raw_tokens.get(i)
+            && raw != token
+        {
+            for m in find_matching_postings(raw, &posting_keys) {
+                if !matches.iter().any(|existing| existing.0 == m.0) {
+                    matches.push(m);
+                }
+            }
+        }
+        token_matches.push(matches);
     }
 
     // Collect doc IDs per token for AND logic

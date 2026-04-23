@@ -9,8 +9,37 @@ pub(super) fn score_section(
     section_text: &str,
     heading_title: &str,
     tokens: &[String],
+    raw_tokens: &[String],
     num_tokens: usize,
 ) -> f32 {
+    // Score a single word against (stem, raw) forms of a token.
+    //
+    // A token that's a prefix of the word (pos=0) scores 0.9 regardless of
+    // word length — a typed prefix like "ve" should match "versioning" as
+    // strongly as it matches "vercel", so the ranking is decided by other
+    // signals (title match, heading boost) rather than whichever word happens
+    // to be shorter. Non-prefix substring matches fall back to the original
+    // position×coverage formula to keep mid-word matches weaker.
+    let word_match_score = |word: &str, tk: &str, raw: &str| -> f32 {
+        let mut best = 0.0_f32;
+        for form in [tk, raw] {
+            if let Some(pos) = word.find(form) {
+                let score = if pos == 0 {
+                    0.9
+                } else {
+                    let wlen = word.len().max(1) as f32;
+                    let ps = 1.0 - (pos as f32 / wlen);
+                    let cs = form.len() as f32 / wlen;
+                    ps * cs
+                };
+                best = best.max(score);
+            }
+            if tk == raw {
+                break;
+            }
+        }
+        best
+    };
     let lower = section_text.to_lowercase();
     let heading_lower = heading_title.to_lowercase();
     let heading_words: Vec<&str> = heading_lower
@@ -24,16 +53,17 @@ pub(super) fn score_section(
     let mut total = 0.0_f32;
     let mut matched_count = 0usize;
 
-    for tk in tokens {
+    for (i, tk) in tokens.iter().enumerate() {
+        let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(tk.as_str());
         let mut best = 0.0_f32;
         let max_dist = max_edit_distance(tk.len());
         for word in &words {
-            // Literal substring match — scored by position and coverage
-            if let Some(pos) = word.find(tk.as_str()) {
-                let wlen = word.len().max(1) as f32;
-                let position_score = 1.0 - (pos as f32 / wlen);
-                let coverage_score = tk.len() as f32 / wlen;
-                let score = position_score * coverage_score;
+            if oxidoc_text::stem(word) == *tk {
+                best = 1.0;
+                break;
+            }
+            let score = word_match_score(word, tk, raw);
+            if score > 0.0 {
                 best = best.max(score);
                 if score >= 1.0 {
                     break;
@@ -85,15 +115,16 @@ pub(super) fn score_section(
 
         let mut heading_score = 0.0_f32;
         let mut heading_hits = 0usize;
-        for tk in tokens {
+        for (i, tk) in tokens.iter().enumerate() {
+            let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(tk.as_str());
             let mut best = 0.0_f32;
             for hw in &expanded_heading {
-                if let Some(pos) = hw.find(tk.as_str()) {
-                    let wlen = hw.len().max(1) as f32;
-                    let ps = 1.0 - (pos as f32 / wlen);
-                    let cs = tk.len() as f32 / wlen;
-                    best = best.max(ps * cs);
+                if oxidoc_text::stem(hw) == *tk {
+                    best = 1.0;
+                    break;
                 }
+                let score = word_match_score(hw, tk, raw);
+                best = best.max(score);
             }
             if best > 0.0 {
                 heading_hits += 1;
