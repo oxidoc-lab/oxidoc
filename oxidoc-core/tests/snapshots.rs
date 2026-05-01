@@ -380,10 +380,18 @@ fn head_block_override_no_duplicate_meta() {
     build_site(tmp.path(), &output).expect("Build failed");
     let html = std::fs::read_to_string(output.join("page").join("index.html"))
         .expect("page/index.html missing");
+    // Count real <meta> tags inside <head> only. The Copy Markdown dropdown
+    // embeds the raw RDX source in a <script type="text/markdown"> block in
+    // the body, which contains its own literal "og:type" substring that
+    // should not be counted here.
+    let head = html
+        .split_once("</head>")
+        .map(|(h, _)| h)
+        .expect("missing </head>");
     assert_eq!(
-        html.matches(r#"property="og:type""#).count(),
+        head.matches(r#"<meta property="og:type""#).count(),
         1,
-        "exactly one og:type tag when Head block overrides it"
+        "exactly one og:type meta tag in <head> when Head block overrides it"
     );
 }
 
