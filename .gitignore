@@ -2,9 +2,6 @@
 /target
 /dist
 
-# Dependencies
-Cargo.lock
-
 # Local development overrides (path patches to rdx-lang)
 .cargo/
 

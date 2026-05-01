@@ -115,4 +115,4 @@ jobs:
           prefix-key: test
 
       - name: Run tests
-        run: cargo test -p oxidoc-core -p oxidoc-cli -p oxidoc-island
+        run: cargo test -p oxidoc-core -p oxidoc -p oxidoc-island

@@ -174,7 +174,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 
 | Crate               | Type    | Purpose                                                   |
 | :------------------ | :------ | :-------------------------------------------------------- |
-| `oxidoc-cli`        | Binary  | CLI commands: `dev`, `build`, `init`                      |
+| `oxidoc`            | Binary  | CLI commands: `dev`, `build`, `init`                      |
 | `oxidoc-core`       | Library | Build engine: config, parsing, rendering, search indexing |
 | `oxidoc-island`     | Library | `OxidocIsland` trait definition                           |
 | `oxidoc-components` | Library | Built-in Leptos components                                |

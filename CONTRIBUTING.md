@@ -23,7 +23,7 @@ cargo test --workspace
 
 ```bash
 # Build all crates
-cargo build -p oxidoc-cli -p oxidoc-core
+cargo build -p oxidoc -p oxidoc-core
 
 # Run tests
 cargo test --workspace
@@ -42,7 +42,7 @@ cargo bench -p oxidoc-core --no-run
 
 | Crate               | Type    | Responsibility                                   |
 | :------------------ | :------ | :----------------------------------------------- |
-| `oxidoc-cli`        | Binary  | CLI commands, dev server, HMR integration        |
+| `oxidoc`            | Binary  | CLI commands, dev server, HMR integration        |
 | `oxidoc-core`       | Library | Config parsing, RDX→HTML rendering, build engine |
 | `oxidoc-island`     | Library | Island component trait definition                |
 | `oxidoc-components` | Library | Built-in Leptos components (Callout, Tabs, etc.) |
@@ -93,7 +93,7 @@ No traits, types, impl blocks, or logic in mod.rs files.
 
 Strict isolation between host and client environments:
 
-- **Host crates** (`oxidoc-cli`, `oxidoc-core`): NO `web-sys`, `wasm-bindgen`, or browser APIs
+- **Host crates** (`oxidoc`, `oxidoc-core`): NO `web-sys`, `wasm-bindgen`, or browser APIs
 - **Client crates** (`oxidoc-island`, `oxidoc-components`, `oxidoc-registry`): NO `tokio`, `axum`, or file I/O
 
 ## Testing Strategy
