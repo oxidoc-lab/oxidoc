@@ -1,0 +1,150 @@
+.oxidoc-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.oxidoc-page-header .oxidoc-breadcrumbs,
+.oxidoc-page-header > nav {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.oxidoc-llm-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.oxidoc-llm-copy,
+.oxidoc-llm-toggle {
+  appearance: none;
+  background: var(--oxidoc-bg-soft, #f6f6f7);
+  color: var(--oxidoc-text, #1f2328);
+  border: 1px solid var(--oxidoc-border, #d0d7de);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.4rem 0.75rem;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.oxidoc-llm-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 6px 0 0 6px;
+  border-right: none;
+}
+
+.oxidoc-llm-toggle {
+  border-radius: 0 6px 6px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.5rem;
+}
+
+.oxidoc-llm-copy:hover,
+.oxidoc-llm-toggle:hover {
+  background: var(--oxidoc-bg-hover, #eaeef2);
+}
+
+.oxidoc-llm-copied {
+  background: var(--oxidoc-success-bg, #dafbe1) !important;
+  color: var(--oxidoc-success, #1a7f37) !important;
+}
+
+.oxidoc-llm-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 18rem;
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+  background: var(--oxidoc-bg, #fff);
+  border: 1px solid var(--oxidoc-border, #d0d7de);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+}
+
+.oxidoc-llm-menu[hidden] {
+  display: none;
+}
+
+.oxidoc-llm-menu-item {
+  display: block;
+  padding: 0.5rem 0.85rem;
+  color: var(--oxidoc-text, #1f2328);
+  text-decoration: none;
+  border: none;
+}
+
+.oxidoc-llm-menu-item:hover {
+  background: var(--oxidoc-bg-hover, #f3f4f6);
+  text-decoration: none;
+}
+
+.oxidoc-llm-menu-title {
+  display: block;
+  font-weight: 500;
+}
+
+.oxidoc-llm-menu-sub {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--oxidoc-text-muted, #57606a);
+  margin-top: 0.1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .oxidoc-llm-copy,
+  .oxidoc-llm-toggle {
+    background: var(--oxidoc-bg-soft, #1c2128);
+    color: var(--oxidoc-text, #e6edf3);
+    border-color: var(--oxidoc-border, #30363d);
+  }
+  .oxidoc-llm-copy:hover,
+  .oxidoc-llm-toggle:hover {
+    background: var(--oxidoc-bg-hover, #262c36);
+  }
+  .oxidoc-llm-menu {
+    background: var(--oxidoc-bg, #161b22);
+    border-color: var(--oxidoc-border, #30363d);
+  }
+  .oxidoc-llm-menu-item {
+    color: var(--oxidoc-text, #e6edf3);
+  }
+  .oxidoc-llm-menu-item:hover {
+    background: var(--oxidoc-bg-hover, #262c36);
+  }
+}
+
+[data-theme='dark'] .oxidoc-llm-copy,
+[data-theme='dark'] .oxidoc-llm-toggle {
+  background: #1c2128;
+  color: #e6edf3;
+  border-color: #30363d;
+}
+[data-theme='dark'] .oxidoc-llm-copy:hover,
+[data-theme='dark'] .oxidoc-llm-toggle:hover {
+  background: #262c36;
+}
+[data-theme='dark'] .oxidoc-llm-menu {
+  background: #161b22;
+  border-color: #30363d;
+}
+[data-theme='dark'] .oxidoc-llm-menu-item {
+  color: #e6edf3;
+}
+[data-theme='dark'] .oxidoc-llm-menu-item:hover {
+  background: #262c36;
+}
