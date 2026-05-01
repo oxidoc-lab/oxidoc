@@ -8,3 +8,4 @@ pub(crate) const SEARCH_DIALOG_HTML: &str = include_str!("../templates/search_di
 pub(crate) const HEADER_ACTIONS_HTML: &str = include_str!("../templates/header_actions.html");
 pub(crate) const MOBILE_MENU_JS: &str = include_str!("../templates/mobile_menu.js");
 pub(crate) const ERROR_404_HTML: &str = include_str!("../templates/error_404.html");
+pub(crate) const COPY_MARKDOWN_JS: &str = include_str!("../templates/copy_markdown.js");

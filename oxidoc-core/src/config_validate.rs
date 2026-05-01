@@ -15,6 +15,7 @@ pub(crate) fn validate_config_keys(content: &str) {
         "analytics",
         "attribution",
         "social",
+        "llm",
     ];
 
     if let Ok(value) = toml::from_str::<toml::Table>(content) {

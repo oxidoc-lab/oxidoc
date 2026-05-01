@@ -15,6 +15,22 @@ pub(crate) fn inject_version_switcher(html: &str, switcher_html: &str) -> String
     }
 }
 
+/// Inject the "Copy Markdown / Open in LLM" dropdown into a rendered page.
+/// Replaces the `<span class="oxidoc-llm-slot" hidden></span>` placeholder
+/// emitted by the page template. Pages where the button is disabled keep the
+/// (invisible) placeholder, so unrelated render paths (archive, API, root)
+/// remain unaffected.
+pub(crate) fn inject_copy_markdown_button(html: &str, button_html: &str) -> String {
+    if button_html.is_empty() {
+        return html.to_string();
+    }
+    html.replacen(
+        r#"<span class="oxidoc-llm-slot" hidden></span>"#,
+        button_html,
+        1,
+    )
+}
+
 /// Inject an outdated version banner and noindex meta tag into archived pages.
 pub(crate) fn inject_outdated_banner(html: &str, version: &str) -> String {
     let banner = format!(

@@ -16,6 +16,7 @@ pub mod i18n;
 pub mod icons;
 pub mod incremental;
 pub mod island_props;
+pub mod llm;
 pub mod loader;
 pub mod minify;
 pub mod openapi;

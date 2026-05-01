@@ -28,6 +28,7 @@ pub fn generate_base_css(
 {TYPOGRAPHY_CSS}
 {SKIP_NAV_AND_HEADER_ACTIONS_CSS}
 {COMPONENT_CSS}
+{COPY_MARKDOWN_CSS}
 {API_CSS}
 {SYNTAX_CSS}
 {SEARCH_DIALOG_CSS}
@@ -44,6 +45,7 @@ pub fn generate_base_css(
         TYPOGRAPHY_CSS = components::TYPOGRAPHY,
         SKIP_NAV_AND_HEADER_ACTIONS_CSS = theme::SKIP_NAV_AND_HEADER_ACTIONS,
         COMPONENT_CSS = components::COMPONENTS,
+        COPY_MARKDOWN_CSS = components::COPY_MARKDOWN,
         API_CSS = components::API,
         SYNTAX_CSS = syntax::SYNTAX,
         SEARCH_DIALOG_CSS = search::SEARCH_DIALOG,

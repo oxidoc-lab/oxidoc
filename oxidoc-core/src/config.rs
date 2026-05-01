@@ -30,6 +30,8 @@ pub struct OxidocConfig {
     pub attribution: AttributionConfig,
     #[serde(default)]
     pub social: SocialConfig,
+    #[serde(default)]
+    pub llm: crate::llm::LlmConfig,
 }
 
 #[derive(Debug, Deserialize)]

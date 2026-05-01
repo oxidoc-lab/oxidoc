@@ -6,7 +6,7 @@ use crate::template::nav::{
     render_logo_html,
 };
 use crate::template::{
-    API_TABS_JS, BACK_TO_TOP_JS, HEADER_SCROLL_JS, MOBILE_MENU_JS, SCROLLSPY_JS,
+    API_TABS_JS, BACK_TO_TOP_JS, COPY_MARKDOWN_JS, HEADER_SCROLL_JS, MOBILE_MENU_JS, SCROLLSPY_JS,
     SEARCH_DIALOG_HTML, SEARCH_DIALOG_JS, THEME_TOGGLE_JS, remove_overridden_meta_tags,
 };
 use crate::template_assets::{
@@ -175,7 +175,10 @@ pub fn render_page(
         </aside>
         <main id="oxidoc-main" class="oxidoc-content" role="main">
             {mobile_toc_html}
-            {breadcrumb_html}
+            <div class="oxidoc-page-header">
+              {breadcrumb_html}
+              <span class="oxidoc-llm-slot" hidden></span>
+            </div>
             <article>
                 {content_html}
             </article>
@@ -263,8 +266,8 @@ pub fn render_page(
     html.replace(
         "</body>",
         &format!(
-            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
-            search_html, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, MOBILE_MENU_JS, mermaid_script
+            "{}\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n<script>{}</script>\n{}</body>",
+            search_html, THEME_TOGGLE_JS, SEARCH_DIALOG_JS, SCROLLSPY_JS, HEADER_SCROLL_JS, BACK_TO_TOP_JS, API_TABS_JS, MOBILE_MENU_JS, COPY_MARKDOWN_JS, mermaid_script
         ),
     )
 }

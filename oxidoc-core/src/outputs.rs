@@ -26,40 +26,6 @@ pub fn generate_seo_files(
     )
 }
 
-/// Generate `llms.txt` and `llms-full.txt` for AI/RAG consumption.
-pub fn generate_llms_txt(nav_groups: &[NavGroup], output_dir: &Path) -> Result<()> {
-    let mut summary = String::new();
-    let mut full = String::new();
-
-    for group in nav_groups {
-        for page in &group.pages {
-            let content =
-                std::fs::read_to_string(&page.file_path).map_err(|e| OxidocError::FileRead {
-                    path: page.file_path.display().to_string(),
-                    source: e,
-                })?;
-
-            summary.push_str(&format!("- /{}: {}\n", page.slug, page.title));
-            full.push_str(&format!(
-                "\n---\n# {} ({})\n\n{}\n",
-                page.title, page.slug, content
-            ));
-        }
-    }
-
-    std::fs::write(output_dir.join("llms.txt"), summary).map_err(|e| OxidocError::FileWrite {
-        path: output_dir.join("llms.txt").display().to_string(),
-        source: e,
-    })?;
-
-    std::fs::write(output_dir.join("llms-full.txt"), full).map_err(|e| OxidocError::FileWrite {
-        path: output_dir.join("llms-full.txt").display().to_string(),
-        source: e,
-    })?;
-
-    Ok(())
-}
-
 /// Generate an index.html that redirects to the first page.
 pub fn generate_index_redirect(nav_groups: &[NavGroup], output_dir: &Path) -> Result<()> {
     let first_slug = nav_groups

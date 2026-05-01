@@ -7,12 +7,14 @@ use crate::css::{generate_base_css, minify_css};
 use crate::error::{OxidocError, Result};
 use crate::i18n::{I18nState, load_translations};
 use crate::incremental::IncrementalCache;
+use crate::llm::{
+    PageLlmInput, extract_page_llm, generate_llm_outputs, render_copy_markdown_button,
+    resolve_llm_for_page,
+};
 use crate::loader::generate_loader_js;
 use crate::minify::minify_html;
 use crate::openapi;
-use crate::outputs::{
-    generate_index_redirect, generate_llms_txt, generate_redirects, generate_seo_files,
-};
+use crate::outputs::{generate_index_redirect, generate_redirects, generate_seo_files};
 use crate::page_extract::{
     build_page_nav, build_title_map, check_parse_errors, extract_frontmatter_short_title,
     extract_page_description, extract_page_layout, extract_page_title, resolve_git_meta,
@@ -32,7 +34,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::html_inject::inject_version_switcher;
+use crate::html_inject::{inject_copy_markdown_button, inject_version_switcher};
 
 use super::folder_index::{FolderIndexContext, generate_folder_index_pages};
 use super::root_pages::build_root_pages;
@@ -158,8 +160,9 @@ pub fn build_site_with_model(
         }
     })?;
 
-    // Patch nav group page titles from frontmatter.
+    // Patch nav group page titles from frontmatter and collect per-page LLM resolution.
     // `title` (full) is used in the top bar; `short_title` (short_title frontmatter or slug-derived) is used in the sidebar.
+    let mut resolved_llm: HashMap<String, crate::llm::ResolvedLlm> = HashMap::new();
     for group in &mut nav_groups {
         for page in &mut group.pages {
             if let Ok(content) = std::fs::read_to_string(&page.file_path) {
@@ -170,6 +173,14 @@ pub fn build_site_with_model(
                 if let Some(short) = extract_frontmatter_short_title(&root) {
                     page.short_title = short;
                 }
+                let fm_llm = extract_page_llm(&root);
+                let resolved = resolve_llm_for_page(&page.slug, fm_llm.as_ref(), &config.llm);
+                resolved_llm.insert(page.slug.clone(), resolved);
+            } else {
+                resolved_llm.insert(
+                    page.slug.clone(),
+                    resolve_llm_for_page(&page.slug, None, &config.llm),
+                );
             }
         }
     }
@@ -248,6 +259,7 @@ pub fn build_site_with_model(
     let flat_pages = Arc::new(flat_pages);
 
     let nav_groups_arc = Arc::new(nav_groups.clone());
+    let resolved_llm = Arc::new(resolved_llm);
 
     for locale in &build_locales {
         let locale_output_dir = if i18n_state.is_default_locale(locale) {
@@ -270,6 +282,7 @@ pub fn build_site_with_model(
         let title_map_arc = Arc::clone(&title_map);
         let pages_arc = Arc::clone(&flat_pages);
         let version_switcher_arc = Arc::clone(&version_switcher_html);
+        let resolved_llm_arc = Arc::clone(&resolved_llm);
         let locale_str = locale.clone();
 
         let results: Result<Vec<_>> = page_contents
@@ -349,6 +362,10 @@ pub fn build_site_with_model(
                 };
                 let page_output = if is_homepage {
                     locale_output_dir.join("index.html")
+                } else if let Some(parent_slug) = page.slug.strip_suffix("/index") {
+                    // `lib/index` slug serves `/lib/` — write to `lib/index.html`
+                    // to match the sidebar URL convention.
+                    locale_output_dir.join(parent_slug).join("index.html")
                 } else {
                     locale_output_dir.join(&page.slug).join("index.html")
                 };
@@ -360,6 +377,11 @@ pub fn build_site_with_model(
                 }
 
                 let full_html = inject_version_switcher(&full_html, &version_switcher_arc);
+                let button_html = resolved_llm_arc
+                    .get(&page.slug)
+                    .map(|r| render_copy_markdown_button(&page.slug, content, r))
+                    .unwrap_or_default();
+                let full_html = inject_copy_markdown_button(&full_html, &button_html);
                 let minified_html = minify_html(&full_html);
                 std::fs::write(&page_output, minified_html).map_err(|e| {
                     OxidocError::FileWrite {
@@ -459,7 +481,19 @@ pub fn build_site_with_model(
         }
     }
 
-    generate_llms_txt(&nav_groups, output_dir)?;
+    let llm_inputs: Vec<PageLlmInput> = flat_pages
+        .iter()
+        .map(|page| PageLlmInput {
+            slug: page.slug.clone(),
+            title: page.title.clone(),
+            file_path: page.file_path.clone(),
+            resolved: resolved_llm
+                .get(&page.slug)
+                .copied()
+                .unwrap_or_else(|| resolve_llm_for_page(&page.slug, None, &config.llm)),
+        })
+        .collect();
+    generate_llm_outputs(&llm_inputs, &config.llm, output_dir)?;
     // Only generate redirect if no root homepage was rendered
     if !has_root {
         generate_index_redirect(&nav_groups, output_dir)?;

@@ -79,19 +79,47 @@ pub(super) fn generate_folder_index_pages(
         .map(|s| &s[..s.len() - "/index".len()])
         .collect();
 
-    // Collect children per folder (preserving navigation order)
+    // Collect direct page children per folder (preserving navigation order)
     let mut folder_children: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
+    // Collect direct sub-folder children per folder (preserving first-encounter order)
+    let mut folder_subfolders: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut seen_subfolder: HashSet<(&str, &str)> = HashSet::new();
     for page in &all_pages {
-        if let Some(pos) = page.slug.rfind('/') {
-            let parent = &page.slug[..pos];
-            folder_children
-                .entry(parent)
-                .or_default()
-                .push((&page.slug, &page.title));
+        // Walk every ancestor folder: for slug "a/b/c", parents are "a/b", "a".
+        let mut rest = page.slug.as_str();
+        let mut child_path = page.slug.as_str();
+        while let Some(pos) = rest.rfind('/') {
+            let parent = &rest[..pos];
+            if rest == page.slug {
+                // immediate parent: register page as direct child
+                folder_children
+                    .entry(parent)
+                    .or_default()
+                    .push((&page.slug, &page.title));
+            } else {
+                // ancestor: register the intermediate folder as a sub-folder card
+                if seen_subfolder.insert((parent, child_path)) {
+                    folder_subfolders
+                        .entry(parent)
+                        .or_default()
+                        .push(child_path);
+                }
+            }
+            child_path = parent;
+            rest = parent;
         }
     }
 
-    for (folder, children) in &folder_children {
+    // Union of folders that have either page children or sub-folder children
+    let mut all_folders: HashSet<&str> = folder_children.keys().copied().collect();
+    all_folders.extend(folder_subfolders.keys().copied());
+
+    for folder in &all_folders {
+        let folder = *folder;
+        let empty_pages: Vec<(&str, &str)> = Vec::new();
+        let children = folder_children.get(folder).unwrap_or(&empty_pages);
+        let empty_subs: Vec<&str> = Vec::new();
+        let subfolders = folder_subfolders.get(folder).unwrap_or(&empty_subs);
         if has_index.contains(folder) {
             continue;
         }
@@ -125,10 +153,32 @@ pub(super) fn generate_folder_index_pages(
                 "<a href=\"/{slug_escaped}\" class=\"oxidoc-card\"><div class=\"oxidoc-card-title\">{title_escaped}</div></a>"
             ));
         }
+        for sub_slug in subfolders {
+            let sub_basename = sub_slug.rsplit('/').next().unwrap_or(sub_slug);
+            let sub_title = title_case(sub_basename);
+            let slug_escaped = crate::utils::html_escape(sub_slug);
+            let title_escaped = crate::utils::html_escape(&sub_title);
+            content_html.push_str(&format!(
+                "<a href=\"/{slug_escaped}/\" class=\"oxidoc-card\"><div class=\"oxidoc-card-title\">{title_escaped}</div></a>"
+            ));
+        }
         content_html.push_str("</div>");
 
         // Get the sidebar for this folder's section
-        let sample_slug = children.first().map(|(s, _)| *s).unwrap_or(folder);
+        let sample_slug = children
+            .first()
+            .map(|(s, _)| *s)
+            .or_else(|| {
+                // Find any descendant page slug under this folder for sidebar lookup
+                all_pages
+                    .iter()
+                    .find(|p| {
+                        p.slug.starts_with(folder)
+                            && p.slug.as_bytes().get(folder.len()) == Some(&b'/')
+                    })
+                    .map(|p| p.slug.as_str())
+            })
+            .unwrap_or(folder);
         let sidebar_groups = ctx
             .section_nav_map
             .get(sample_slug)
