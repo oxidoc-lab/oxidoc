@@ -31,7 +31,7 @@ fn snapshot_basic_page() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("intro").join("index.html"))
+    let html = std::fs::read_to_string(output.join("intro.html"))
         .expect("Failed to read generated HTML");
 
     // Assert structural elements
@@ -82,7 +82,7 @@ fn snapshot_page_with_metadata() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("api").join("index.html"))
+    let html = std::fs::read_to_string(output.join("api.html"))
         .expect("Failed to read generated HTML");
 
     // Assert SEO metadata
@@ -151,7 +151,7 @@ fn snapshot_page_with_sections() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("tutorial").join("index.html"))
+    let html = std::fs::read_to_string(output.join("tutorial.html"))
         .expect("Failed to read generated HTML");
 
     // Verify key content is present (h1/h2 rendering may vary)
@@ -223,7 +223,7 @@ fn snapshot_assets_are_hashed() {
     assert_eq!(js_files.len(), 1, "Should have exactly one hashed JS file");
 
     // Verify the HTML references the hashed assets
-    let html = std::fs::read_to_string(output.join("page").join("index.html"))
+    let html = std::fs::read_to_string(output.join("page.html"))
         .expect("Failed to read HTML");
 
     let css_name = css_files[0].file_name().unwrap().to_string_lossy();
@@ -248,7 +248,7 @@ fn snapshot_sri_hashes_present() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("secure").join("index.html"))
+    let html = std::fs::read_to_string(output.join("secure.html"))
         .expect("Failed to read HTML");
 
     // Check for SRI attributes
@@ -302,8 +302,8 @@ fn frontmatter_title_used_on_regular_page() {
     let content = "---\ntitle: Getting Started\n---\n\n# Different Heading\n\nWelcome!";
     let (tmp, output) = setup_project(config, &[("start.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("start").join("index.html"))
-        .expect("start/index.html missing");
+    let html = std::fs::read_to_string(output.join("start.html"))
+        .expect("start.html missing");
     assert!(
         html.contains("Getting Started - Docs"),
         "should use frontmatter title"
@@ -320,8 +320,8 @@ fn frontmatter_description_used() {
     let content = "---\ndescription: Frontmatter description here.\n---\n\nFirst paragraph text.";
     let (tmp, output) = setup_project(config, &[("page.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("page").join("index.html"))
-        .expect("page/index.html missing");
+    let html = std::fs::read_to_string(output.join("page.html"))
+        .expect("page.html missing");
     assert!(
         html.contains("Frontmatter description here."),
         "should use frontmatter description"
@@ -360,8 +360,8 @@ fn regular_page_emits_og_type_article() {
     let config = "[project]\nname = \"Docs\"\n";
     let (tmp, output) = setup_project(config, &[("guide.rdx", "# Guide\n\nContent.")]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("guide").join("index.html"))
-        .expect("guide/index.html missing");
+    let html = std::fs::read_to_string(output.join("guide.html"))
+        .expect("guide.html missing");
     assert!(html.contains(r#"og:type" content="article""#));
 }
 
@@ -378,8 +378,8 @@ fn head_block_override_no_duplicate_meta() {
     let content = "# Page\n\nContent.<!--oxidoc-head-start--><meta property=\"og:type\" content=\"website\"><!--oxidoc-head-end-->";
     let (tmp, output) = setup_project(config, &[("page.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("page").join("index.html"))
-        .expect("page/index.html missing");
+    let html = std::fs::read_to_string(output.join("page.html"))
+        .expect("page.html missing");
     // Count real <meta> tags inside <head> only. The Copy Markdown dropdown
     // embeds the raw RDX source in a <script type="text/markdown"> block in
     // the body, which contains its own literal "og:type" substring that
@@ -409,24 +409,24 @@ fn snapshot_multiple_pages() {
     build_site(tmp.path(), &output).expect("Build failed");
 
     // Verify all pages are generated as directory output
-    assert!(output.join("home").join("index.html").exists());
-    assert!(output.join("guide").join("index.html").exists());
-    assert!(output.join("reference").join("index.html").exists());
+    assert!(output.join("home.html").exists());
+    assert!(output.join("guide.html").exists());
+    assert!(output.join("reference.html").exists());
 
     // Verify each page is valid HTML
-    let home = std::fs::read_to_string(output.join("home").join("index.html")).unwrap();
+    let home = std::fs::read_to_string(output.join("home.html")).unwrap();
     assert!(
         home.contains("<!DOCTYPE html>"),
         "Home page should be valid HTML"
     );
 
-    let guide = std::fs::read_to_string(output.join("guide").join("index.html")).unwrap();
+    let guide = std::fs::read_to_string(output.join("guide.html")).unwrap();
     assert!(
         guide.contains("<!DOCTYPE html>"),
         "Guide page should be valid HTML"
     );
 
-    let reference = std::fs::read_to_string(output.join("reference").join("index.html")).unwrap();
+    let reference = std::fs::read_to_string(output.join("reference.html")).unwrap();
     assert!(
         reference.contains("<!DOCTYPE html>"),
         "Reference page should be valid HTML"

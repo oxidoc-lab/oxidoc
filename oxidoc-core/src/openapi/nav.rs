@@ -166,7 +166,7 @@ pub fn build_api_pages(
             false,
         );
 
-        let page_output = output_dir.join(&slug).join("index.html");
+        let page_output = output_dir.join(format!("{slug}.html"));
         if let Some(parent) = page_output.parent() {
             std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
                 path: parent.display().to_string(),

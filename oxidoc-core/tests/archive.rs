@@ -56,7 +56,7 @@ fn archive_then_build_renders_both_versions() {
     build_site(tmp.path(), &output).unwrap();
 
     // Current version
-    let current = read_output(&output, "intro/index.html");
+    let current = read_output(&output, "intro.html");
     assert!(current.contains("V2 Intro"));
     assert!(!current.contains("V1 Intro"));
 
@@ -89,12 +89,12 @@ fn multi_archive_build_renders_all_versions() {
 
     build_site(tmp.path(), &output).unwrap();
 
-    assert!(read_output(&output, "page/index.html").contains("V3"));
+    assert!(read_output(&output, "page.html").contains("V3"));
     assert!(read_output(&output, "v1.0/page.html").contains("V1"));
     assert!(read_output(&output, "v2.0/page.html").contains("V2"));
 
     // All three versions appear in the switcher
-    let current = read_output(&output, "page/index.html");
+    let current = read_output(&output, "page.html");
     assert!(current.contains("v1.0"));
     assert!(current.contains("v2.0"));
     assert!(current.contains("latest"));
@@ -115,7 +115,7 @@ fn version_switcher_injected_with_correct_selection() {
     build_site(tmp.path(), &output).unwrap();
 
     // Current page: "latest" shown in toggle, its link is active
-    let current = read_output(&output, "doc/index.html");
+    let current = read_output(&output, "doc.html");
     assert!(current.contains("oxidoc-version-switcher"));
     assert!(current.contains(">latest <"));
     assert!(current.contains(r#"href="/" class="oxidoc-version-link active""#));
@@ -136,7 +136,7 @@ fn no_version_switcher_without_archives() {
 
     build_site(tmp.path(), &output).unwrap();
 
-    let html = read_output(&output, "page/index.html");
+    let html = read_output(&output, "page.html");
     assert!(!html.contains("oxidoc-version-switcher"));
 }
 
@@ -202,8 +202,8 @@ navigation = [
     build_site(root, &output).unwrap();
 
     // Current versions
-    assert!(read_output(&output, "intro/index.html").contains("V2 Intro"));
-    assert!(read_output(&output, "lib/api/index.html").contains("V2 API"));
+    assert!(read_output(&output, "intro.html").contains("V2 Intro"));
+    assert!(read_output(&output, "lib/api.html").contains("V2 API"));
 
     // Archived versions
     assert!(read_output(&output, "v1.0/intro.html").contains("V1 Intro"));
@@ -352,7 +352,7 @@ fn archived_pages_use_current_theme() {
     build_site(tmp.path(), &output).unwrap();
 
     // Both current and archived should reference the same CSS (current theme)
-    let current = read_output(&output, "page/index.html");
+    let current = read_output(&output, "page.html");
     let archived = read_output(&output, "v1.0/page.html");
 
     // Extract CSS filename from current page

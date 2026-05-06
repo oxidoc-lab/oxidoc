@@ -363,11 +363,9 @@ pub fn build_site_with_model(
                 let page_output = if is_homepage {
                     locale_output_dir.join("index.html")
                 } else if let Some(parent_slug) = page.slug.strip_suffix("/index") {
-                    // `lib/index` slug serves `/lib/` — write to `lib/index.html`
-                    // to match the sidebar URL convention.
-                    locale_output_dir.join(parent_slug).join("index.html")
+                    locale_output_dir.join(format!("{parent_slug}.html"))
                 } else {
-                    locale_output_dir.join(&page.slug).join("index.html")
+                    locale_output_dir.join(format!("{}.html", &page.slug))
                 };
                 if let Some(parent) = page_output.parent() {
                     std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
@@ -624,14 +622,14 @@ mod tests {
             assert!(output.join(f).exists(), "{f} should exist");
         }
 
-        // Directory output: real pages go into {slug}/index.html
+        // Clean URL output: real pages go into {slug}.html
         assert!(
-            output.join("intro").join("index.html").exists(),
-            "intro/index.html should exist"
+            output.join("intro.html").exists(),
+            "intro.html should exist"
         );
         assert!(
-            output.join("setup").join("index.html").exists(),
-            "setup/index.html should exist"
+            output.join("setup.html").exists(),
+            "setup.html should exist"
         );
 
         let css = std::fs::read_to_string(find_hashed_file(&output, "oxidoc.", ".css")).unwrap();
@@ -640,7 +638,7 @@ mod tests {
             std::fs::read_to_string(find_hashed_file(&output, "oxidoc-loader.", ".js")).unwrap();
         assert!(js.contains("oxidoc_registry.js"));
 
-        let intro = std::fs::read_to_string(output.join("intro").join("index.html")).unwrap();
+        let intro = std::fs::read_to_string(output.join("intro.html")).unwrap();
         assert!(
             intro.contains("Introduction")
                 && intro.contains("<!DOCTYPE html>")
@@ -686,7 +684,7 @@ mod tests {
         let (tmp3, out3) = setup_project(cfg2, &[("qs.rdx", "# QS\n\nGo!")]);
         assert_eq!(build_site(tmp3.path(), &out3).unwrap().pages_rendered, 1);
         assert!(
-            std::fs::read_to_string(out3.join("qs").join("index.html"))
+            std::fs::read_to_string(out3.join("qs.html"))
                 .unwrap()
                 .contains("Guide")
         );
