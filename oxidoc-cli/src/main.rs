@@ -1,3 +1,4 @@
+mod model_cache;
 mod server;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -207,9 +208,6 @@ fn is_oxidoc_workspace() -> bool {
     }
 }
 
-/// Bundled sentence embedding model for hybrid search.
-const BUNDLED_SEARCH_MODEL: &[u8] = include_bytes!("../assets/models/bge-micro-v2.gguf");
-
 /// Pre-compiled Wasm assets (JS glue + Wasm binaries) built during CI.
 const BUNDLED_WASM: oxidoc_core::wasm::BundledWasm = oxidoc_core::wasm::BundledWasm {
     registry_js: include_bytes!("../assets/wasm/oxidoc_registry.js"),
@@ -243,12 +241,10 @@ fn run_build_web(project_root: &std::path::Path, output: &str) -> miette::Result
 
     write_wasm_assets(&output_dir);
 
+    let model = model_cache::load_search_model().map_err(miette::Report::msg)?;
     let start = std::time::Instant::now();
-    let result = oxidoc_core::builder::build_site_with_model(
-        project_root,
-        &output_dir,
-        Some(BUNDLED_SEARCH_MODEL),
-    )?;
+    let result =
+        oxidoc_core::builder::build_site_with_model(project_root, &output_dir, Some(&model))?;
     tracing::info!(
         pages = result.pages_rendered,
         elapsed_ms = start.elapsed().as_millis() as u64,

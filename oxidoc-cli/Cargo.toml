@@ -5,6 +5,16 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "The Oxidoc documentation engine CLI — oxidoc dev & oxidoc build"
+include = [
+    "src/**/*",
+    "build.rs",
+    "assets/logo.svg",
+    "assets/templates/**/*",
+    "assets/wasm/*.js",
+    "assets/wasm/*.wasm",
+    "README.md",
+    "LICENSE*",
+]
 
 [[bin]]
 name = "oxidoc"
@@ -26,6 +36,10 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 futures-util.workspace = true
 async-stream.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+dirs = "6"
+ureq = { version = "3", features = ["rustls"] }
 
 [dev-dependencies]
 tempfile = "3"
