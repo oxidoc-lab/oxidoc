@@ -33,14 +33,14 @@ pub fn load_search_model() -> Result<Vec<u8>, ModelError> {
     }
 
     let cache_path = cache_path()?;
-    if cache_path.exists() {
-        if let Ok(bytes) = read_file(&cache_path) {
-            if verify_sha(&bytes) {
-                return Ok(bytes);
-            }
-            tracing::warn!("Cached model failed checksum, re-downloading");
-            let _ = fs::remove_file(&cache_path);
+    if cache_path.exists()
+        && let Ok(bytes) = read_file(&cache_path)
+    {
+        if verify_sha(&bytes) {
+            return Ok(bytes);
         }
+        tracing::warn!("Cached model failed checksum, re-downloading");
+        let _ = fs::remove_file(&cache_path);
     }
 
     download_to(&cache_path)?;
