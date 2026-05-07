@@ -74,14 +74,14 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Install wasm-bindgen-cli
-        run: |
-          VERSION=$(grep -A2 '^name = "wasm-bindgen"$' Cargo.lock | grep '^version' | head -1 | sed 's/version = "//;s/"//')
-          cargo install wasm-bindgen-cli --version "$VERSION" --locked
-
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: wasm-assets
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          VERSION=$(grep -A2 '^name = "wasm-bindgen"$' Cargo.lock | grep '^version' | head -1 | sed 's/version = "//;s/"//')
+          cargo install wasm-bindgen-cli --version "$VERSION" --locked --force
 
       - name: Build Wasm assets
         run: |
