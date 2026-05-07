@@ -99,7 +99,10 @@ fn download_to(dest: &std::path::Path) -> Result<(), ModelError> {
         })?;
     }
 
-    eprintln!("oxidoc: downloading search model (~17 MB) to {}", dest.display());
+    eprintln!(
+        "oxidoc: downloading search model (~17 MB) to {}",
+        dest.display()
+    );
 
     let mut response = ureq::get(MODEL_URL)
         .call()

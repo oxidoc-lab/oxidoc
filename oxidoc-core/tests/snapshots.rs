@@ -31,8 +31,8 @@ fn snapshot_basic_page() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("intro.html"))
-        .expect("Failed to read generated HTML");
+    let html =
+        std::fs::read_to_string(output.join("intro.html")).expect("Failed to read generated HTML");
 
     // Assert structural elements
     assert!(html.contains("<!DOCTYPE html>"), "Missing DOCTYPE");
@@ -82,8 +82,8 @@ fn snapshot_page_with_metadata() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("api.html"))
-        .expect("Failed to read generated HTML");
+    let html =
+        std::fs::read_to_string(output.join("api.html")).expect("Failed to read generated HTML");
 
     // Assert SEO metadata
     assert!(html.contains(r#"<meta name="description""#));
@@ -223,8 +223,7 @@ fn snapshot_assets_are_hashed() {
     assert_eq!(js_files.len(), 1, "Should have exactly one hashed JS file");
 
     // Verify the HTML references the hashed assets
-    let html = std::fs::read_to_string(output.join("page.html"))
-        .expect("Failed to read HTML");
+    let html = std::fs::read_to_string(output.join("page.html")).expect("Failed to read HTML");
 
     let css_name = css_files[0].file_name().unwrap().to_string_lossy();
     let js_name = js_files[0].file_name().unwrap().to_string_lossy();
@@ -248,8 +247,7 @@ fn snapshot_sri_hashes_present() {
 
     build_site(tmp.path(), &output).expect("Build failed");
 
-    let html = std::fs::read_to_string(output.join("secure.html"))
-        .expect("Failed to read HTML");
+    let html = std::fs::read_to_string(output.join("secure.html")).expect("Failed to read HTML");
 
     // Check for SRI attributes
     assert!(
@@ -302,8 +300,7 @@ fn frontmatter_title_used_on_regular_page() {
     let content = "---\ntitle: Getting Started\n---\n\n# Different Heading\n\nWelcome!";
     let (tmp, output) = setup_project(config, &[("start.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("start.html"))
-        .expect("start.html missing");
+    let html = std::fs::read_to_string(output.join("start.html")).expect("start.html missing");
     assert!(
         html.contains("Getting Started - Docs"),
         "should use frontmatter title"
@@ -320,8 +317,7 @@ fn frontmatter_description_used() {
     let content = "---\ndescription: Frontmatter description here.\n---\n\nFirst paragraph text.";
     let (tmp, output) = setup_project(config, &[("page.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("page.html"))
-        .expect("page.html missing");
+    let html = std::fs::read_to_string(output.join("page.html")).expect("page.html missing");
     assert!(
         html.contains("Frontmatter description here."),
         "should use frontmatter description"
@@ -360,8 +356,7 @@ fn regular_page_emits_og_type_article() {
     let config = "[project]\nname = \"Docs\"\n";
     let (tmp, output) = setup_project(config, &[("guide.rdx", "# Guide\n\nContent.")]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("guide.html"))
-        .expect("guide.html missing");
+    let html = std::fs::read_to_string(output.join("guide.html")).expect("guide.html missing");
     assert!(html.contains(r#"og:type" content="article""#));
 }
 
@@ -378,8 +373,7 @@ fn head_block_override_no_duplicate_meta() {
     let content = "# Page\n\nContent.<!--oxidoc-head-start--><meta property=\"og:type\" content=\"website\"><!--oxidoc-head-end-->";
     let (tmp, output) = setup_project(config, &[("page.rdx", content)]);
     build_site(tmp.path(), &output).expect("Build failed");
-    let html = std::fs::read_to_string(output.join("page.html"))
-        .expect("page.html missing");
+    let html = std::fs::read_to_string(output.join("page.html")).expect("page.html missing");
     // Count real <meta> tags inside <head> only. The Copy Markdown dropdown
     // embeds the raw RDX source in a <script type="text/markdown"> block in
     // the body, which contains its own literal "og:type" substring that
