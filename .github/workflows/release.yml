@@ -81,16 +81,15 @@ jobs:
       - name: Install wasm-bindgen-cli
         run: |
           VERSION=$(grep -A2 '^name = "wasm-bindgen"$' Cargo.lock | grep '^version' | head -1 | sed 's/version = "//;s/"//')
-          echo "Installing wasm-bindgen-cli $VERSION"
           cargo install wasm-bindgen-cli --version "$VERSION" --force
-          echo "WASM_BINDGEN=$HOME/.cargo/bin/wasm-bindgen" >> "$GITHUB_ENV"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Build Wasm assets
         run: |
           cargo build -p oxidoc-registry -p oxidoc-openapi -p oxidoc-search --target wasm32-unknown-unknown --release
           mkdir -p oxidoc-cli/assets/wasm
           for stem in oxidoc_registry oxidoc_openapi oxidoc_search; do
-            "$WASM_BINDGEN" target/wasm32-unknown-unknown/release/${stem}.wasm --out-dir oxidoc-cli/assets/wasm --target web --no-typescript
+            wasm-bindgen target/wasm32-unknown-unknown/release/${stem}.wasm --out-dir oxidoc-cli/assets/wasm --target web --no-typescript
           done
 
       - name: Download embedding model
