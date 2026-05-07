@@ -81,7 +81,14 @@ jobs:
       - name: Install wasm-bindgen-cli
         run: |
           VERSION=$(grep -A2 '^name = "wasm-bindgen"$' Cargo.lock | grep '^version' | head -1 | sed 's/version = "//;s/"//')
-          cargo install wasm-bindgen-cli --version "$VERSION" --locked --force
+          echo "Installing wasm-bindgen-cli $VERSION"
+          cargo install wasm-bindgen-cli --version "$VERSION" --force
+          INSTALLED=$(wasm-bindgen --version | awk '{print $2}')
+          if [ "$INSTALLED" != "$VERSION" ]; then
+            echo "Version mismatch: expected $VERSION, got $INSTALLED"
+            exit 1
+          fi
+          echo "wasm-bindgen-cli $INSTALLED ready"
 
       - name: Build Wasm assets
         run: |
