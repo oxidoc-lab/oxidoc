@@ -59,6 +59,64 @@ pub(super) fn title_case(basename: &str) -> String {
         .join(" ")
 }
 
+/// For every leaf page rendered to `<path>.html` in the output, write a
+/// `<path>/index.html` stub that meta-refreshes to the canonical `/<path>`.
+/// Without this, a request to `/docs/page/` (trailing slash) 404s on hosts
+/// like GitHub Pages / S3 that have no rewrite layer.
+///
+/// Walks the filesystem rather than `nav_groups` so that pages emitted by
+/// other generators (OpenAPI endpoints, future plugins) are covered too.
+/// Companion to `generate_folder_index_pages`, which handles folders that
+/// already contain child pages — `write_redirect_page` no-ops on existing
+/// files so the two are safe to compose in either order.
+pub(super) fn generate_trailing_slash_redirects(output_dir: &Path) -> Result<()> {
+    visit_html_leaves(output_dir, output_dir)
+}
+
+fn visit_html_leaves(root: &Path, dir: &Path) -> Result<()> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            visit_html_leaves(root, &path)?;
+            continue;
+        }
+        if path.extension().and_then(|s| s.to_str()) != Some("html") {
+            continue;
+        }
+        let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        // `index.html` is already the trailing-slash representation; `404.html`
+        // is the not-found page. Neither needs a stub.
+        if file_stem == "index" || file_stem == "404" {
+            continue;
+        }
+        // Build the slug relative to the output root (forward slashes).
+        let Ok(rel) = path.strip_prefix(root) else {
+            continue;
+        };
+        let slug = rel
+            .with_extension("")
+            .components()
+            .filter_map(|c| match c {
+                std::path::Component::Normal(s) => s.to_str(),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("/");
+        if slug.is_empty() {
+            continue;
+        }
+        let index_path = root.join(&slug).join("index.html");
+        write_redirect_page(&index_path, &slug)?;
+    }
+    Ok(())
+}
+
 /// Generate category index pages for folders that have child pages but no dedicated index.rdx.
 /// These pages list all child pages in the folder as a proper navigable page.
 pub(super) fn generate_folder_index_pages(

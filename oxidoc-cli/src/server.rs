@@ -38,11 +38,8 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
         move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
             let output_dir = clean_url_output.clone();
             async move {
-                let path = req
-                    .uri()
-                    .path()
-                    .trim_start_matches('/')
-                    .trim_end_matches('/');
+                let raw_path = req.uri().path();
+                let path = raw_path.trim_start_matches('/').trim_end_matches('/');
 
                 // Skip special routes and static assets (files with extensions like .js, .css, .wasm)
                 // Use the last path segment to check for extensions, so version paths
@@ -50,6 +47,18 @@ pub async fn run_dev_server(project_root: PathBuf, port: u16) -> miette::Result<
                 let last_segment = path.rsplit('/').next().unwrap_or(path);
                 if path.starts_with("__oxidoc") || last_segment.contains('.') {
                     return next.run(req).await.into_response();
+                }
+
+                // Trailing-slash → canonical no-slash, but only when the canonical
+                // `<slug>.html` actually exists. This matches the production
+                // behavior emitted via `_redirects` / `vercel.json` and avoids the
+                // duplicate-content SEO smell of silently serving both URLs.
+                if raw_path.len() > 1
+                    && raw_path.ends_with('/')
+                    && output_dir.join(format!("{path}.html")).is_file()
+                {
+                    let canonical = format!("/{path}");
+                    return axum::response::Redirect::permanent(&canonical).into_response();
                 }
 
                 // Clean URLs: /intro → intro.html

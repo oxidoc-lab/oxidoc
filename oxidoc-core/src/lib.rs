@@ -11,6 +11,7 @@ pub mod crawler;
 pub mod css;
 pub mod error;
 pub mod feed;
+pub mod host_redirects;
 pub mod html_inject;
 pub mod i18n;
 pub mod icons;

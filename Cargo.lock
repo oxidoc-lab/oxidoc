@@ -2685,7 +2685,7 @@ checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
 name = "oxidoc"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "async-stream",
  "axum",
@@ -2711,7 +2711,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-components"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "leptos",
  "oxidoc-island",
@@ -2723,7 +2723,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-core"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "base64",
  "boostr",
@@ -2760,7 +2760,7 @@ version = "0.1.1"
 
 [[package]]
 name = "oxidoc-island"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "serde",
  "serde_json",
@@ -2770,7 +2770,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-openapi"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "js-sys",
  "leptos",
@@ -2785,7 +2785,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-print"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "fontdb",
  "oxidoc-highlight",
@@ -2799,7 +2799,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-registry"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "js-sys",
  "leptos",
@@ -2816,7 +2816,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-search"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "boostr",
  "js-sys",
@@ -2835,7 +2835,7 @@ dependencies = [
 
 [[package]]
 name = "oxidoc-text"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "rust-stemmers",
  "unicode-normalization",

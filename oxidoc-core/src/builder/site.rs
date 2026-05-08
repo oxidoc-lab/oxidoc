@@ -36,7 +36,9 @@ use std::sync::Arc;
 
 use crate::html_inject::{inject_copy_markdown_button, inject_version_switcher};
 
-use super::folder_index::{FolderIndexContext, generate_folder_index_pages};
+use super::folder_index::{
+    FolderIndexContext, generate_folder_index_pages, generate_trailing_slash_redirects,
+};
 use super::root_pages::build_root_pages;
 
 pub use crate::build_result::BuildResult;
@@ -509,6 +511,15 @@ pub fn build_site_with_model(
         version_switcher_html: &version_switcher_html,
     };
     generate_folder_index_pages(&nav_groups, output_dir, &folder_ctx)?;
+
+    // Emit `<slug>/index.html` redirect stubs for every leaf page so that
+    // trailing-slash URLs (e.g. `/docs/page/`) don't 404 on hosts without a
+    // rewrite layer (GitHub Pages, S3, plain nginx).
+    generate_trailing_slash_redirects(output_dir)?;
+
+    // Emit `_redirects` (Netlify/Cloudflare) and `vercel.json` so hosts that read
+    // them upgrade trailing-slash handling to a real HTTP 301 at the edge.
+    crate::host_redirects::generate_host_redirects(output_dir)?;
 
     // Generate 404 page for each locale
     for locale in &build_locales {
