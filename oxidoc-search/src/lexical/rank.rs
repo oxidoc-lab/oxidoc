@@ -132,6 +132,7 @@ impl LexicalSearcher {
                         breadcrumb: vec![],
                         anchor: String::new(),
                         highlight_terms,
+                        tags: Vec::new(),
                     },
                 });
                 continue;
@@ -194,6 +195,7 @@ impl LexicalSearcher {
                         breadcrumb,
                         anchor: anchor.to_string(),
                         highlight_terms: highlight_terms.clone(),
+                        tags: Vec::new(),
                     },
                 });
             }

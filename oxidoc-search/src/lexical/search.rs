@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use super::match_index::MatchIndex;
-use super::rank::sort_hits;
+use super::rank::{Hit, sort_hits};
 
 /// Keyword searcher over a lexical index, with optional per-document records.
 pub struct LexicalSearcher {
@@ -162,7 +162,9 @@ impl LexicalSearcher {
             sort_hits(&mut hits);
         }
         hits.truncate(query.max_results);
-        hits.into_iter().map(|hit| hit.result).collect()
+        hits.into_iter()
+            .map(|hit| self.tagged_result(hit))
+            .collect()
     }
 
     /// Returns the position in `documents` and the document of `doc_id`.
@@ -194,6 +196,15 @@ impl LexicalSearcher {
         self.record(doc_id)
             .map(|r| r.tags.as_slice())
             .unwrap_or_default()
+    }
+
+    /// Turns a ranked hit into its result, with the tags of its record.
+    ///
+    /// The only place that fills `SearchResult::tags`. Empty without records.
+    pub(crate) fn tagged_result(&self, hit: Hit) -> DocResult {
+        let mut result = hit.result;
+        result.tags = self.tags_of(hit.doc_id).to_vec();
+        result
     }
 
     /// Returns true when `doc_id` passes `filters`.

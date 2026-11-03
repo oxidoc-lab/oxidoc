@@ -369,3 +369,42 @@ fn records_from_another_index_are_rejected() {
     assert!(other.load_records(&bytes).is_err());
     assert!(!other.has_records());
 }
+
+#[test]
+fn results_carry_the_tags_of_their_record() {
+    let records = tagged_catalogue();
+    let (_dir, searcher) = site(&records);
+    let results = searcher.search(&query("rust", vec![]));
+    assert!(!results.is_empty());
+    for result in &results {
+        let record = records
+            .iter()
+            .find(|r| result.path.starts_with(&r.url))
+            .unwrap();
+        assert_eq!(result.tags, record.tags, "tags of {}", result.path);
+    }
+    assert!(results.iter().any(|r| !r.tags.is_empty()));
+}
+
+#[test]
+fn page_only_results_serialize_without_a_tags_key() {
+    let records = vec![page(
+        "Search",
+        "docs/search",
+        "Search runs in the browser.",
+        vec![],
+    )];
+    let (_dir, searcher) = site(&records);
+    let results = searcher.search(&query("search", vec![]));
+    assert!(!results.is_empty());
+    for result in &results {
+        assert!(result.tags.is_empty());
+        let json = serde_json::to_string(result).unwrap();
+        assert!(!json.contains("tags"), "unexpected tags key: {json}");
+    }
+    let json = serde_json::to_string(&results[0]).unwrap();
+    assert_eq!(
+        json,
+        r#"{"title":"Search","path":"/docs/search","snippet":"Search runs in the browser.","score":6.0,"source":"Lexical","breadcrumb":[],"anchor":"","highlight_terms":[]}"#
+    );
+}

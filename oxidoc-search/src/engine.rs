@@ -85,7 +85,7 @@ impl<R: Runtime<DType = DType>> SearchEngine<R> {
             .into_iter()
             .take(query.max_results)
             .map(|(hit, score)| {
-                let mut result = hit.result;
+                let mut result = self.lexical.tagged_result(hit);
                 result.score = score;
                 result
             })
@@ -146,6 +146,7 @@ fn semantic_hit(doc: &DocMetadata, hit: SemanticHit) -> Hit {
             breadcrumb: vec![],
             anchor: String::new(),
             highlight_terms: Vec::new(),
+            tags: Vec::new(),
         },
     }
 }

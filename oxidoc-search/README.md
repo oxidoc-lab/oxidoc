@@ -74,6 +74,8 @@ With `wasm`, the module exports these functions:
 - `oxidoc_search_ready()`
 - `oxidoc_search_has_semantic()`
 
+Query exports return a JSON array of results. Each result has `title`, `path`, `snippet`, `score`, `source`, `breadcrumb`, `anchor` and `highlight_terms`. A result of a document with record tags also has `tags`, an array of `[key, value]` pairs.
+
 Fetch `search-meta.bin` and call `oxidoc_search_init`. For each query, call `oxidoc_search_needed_chunks`, fetch the listed chunks, and pass them to `oxidoc_search_load_chunk`.
 
 ## License

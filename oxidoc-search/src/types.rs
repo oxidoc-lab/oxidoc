@@ -46,6 +46,9 @@ pub struct SearchResult {
     /// Terms that actually matched (for highlighting).
     #[serde(default)]
     pub highlight_terms: Vec<String>,
+    /// Tags of the document record. Empty without records, and then omitted from JSON.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<(String, String)>,
 }
 
 /// Ranker that produced a [`SearchResult`].
@@ -180,6 +183,7 @@ mod tests {
             breadcrumb: vec![],
             anchor: String::new(),
             highlight_terms: Vec::new(),
+            tags: Vec::new(),
         };
 
         let json = serde_json::to_string(&result).unwrap();
