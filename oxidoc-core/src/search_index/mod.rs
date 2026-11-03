@@ -1,4 +1,3 @@
-pub mod chunk;
 pub mod extract;
 pub mod generate;
 pub mod lexical;

@@ -1,9 +1,10 @@
 //! Search index generation for a site build.
 
-use super::{extract, lexical, semantic};
+use super::{extract, semantic};
 use crate::config::SearchConfig;
 use crate::crawler::NavGroup;
 use crate::error::Result;
+use oxidoc_search::Record;
 use std::path::Path;
 
 /// Generate both lexical and optional semantic search indices for the site.
@@ -18,10 +19,11 @@ pub fn generate_search_index(
 ) -> Result<()> {
     // Extract searchable text from all pages.
     let pages = extract::extract_page_text(nav_groups)?;
+    let records: Vec<Record> = pages.iter().map(Record::from).collect();
 
     // Always generate lexical index.
-    let lexical = lexical::build_lexical_index(&pages);
-    lexical::write_lexical_index(&lexical, output_dir)?;
+    let lexical = oxidoc_search::builder::build_lexical(&records);
+    oxidoc_search::builder::write_lexical(&lexical, output_dir)?;
     tracing::info!(
         terms = lexical.postings.len(),
         docs = lexical.documents.len(),
@@ -30,9 +32,9 @@ pub fn generate_search_index(
 
     // Optionally generate semantic index with pre-computed embeddings.
     if config.semantic {
-        match semantic::build_vector_index(&pages, config, bundled_model) {
+        match semantic::build_vector_index(&records, config, bundled_model) {
             Ok(Some(vectors)) => {
-                semantic::write_vector_index(&vectors, output_dir)?;
+                oxidoc_search::builder::write_vectors(&vectors, output_dir)?;
                 tracing::info!(
                     docs = vectors.documents.len(),
                     dim = vectors.dimension,

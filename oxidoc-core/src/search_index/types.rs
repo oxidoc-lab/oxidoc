@@ -1,117 +1,28 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+//! Search index types. The index types live in `oxidoc-search`; this module adds the page input.
 
-/// A heading position within a document's text.
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct HeadingPos {
-    pub title: String,
-    pub anchor: String,
-    pub depth: u8,
-    /// Character offset in the document's `text` field where this heading's content starts.
-    pub offset: usize,
-}
-
-/// Metadata for a searchable document (one per page).
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct DocMetadata {
-    pub id: u32,
-    pub title: String,
-    pub path: String,
-    pub snippet: String,
-    /// Full plain text content for search and snippet extraction.
-    #[serde(default)]
-    pub text: String,
-    /// Heading positions within the text, for locating which section a match falls in.
-    #[serde(default)]
-    pub headings: Vec<HeadingPos>,
-}
-
-/// A posting entry in the inverted index (term -> doc with score + positions).
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct Posting {
-    pub doc_id: u32,
-    pub score: f32,
-    /// Token index positions where this term appears in the document.
-    #[serde(default)]
-    pub positions: Vec<u32>,
-}
-
-/// Lexical (inverted) index for keyword-based search.
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct LexicalIndex {
-    pub postings: HashMap<String, Vec<Posting>>,
-    pub documents: Vec<DocMetadata>,
-}
-
-/// Semantic (vector) index for embedding-based search.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VectorIndex {
-    pub documents: Vec<DocMetadata>,
-    pub vectors: Vec<Vec<f32>>,
-    pub dimension: usize,
-}
-
-/// Entry in the chunk manifest describing which term prefixes a chunk covers.
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct ChunkEntry {
-    pub id: u32,
-    pub prefixes: Vec<String>,
-}
-
-/// Manifest listing all chunks and their prefix coverage.
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct ChunkManifest {
-    pub chunks: Vec<ChunkEntry>,
-}
-
-/// Metadata file loaded at init time (documents + manifest, no postings).
-#[derive(
-    Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-#[rkyv(crate = rkyv)]
-pub struct SearchMetadata {
-    pub documents: Vec<DocMetadata>,
-    pub manifest: ChunkManifest,
-}
-
-/// Postings for a single chunk (term -> postings list).
-pub type ChunkPostings = HashMap<String, Vec<Posting>>;
+pub use oxidoc_search::types::*;
+use oxidoc_search::{Field, Record};
 
 /// Plain text content extracted from a page (one per page).
 #[derive(Debug, Clone)]
 pub struct PageContent {
+    /// Page title: the first H1, else the nav title.
     pub title: String,
+    /// Page slug without the leading `/`.
     pub slug: String,
+    /// Searchable plain text. Code blocks are left out.
     pub text: String,
-    /// Heading positions within the text.
+    /// Heading positions as byte offsets into `text`.
     pub headings: Vec<HeadingPos>,
 }
 
-/// Create a snippet from text (first N characters).
-pub fn create_snippet(text: &str, max_len: usize) -> String {
-    let trimmed = text.trim();
-    if trimmed.len() <= max_len {
-        trimmed.to_string()
-    } else {
-        format!("{}…", &trimmed[..max_len])
+/// Maps a page to a builder record: url `/{slug}`, one `body` field, no tags, boost 1.0.
+impl From<&PageContent> for Record {
+    fn from(page: &PageContent) -> Self {
+        let mut record = Record::new(page.slug.clone(), format!("/{}", page.slug), &page.title);
+        record.fields.push(Field::new("body", page.text.clone()));
+        record.headings = page.headings.clone();
+        record
     }
 }
 
@@ -120,89 +31,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_snippet_truncates() {
-        let text = "This is a very long piece of text that should be truncated";
-        let snippet = create_snippet(text, 30);
-        assert!(snippet.len() <= 33);
-        assert!(snippet.ends_with('…'));
-    }
-
-    #[test]
-    fn test_create_snippet_short_text() {
-        assert_eq!(create_snippet("Short", 30), "Short");
-    }
-
-    #[test]
-    fn test_doc_metadata_serialization() {
-        let meta = DocMetadata {
-            id: 1,
-            title: "Test Page".to_string(),
-            path: "/docs/test".to_string(),
-            snippet: "This is a test".to_string(),
-            text: String::new(),
-            headings: vec![],
-        };
-
-        let json = serde_json::to_string(&meta).unwrap();
-        let deserialized: DocMetadata = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(meta.id, deserialized.id);
-        assert_eq!(meta.title, deserialized.title);
-        assert_eq!(meta.path, deserialized.path);
-        assert_eq!(meta.snippet, deserialized.snippet);
-    }
-
-    #[test]
-    fn test_lexical_index_serialization() {
-        let mut index = LexicalIndex {
-            postings: HashMap::new(),
-            documents: vec![DocMetadata {
-                id: 0,
-                title: "Doc1".to_string(),
-                path: "/doc1".to_string(),
-                snippet: "snippet1".to_string(),
-                text: String::new(),
-                headings: vec![],
+    fn page_maps_to_single_body_record() {
+        let page = PageContent {
+            title: "Guide".to_string(),
+            slug: "docs/guide".to_string(),
+            text: "Intro. Setup here.".to_string(),
+            headings: vec![HeadingPos {
+                title: "Setup".to_string(),
+                anchor: "setup".to_string(),
+                depth: 2,
+                offset: 7,
             }],
         };
-        index.postings.insert(
-            "hello".to_string(),
-            vec![Posting {
-                doc_id: 0,
-                score: 0.95,
-                positions: vec![0, 5],
-            }],
-        );
 
-        let json = serde_json::to_string(&index).unwrap();
-        let deserialized: LexicalIndex = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(deserialized.documents.len(), 1);
-        assert_eq!(deserialized.postings.len(), 1);
-        assert!((deserialized.postings["hello"][0].score - 0.95).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_vector_index_serialization() {
-        let index = VectorIndex {
-            documents: vec![DocMetadata {
-                id: 0,
-                title: "Doc1".to_string(),
-                path: "/doc1".to_string(),
-                snippet: "snippet1".to_string(),
-                text: String::new(),
-                headings: vec![],
-            }],
-            vectors: vec![vec![0.1, 0.2, 0.3]],
-            dimension: 3,
-        };
-
-        let json = serde_json::to_string(&index).unwrap();
-        let deserialized: VectorIndex = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(deserialized.documents.len(), 1);
-        assert_eq!(deserialized.vectors.len(), 1);
-        assert_eq!(deserialized.dimension, 3);
-        assert!((deserialized.vectors[0][0] - 0.1).abs() < 0.001);
+        let record = Record::from(&page);
+        assert_eq!(record.id, "docs/guide");
+        assert_eq!(record.url, "/docs/guide");
+        assert_eq!(record.title, "Guide");
+        assert_eq!(record.fields.len(), 1);
+        assert_eq!(record.fields[0].name, "body");
+        assert_eq!(record.fields[0].weight, 1.0);
+        assert_eq!(record.body(), page.text);
+        assert_eq!(record.headings[0].offset, 7);
+        assert!(record.tags.is_empty());
+        assert_eq!(record.boost, 1.0);
+        assert!(record.snippet.is_none());
     }
 }

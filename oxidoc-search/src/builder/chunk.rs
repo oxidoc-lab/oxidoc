@@ -5,7 +5,7 @@ use rkyv::rancor::{Fallible, Source};
 use rkyv::ser::{Allocator, Writer};
 use rkyv::{Archive, Archived, Place, Serialize};
 
-use super::types::{ChunkPostings, Posting};
+use crate::types::{ChunkPostings, Posting};
 
 /// Archived form of a chunk. Readers access chunk files as this type.
 type ArchivedChunk = Archived<ChunkPostings>;

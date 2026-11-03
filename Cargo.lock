@@ -2726,7 +2726,6 @@ name = "oxidoc-core"
 version = "0.1.10"
 dependencies = [
  "base64",
- "boostr",
  "chrono",
  "fluent",
  "fluxbench",
@@ -2734,10 +2733,10 @@ dependencies = [
  "lazy_static",
  "lightningcss",
  "miette",
- "numr",
  "openapiv3",
  "oxidoc-highlight",
  "oxidoc-island",
+ "oxidoc-search",
  "oxidoc-text",
  "rayon",
  "rdx-ast",
@@ -2827,6 +2826,7 @@ dependencies = [
  "serde",
  "serde_json",
  "splintr",
+ "tempfile",
  "thiserror 2.0.18",
  "wasm-bindgen",
  "wasm-bindgen-test",

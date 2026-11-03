@@ -15,8 +15,10 @@ default = ["wasm", "semantic"]
 wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:oxidoc-island"]
 # Embedding-based search and hybrid RRF fusion.
 semantic = ["dep:boostr", "dep:numr", "dep:splintr"]
-# Native index builder.
+# Native lexical index builder: records to BM25 index files.
 builder = []
+# Native vector index builder: embeds records with boostr on the CPU.
+semantic-build = ["builder", "semantic"]
 
 [dependencies]
 serde.workspace = true
@@ -38,3 +40,4 @@ splintr = { workspace = true, optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test.workspace = true
+tempfile = "3"

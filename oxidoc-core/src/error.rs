@@ -120,4 +120,25 @@ impl OxidocError {
     }
 }
 
+/// Maps search builder errors: file errors to `FileWrite`, the rest to `Search`.
+impl From<oxidoc_search::SearchError> for OxidocError {
+    fn from(error: oxidoc_search::SearchError) -> Self {
+        use oxidoc_search::SearchError;
+        match error {
+            SearchError::Write { path, source } => OxidocError::FileWrite {
+                path: path.display().to_string(),
+                source,
+            },
+            SearchError::Encode { path, message } => OxidocError::FileWrite {
+                path: path.display().to_string(),
+                source: std::io::Error::other(message),
+            },
+            SearchError::ModelLoad(message) | SearchError::Embedding(message) => {
+                OxidocError::Search(message)
+            }
+            other => OxidocError::Search(other.to_string()),
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, OxidocError>;
