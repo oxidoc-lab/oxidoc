@@ -1,3 +1,9 @@
+#![cfg_attr(feature = "builder", doc = include_str!("../README.md"))]
+#![cfg_attr(
+    not(feature = "builder"),
+    doc = "Lexical and semantic search for static sites. Enable the `builder` feature for the index builder."
+)]
+
 #[cfg(feature = "builder")]
 pub mod builder;
 #[cfg(feature = "semantic")]

@@ -4,7 +4,15 @@ version.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
 repository.workspace = true
-description = "Search engine island for Oxidoc — semantic + lexical search in the browser"
+description = "Lexical and semantic search engine for static sites, with a native index builder and a wasm browser runtime"
+readme = "README.md"
+keywords = ["search", "bm25", "full-text-search", "wasm", "static-site"]
+categories = ["text-processing", "wasm", "web-programming"]
+documentation = "https://docs.rs/oxidoc-search"
+include = ["src/**", "examples/**", "Cargo.toml", "README.md", "LICENSE"]
+
+[package.metadata.docs.rs]
+features = ["wasm", "semantic", "builder"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
