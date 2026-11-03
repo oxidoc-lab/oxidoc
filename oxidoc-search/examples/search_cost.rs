@@ -12,7 +12,12 @@
 //! perf stat -e instructions:u $BIN query --out DIR
 //! perf stat -e instructions:u $BIN model-load --out DIR --model GGUF
 //! perf stat -e instructions:u $BIN query-ai --out DIR --model GGUF
+//! $BIN query --out DIR --dump FILE
 //! ```
+//!
+//! `--dump FILE` applies to `query` and `query-ai`. It writes one line per query run:
+//! the query text, a tab, then the JSON string of the results. The file is written
+//! after the query loop.
 //!
 //! Every count includes process start-up. Subtract an `init` run from a `query` run
 //! to get the cost of the queries alone.
@@ -43,8 +48,9 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 type Engine = SearchEngine<CpuRuntime>;
 
 const USAGE: &str = "usage: search_cost <build|init|query|model-load|query-ai> --out DIR \
-                     [--records N] [--model PATH]\n\
-                     --records applies to build only. --model is required by model-load and query-ai.";
+                     [--records N] [--model PATH] [--dump FILE]\n\
+                     --records applies to build only. --model is required by model-load and query-ai.\n\
+                     --dump applies to query and query-ai only.";
 
 const DEFAULT_RECORDS: usize = 1000;
 const QUERY_REPEATS: usize = 10;
@@ -463,6 +469,7 @@ struct Args {
     out: PathBuf,
     records: usize,
     model: Option<PathBuf>,
+    dump: Option<PathBuf>,
 }
 
 fn parse_args(mut argv: impl Iterator<Item = String>) -> std::result::Result<Args, String> {
@@ -471,11 +478,13 @@ fn parse_args(mut argv: impl Iterator<Item = String>) -> std::result::Result<Arg
     let mut out = None;
     let mut records = DEFAULT_RECORDS;
     let mut model = None;
+    let mut dump = None;
     while let Some(flag) = argv.next() {
         let value = argv.next().ok_or(format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--out" => out = Some(PathBuf::from(value)),
             "--model" => model = Some(PathBuf::from(value)),
+            "--dump" => dump = Some(PathBuf::from(value)),
             "--records" => {
                 records = value
                     .parse::<usize>()
@@ -490,11 +499,15 @@ fn parse_args(mut argv: impl Iterator<Item = String>) -> std::result::Result<Arg
     if phase.needs_model() && model.is_none() {
         return Err("this phase needs --model PATH".to_string());
     }
+    if dump.is_some() && !matches!(phase, Phase::Query | Phase::QueryAi) {
+        return Err("--dump applies to query and query-ai only".to_string());
+    }
     Ok(Args {
         phase,
         out,
         records,
         model,
+        dump,
     })
 }
 
@@ -619,27 +632,58 @@ fn query_of(text: &str) -> SearchQuery {
     }
 }
 
+/// Appends `text`, a tab and `json` as one line to the dump buffer, when dumping.
+fn dump_line(dump: &mut Option<String>, text: &str, json: &str) {
+    if let Some(buffer) = dump {
+        buffer.push_str(text);
+        buffer.push('\t');
+        buffer.push_str(json);
+        buffer.push('\n');
+    }
+}
+
+/// Writes the dump buffer to the `--dump` path. Does nothing when `--dump` is absent.
+fn write_dump(path: Option<&Path>, dump: Option<String>) -> Result<()> {
+    if let (Some(path), Some(buffer)) = (path, dump) {
+        fs::write(path, buffer).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
 /// Mirrors `oxidoc_search_query`: lexical search, then JSON encoding of the results.
-fn run_lexical(engine: &Engine, repeats: usize) -> Result<(usize, usize)> {
+fn run_lexical(
+    engine: &Engine,
+    repeats: usize,
+    dump: &mut Option<String>,
+) -> Result<(usize, usize)> {
     let (mut hits, mut json_bytes) = (0, 0);
     for _ in 0..repeats {
         for text in QUERIES {
             let results = engine.search_lexical(&query_of(text));
             hits += results.len();
-            json_bytes += serde_json::to_string(&results)?.len();
+            let json = serde_json::to_string(&results)?;
+            json_bytes += json.len();
+            dump_line(dump, text, &json);
         }
     }
     Ok((hits, json_bytes))
 }
 
 /// Mirrors `oxidoc_search_query_ai`: hybrid search, then JSON encoding of the results.
-fn run_hybrid(engine: &Engine, client: &CpuClient, repeats: usize) -> Result<(usize, usize)> {
+fn run_hybrid(
+    engine: &Engine,
+    client: &CpuClient,
+    repeats: usize,
+    dump: &mut Option<String>,
+) -> Result<(usize, usize)> {
     let (mut hits, mut json_bytes) = (0, 0);
     for _ in 0..repeats {
         for text in QUERIES {
             let results = engine.search(client, &query_of(text))?;
             hits += results.len();
-            json_bytes += serde_json::to_string(&results)?.len();
+            let json = serde_json::to_string(&results)?;
+            json_bytes += json.len();
+            dump_line(dump, text, &json);
         }
     }
     Ok((hits, json_bytes))
@@ -656,7 +700,9 @@ fn run(args: &Args) -> Result<()> {
         }
         Phase::Query => {
             let (engine, _client, _chunks) = init(&args.out)?;
-            let (hits, json_bytes) = run_lexical(&engine, QUERY_REPEATS)?;
+            let mut dump = args.dump.is_some().then(String::new);
+            let (hits, json_bytes) = run_lexical(&engine, QUERY_REPEATS, &mut dump)?;
+            write_dump(args.dump.as_deref(), dump)?;
             println!(
                 "documents {} queries {} hits {hits} json_bytes {json_bytes}",
                 engine.document_count(),
@@ -679,7 +725,9 @@ fn run(args: &Args) -> Result<()> {
             let model = model.ok_or("this phase needs --model PATH")?;
             let (mut engine, client, _chunks) = init(&args.out)?;
             load_semantic(&mut engine, &args.out, model)?;
-            let (hits, json_bytes) = run_hybrid(&engine, &client, 1)?;
+            let mut dump = args.dump.is_some().then(String::new);
+            let (hits, json_bytes) = run_hybrid(&engine, &client, 1, &mut dump)?;
+            write_dump(args.dump.as_deref(), dump)?;
             println!(
                 "documents {} queries {} hits {hits} json_bytes {json_bytes}",
                 engine.document_count(),
