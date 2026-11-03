@@ -7,12 +7,14 @@ use unicode_normalization::UnicodeNormalization;
 static STEMMER: LazyLock<Stemmer> = LazyLock::new(|| Stemmer::create(Algorithm::English));
 
 /// Common English stop words to filter out of search indices.
+///
+/// The list stays in byte order: [`is_stop_word`] uses a binary search.
 const STOP_WORDS: &[&str] = &[
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into", "is", "it",
-    "no", "not", "of", "on", "or", "such", "that", "the", "their", "then", "there", "these",
-    "they", "this", "to", "was", "will", "with", "you", "your", "can", "had", "have", "has", "do",
-    "does", "did", "from", "how", "its", "may", "more", "most", "must", "than", "what", "when",
-    "which", "who",
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "did", "do", "does", "for",
+    "from", "had", "has", "have", "how", "if", "in", "into", "is", "it", "its", "may", "more",
+    "most", "must", "no", "not", "of", "on", "or", "such", "than", "that", "the", "their", "then",
+    "there", "these", "they", "this", "to", "was", "what", "when", "which", "who", "will", "with",
+    "you", "your",
 ];
 
 /// Check if a word is a stop word.
@@ -141,6 +143,19 @@ fn tokenize_with_raw_inner(text: &str, filter_stop_words: bool) -> Vec<(String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stop_words_are_sorted_and_unique() {
+        assert!(STOP_WORDS.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+
+    #[test]
+    fn every_stop_word_is_found() {
+        for word in STOP_WORDS {
+            assert!(is_stop_word(word), "{word}");
+        }
+        assert!(!is_stop_word("tensor"));
+    }
 
     #[test]
     fn test_tokenize_basic() {
