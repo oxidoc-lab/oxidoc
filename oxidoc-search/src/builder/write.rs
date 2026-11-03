@@ -4,9 +4,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use super::chunk::SortedChunk;
-use super::records::write_records;
+use super::records::encode_records_file;
 use crate::error::SearchError;
-use crate::records::SearchRecords;
+use crate::records::{RECORDS_FILE, SearchRecords};
 use crate::types::{ChunkEntry, ChunkManifest, LexicalIndex, Posting, SearchMetadata};
 
 /// File name of the metadata file.
@@ -17,30 +17,40 @@ pub fn chunk_file_name(id: u32) -> String {
     format!("search-chunk-{id}.bin")
 }
 
-/// Writes `index` into `dir` as chunked rkyv files.
+/// One encoded index file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexFile {
+    /// File name, such as `search-meta.bin`. It holds no directory part.
+    pub name: String,
+    /// Encoded file contents.
+    pub bytes: Vec<u8>,
+}
+
+/// Encodes `index` as chunked rkyv files in memory.
 ///
-/// Produces:
-/// - `search-meta.bin`: [`SearchMetadata`] with the documents and the chunk manifest.
+/// Returns, in this order:
 /// - `search-chunk-{id}.bin`: postings of the terms that share one 2-char prefix.
+/// - `search-meta.bin`: [`SearchMetadata`] with the documents and the chunk manifest.
 /// - `search-records.bin`: `records`, only when [`SearchRecords::has_extras`] is true.
-///   Otherwise a `search-records.bin` from an earlier build is removed.
 ///
 /// `records` comes from [`build_records`](super::build_records) over the same input
 /// as `index`. The same input produces the same bytes on every run. Chunk ids follow
-/// sorted prefix order. Each chunk archives its terms in sorted order. `dir` must exist.
-pub fn write_lexical(
+/// sorted prefix order. Each chunk archives its terms in sorted order.
+/// An [`SearchError::Encode`] error names the file without a directory.
+pub fn encode_lexical(
     index: &LexicalIndex,
     records: Option<&SearchRecords>,
-    dir: &Path,
-) -> Result<(), SearchError> {
+) -> Result<Vec<IndexFile>, SearchError> {
+    let mut files: Vec<IndexFile> = Vec::new();
     let mut chunks: Vec<ChunkEntry> = Vec::new();
 
     for (chunk_id, (prefix, entries)) in partition_by_prefix(index).into_iter().enumerate() {
         let chunk_id = chunk_id as u32;
-        let path = dir.join(chunk_file_name(chunk_id));
-        let encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&SortedChunk::new(entries))
-            .map_err(|e| encode_error(&path, e))?;
-        write_file(path, &encoded)?;
+        let name = chunk_file_name(chunk_id);
+        let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&SortedChunk::new(entries))
+            .map_err(|e| encode_error(&name, e))?
+            .to_vec();
+        files.push(IndexFile { name, bytes });
 
         chunks.push(ChunkEntry {
             id: chunk_id,
@@ -52,11 +62,53 @@ pub fn write_lexical(
         documents: index.documents.clone(),
         manifest: ChunkManifest { chunks },
     };
-    let path = dir.join(META_FILE);
-    let encoded =
-        rkyv::to_bytes::<rkyv::rancor::Error>(&metadata).map_err(|e| encode_error(&path, e))?;
-    write_file(path, &encoded)?;
-    write_records(records, index.documents.len(), dir)
+    let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&metadata)
+        .map_err(|e| encode_error(META_FILE, e))?
+        .to_vec();
+    files.push(IndexFile {
+        name: META_FILE.to_string(),
+        bytes,
+    });
+    if let Some(bytes) = encode_records_file(records, index.documents.len())? {
+        files.push(IndexFile {
+            name: RECORDS_FILE.to_string(),
+            bytes,
+        });
+    }
+    Ok(files)
+}
+
+/// Writes `index` into `dir` as chunked rkyv files.
+///
+/// Writes the files of [`encode_lexical`], in its order. Without a records file,
+/// it removes a `search-records.bin` from an earlier build. `dir` must exist.
+pub fn write_lexical(
+    index: &LexicalIndex,
+    records: Option<&SearchRecords>,
+    dir: &Path,
+) -> Result<(), SearchError> {
+    let files = encode_lexical(index, records).map_err(|error| match error {
+        SearchError::Encode { path, message } => SearchError::Encode {
+            path: dir.join(path),
+            message,
+        },
+        other => other,
+    })?;
+    let mut has_records = false;
+    for file in files {
+        has_records |= file.name == RECORDS_FILE;
+        write_file(dir.join(&file.name), &file.bytes)?;
+    }
+    if has_records {
+        return Ok(());
+    }
+    let path = dir.join(RECORDS_FILE);
+    match std::fs::remove_file(&path) {
+        Err(source) if source.kind() != std::io::ErrorKind::NotFound => {
+            Err(SearchError::Write { path, source })
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Groups postings by the first 2 chars of the term, in sorted prefix order.
@@ -73,15 +125,15 @@ fn partition_by_prefix(index: &LexicalIndex) -> BTreeMap<String, Vec<(&String, &
     groups
 }
 
-fn encode_error(path: &Path, error: rkyv::rancor::Error) -> SearchError {
+fn encode_error(name: &str, error: rkyv::rancor::Error) -> SearchError {
     SearchError::Encode {
-        path: path.to_path_buf(),
+        path: PathBuf::from(name),
         message: error.to_string(),
     }
 }
 
 /// Writes `bytes` to `path`.
-pub(super) fn write_file(path: PathBuf, bytes: &[u8]) -> Result<(), SearchError> {
+fn write_file(path: PathBuf, bytes: &[u8]) -> Result<(), SearchError> {
     std::fs::write(&path, bytes).map_err(|source| SearchError::Write { path, source })
 }
 
@@ -275,6 +327,43 @@ mod tests {
         )
         .unwrap();
         assert!(!tmp.path().join(RECORDS_FILE).exists());
+    }
+
+    #[test]
+    fn encode_lexical_matches_written_files() {
+        let records = records_with(|r| r.boost = 1.2);
+        let index = build_lexical(&records);
+        let extras = build_records(&records);
+        let encoded: BTreeMap<String, Vec<u8>> = encode_lexical(&index, Some(&extras))
+            .unwrap()
+            .into_iter()
+            .map(|file| (file.name, file.bytes))
+            .collect();
+        assert!(encoded.contains_key(META_FILE));
+        assert!(encoded.contains_key(RECORDS_FILE));
+
+        let tmp = tempfile::tempdir().unwrap();
+        write_lexical(&index, Some(&extras), tmp.path()).unwrap();
+        assert_eq!(read_dir_bytes(tmp.path()), encoded);
+    }
+
+    #[test]
+    fn encode_lexical_omits_records_without_extras() {
+        let records = records_with(|_| {});
+        let files =
+            encode_lexical(&build_lexical(&records), Some(&build_records(&records))).unwrap();
+        assert!(files.iter().all(|file| file.name != RECORDS_FILE));
+        assert_eq!(files.last().map(|file| file.name.as_str()), Some(META_FILE));
+    }
+
+    #[test]
+    fn encode_lexical_names_the_records_file_on_mismatch() {
+        let records = records_with(|r| r.boost = 1.2);
+        let extras = build_records(&records[..1]);
+        match encode_lexical(&build_lexical(&records), Some(&extras)) {
+            Err(SearchError::Encode { path, .. }) => assert_eq!(path, Path::new(RECORDS_FILE)),
+            other => panic!("expected an encode error, got {other:?}"),
+        }
     }
 
     #[test]

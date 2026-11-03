@@ -19,6 +19,8 @@ Lexical and semantic search for static sites. A native builder writes index file
 
 Enable `builder`. Pass `Record` values to `build_lexical` and `build_records`. Write the result with `write_lexical`.
 
+`encode_lexical` returns the same files in memory as `IndexFile` values, each with a `name` and `bytes`. It touches no disk.
+
 ```rust
 use oxidoc_search::builder::{build_lexical, build_records, write_lexical};
 use oxidoc_search::{Field, Record};

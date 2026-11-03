@@ -13,4 +13,4 @@ pub use lexical::build_lexical;
 pub use records::build_records;
 #[cfg(feature = "semantic-build")]
 pub use vectors::{EmbeddingModel, build_vectors, write_model, write_vectors};
-pub use write::write_lexical;
+pub use write::{IndexFile, encode_lexical, write_lexical};

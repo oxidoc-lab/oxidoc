@@ -1,8 +1,7 @@
 //! Records side file built from input records.
 
-use std::path::Path;
+use std::path::PathBuf;
 
-use super::write::write_file;
 use crate::error::SearchError;
 use crate::record::Record;
 use crate::records::{DocRecord, FieldRange, RECORDS_FILE, SearchRecords, encode_records};
@@ -33,38 +32,32 @@ pub fn build_records(records: &[Record]) -> SearchRecords {
     SearchRecords::new(docs)
 }
 
-/// Writes `search-records.bin` into `dir` when `records` has extras.
+/// Encodes `search-records.bin` when `records` has extras. `None` without extras.
 ///
-/// Without extras it removes a `search-records.bin` left by an earlier build.
-/// `doc_count` must equal the number of record entries.
-pub(super) fn write_records(
+/// `doc_count` must equal the number of record entries. An error names the
+/// file without a directory.
+pub(super) fn encode_records_file(
     records: Option<&SearchRecords>,
     doc_count: usize,
-    dir: &Path,
-) -> Result<(), SearchError> {
-    let path = dir.join(RECORDS_FILE);
+) -> Result<Option<Vec<u8>>, SearchError> {
     let Some(records) = records.filter(|r| r.has_extras()) else {
-        return match std::fs::remove_file(&path) {
-            Err(source) if source.kind() != std::io::ErrorKind::NotFound => {
-                Err(SearchError::Write { path, source })
-            }
-            _ => Ok(()),
-        };
+        return Ok(None);
     };
     if records.docs.len() != doc_count {
         return Err(SearchError::Encode {
-            path,
+            path: PathBuf::from(RECORDS_FILE),
             message: format!(
                 "{} record entries for {doc_count} documents; build both from the same records",
                 records.docs.len()
             ),
         });
     }
-    let encoded = encode_records(records).map_err(|e| SearchError::Encode {
-        path: path.clone(),
-        message: e.to_string(),
-    })?;
-    write_file(path, &encoded)
+    encode_records(records)
+        .map(Some)
+        .map_err(|e| SearchError::Encode {
+            path: PathBuf::from(RECORDS_FILE),
+            message: e.to_string(),
+        })
 }
 
 #[cfg(test)]
