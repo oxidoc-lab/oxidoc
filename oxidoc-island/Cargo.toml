@@ -2,7 +2,7 @@
 name = "oxidoc-island"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "Apache-2.0"
 repository.workspace = true
 description = "The OxidocIsland trait — implement this to build custom Wasm island plugins"
 

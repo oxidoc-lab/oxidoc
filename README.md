@@ -232,4 +232,10 @@ RDX (Rust Document eXpressions) is a standalone language project. See [github.co
 
 You're free to use oxidoc for internal use, public-facing documentation, education, and research. The license restricts offering oxidoc itself as a competing commercial product or managed service.
 
+These library crates are licensed [Apache-2.0](oxidoc-search/LICENSE) instead, so other projects can depend on them:
+
+- `oxidoc-search`: the search engine and index builder
+- `oxidoc-text`: text normalisation and tokenising
+- `oxidoc-island`: the island trait
+
 For commercial licensing inquiries, contact [@farhan-syah](https://github.com/farhan-syah).
