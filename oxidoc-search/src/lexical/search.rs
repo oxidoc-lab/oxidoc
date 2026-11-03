@@ -86,6 +86,11 @@ impl LexicalSearcher {
         self.records.is_some()
     }
 
+    /// Returns the number of documents.
+    pub fn document_count(&self) -> usize {
+        self.documents.len()
+    }
+
     /// Get chunk IDs needed for a query (based on 2-char prefix matching).
     pub fn needed_chunk_ids(&self, query: &str) -> Vec<u32> {
         let metadata = match &self.metadata {

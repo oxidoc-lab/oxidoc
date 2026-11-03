@@ -102,6 +102,11 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
         self.semantic.is_some()
     }
 
+    /// Returns the number of documents in the lexical index.
+    pub fn document_count(&self) -> usize {
+        self.lexical.document_count()
+    }
+
     /// Lexical-only search (no model needed).
     pub fn search_lexical(&self, query: &SearchQuery) -> Vec<DocResult> {
         self.lexical.search(query)

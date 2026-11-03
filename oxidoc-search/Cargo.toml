@@ -20,6 +20,10 @@ builder = []
 # Native vector index builder: embeds records with boostr on the CPU.
 semantic-build = ["builder", "semantic"]
 
+[[example]]
+name = "search_cost"
+required-features = ["semantic-build"]
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
@@ -41,3 +45,4 @@ splintr = { workspace = true, optional = true }
 [dev-dependencies]
 wasm-bindgen-test.workspace = true
 tempfile = "3"
+flate2 = "1"

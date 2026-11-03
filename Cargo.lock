@@ -2818,6 +2818,7 @@ name = "oxidoc-search"
 version = "0.1.10"
 dependencies = [
  "boostr",
+ "flate2",
  "js-sys",
  "numr",
  "oxidoc-island",
