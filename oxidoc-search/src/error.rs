@@ -1,5 +1,6 @@
+#[cfg(feature = "wasm")]
 use oxidoc_island::IslandError;
-use serde_json;
+#[cfg(feature = "wasm")]
 use wasm_bindgen::JsValue;
 
 #[derive(Debug)]
@@ -29,6 +30,7 @@ impl std::fmt::Display for SearchError {
 
 impl std::error::Error for SearchError {}
 
+#[cfg(feature = "wasm")]
 impl From<JsValue> for SearchError {
     fn from(e: JsValue) -> Self {
         SearchError::Js(format!("{:?}", e))
@@ -41,6 +43,7 @@ impl From<serde_json::Error> for SearchError {
     }
 }
 
+#[cfg(feature = "wasm")]
 impl From<SearchError> for IslandError {
     fn from(e: SearchError) -> Self {
         IslandError {

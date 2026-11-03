@@ -9,21 +9,32 @@ description = "Search engine island for Oxidoc — semantic + lexical search in 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["wasm", "semantic"]
+# Browser bindings: wasm-bindgen exports and the search island.
+wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:oxidoc-island"]
+# Embedding-based search and hybrid RRF fusion.
+semantic = ["dep:boostr", "dep:numr", "dep:splintr"]
+# Native index builder.
+builder = []
+
 [dependencies]
-oxidoc-island.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-wasm-bindgen.workspace = true
-web-sys.workspace = true
-js-sys.workspace = true
 thiserror.workspace = true
 oxidoc-text.workspace = true
 rkyv.workspace = true
 
+# Browser bindings
+oxidoc-island = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+
 # ML-Rust ecosystem for semantic search
-boostr.workspace = true
-numr.workspace = true
-splintr.workspace = true
+boostr = { workspace = true, optional = true }
+numr = { workspace = true, optional = true }
+splintr = { workspace = true, optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test.workspace = true
