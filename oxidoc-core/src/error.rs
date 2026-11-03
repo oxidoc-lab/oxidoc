@@ -1,6 +1,3 @@
-// False positive from thiserror's derive macro on struct variant fields.
-#![allow(unused_assignments)]
-
 use miette::Diagnostic;
 use thiserror::Error;
 
