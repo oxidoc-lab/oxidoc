@@ -64,6 +64,9 @@ pub struct SearchQuery {
     pub text: String,
     /// Maximum number of results to return.
     pub max_results: usize,
+    /// Tag filters: OR within a key, AND across keys. Empty means no filtering.
+    #[serde(default)]
+    pub filters: Vec<crate::records::Filter>,
 }
 
 impl Default for SearchQuery {
@@ -71,6 +74,7 @@ impl Default for SearchQuery {
         Self {
             text: String::new(),
             max_results: 10,
+            filters: Vec::new(),
         }
     }
 }
@@ -204,6 +208,7 @@ mod tests {
         let query = SearchQuery::default();
         assert_eq!(query.text, "");
         assert_eq!(query.max_results, 10);
+        assert!(query.filters.is_empty());
     }
 
     fn doc(id: u32, title: &str, path: &str, snippet: &str) -> DocMetadata {

@@ -1,5 +1,7 @@
 use crate::error::SearchResult;
 use crate::lexical::LexicalSearcher;
+use crate::lexical::rank::Hit;
+use crate::records::{Facets, Filter};
 use crate::semantic::SemanticSearcher;
 use crate::types::{SearchQuery, SearchResult as DocResult};
 use boostr::model::encoder::EncoderClient;
@@ -7,18 +9,28 @@ use numr::prelude::*;
 use splintr::Tokenize;
 use std::collections::HashMap;
 
+/// Weight of a lexical rank in the fused score.
+const LEXICAL_WEIGHT: f32 = 0.7;
+/// Weight of a semantic rank in the fused score.
+const SEMANTIC_WEIGHT: f32 = 0.3;
+
+/// Hybrid searcher: lexical always, semantic once a model is attached.
 pub struct SearchEngine<R: Runtime<DType = DType>, T: Tokenize> {
     semantic: Option<SemanticSearcher<R, T>>,
     lexical: LexicalSearcher,
 }
 
 impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
+    /// Creates an engine from a lexical searcher and an optional semantic searcher.
     pub fn new(lexical: LexicalSearcher, semantic: Option<SemanticSearcher<R, T>>) -> Self {
         Self { semantic, lexical }
     }
 
     /// Hybrid search: lexical + semantic with RRF fusion.
     /// Falls back to lexical-only if no semantic searcher is configured.
+    ///
+    /// `query.filters` limits both rankers before fusion. The document boost
+    /// multiplies the fused score.
     pub fn search<C>(&self, client: &C, query: &SearchQuery) -> SearchResult<Vec<DocResult>>
     where
         C: EncoderClient<R>,
@@ -34,42 +46,46 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
             return Ok(Vec::new());
         }
 
-        // Weighted RRF: lexical matches are more important than semantic
-        const LEXICAL_WEIGHT: f32 = 0.7;
-        const SEMANTIC_WEIGHT: f32 = 0.3;
-
-        let mut all_results: HashMap<String, (DocResult, f32)> = HashMap::new();
+        let mut all_results: HashMap<String, (Hit, f32)> = HashMap::new();
+        let mut add = |hits: Vec<Hit>, weight: f32| {
+            for (rank, hit) in hits.into_iter().enumerate() {
+                let score = rrf_score(rank as u32) * weight;
+                all_results
+                    .entry(hit.result.path.clone())
+                    .and_modify(|(_, s)| *s += score)
+                    .or_insert((hit, score));
+            }
+        };
 
         // Semantic results (if available)
         if let Some(ref semantic) = self.semantic {
-            let semantic_results = semantic.search(client, query)?;
-            for (rank, result) in semantic_results.iter().enumerate() {
-                let score = rrf_score(rank as u32) * SEMANTIC_WEIGHT;
-                all_results
-                    .entry(result.path.clone())
-                    .and_modify(|(_, s)| *s += score)
-                    .or_insert_with(|| (result.clone(), score));
-            }
+            let allow = |doc_id: u32| self.lexical.passes_filters(doc_id, &query.filters);
+            add(
+                semantic.search_hits(client, query, &allow)?,
+                SEMANTIC_WEIGHT,
+            );
         }
 
         // Lexical results (always, higher weight)
-        let lexical_results = self.lexical.search(query);
-        for (rank, result) in lexical_results.iter().enumerate() {
-            let score = rrf_score(rank as u32) * LEXICAL_WEIGHT;
-            all_results
-                .entry(result.path.clone())
-                .and_modify(|(_, s)| *s += score)
-                .or_insert_with(|| (result.clone(), score));
-        }
+        let mut lexical_hits = self.lexical.search_hits(&query.text, &query.filters);
+        lexical_hits.truncate(query.max_results);
+        add(lexical_hits, LEXICAL_WEIGHT);
 
-        let mut fused_results: Vec<(DocResult, f32)> = all_results.into_values().collect();
+        let mut fused_results: Vec<(Hit, f32)> = all_results
+            .into_values()
+            .map(|(hit, score)| {
+                let boosted = score * self.lexical.boost_of(hit.doc_id);
+                (hit, boosted)
+            })
+            .collect();
 
-        fused_results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        fused_results.sort_by(|a, b| b.1.total_cmp(&a.1));
 
         Ok(fused_results
             .into_iter()
             .take(query.max_results)
-            .map(|(mut result, score)| {
+            .map(|(hit, score)| {
+                let mut result = hit.result;
                 result.score = score;
                 result
             })
@@ -94,6 +110,16 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
     /// Load a chunk into the lexical searcher.
     pub fn load_chunk(&mut self, data: &[u8]) -> SearchResult<()> {
         self.lexical.load_chunk(data)
+    }
+
+    /// Loads `search-records.bin` bytes into the lexical searcher.
+    pub fn load_records(&mut self, data: &[u8]) -> SearchResult<()> {
+        self.lexical.load_records(data)
+    }
+
+    /// Facet counts for `query` under `filters`. See [`LexicalSearcher::facets`].
+    pub fn facets(&self, query: &str, filters: &[Filter]) -> Facets {
+        self.lexical.facets(query, filters)
     }
 
     /// Get chunk IDs needed for a query.

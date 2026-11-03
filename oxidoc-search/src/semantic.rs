@@ -1,4 +1,5 @@
 use crate::error::SearchResult;
+use crate::lexical::rank::Hit;
 use crate::types::{SearchQuery, SearchResult as DocResult, SearchSource, VectorIndex};
 use boostr::model::encoder::{EmbeddingPipeline, EncoderClient};
 use numr::ops::{DistanceMetric, DistanceOps};
@@ -6,6 +7,7 @@ use numr::prelude::*;
 use splintr::Tokenize;
 use std::sync::Arc;
 
+/// Embedding searcher over a precomputed vector index.
 pub struct SemanticSearcher<R: Runtime<DType = DType>, T: Tokenize> {
     embedding_pipeline: Arc<EmbeddingPipeline<R, T>>,
     vector_index: VectorIndex,
@@ -13,6 +15,7 @@ pub struct SemanticSearcher<R: Runtime<DType = DType>, T: Tokenize> {
 }
 
 impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
+    /// Creates a searcher from an embedding pipeline and the stored document vectors.
     pub fn new(
         embedding_pipeline: EmbeddingPipeline<R, T>,
         vector_index: VectorIndex,
@@ -25,7 +28,32 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
         }
     }
 
+    /// Ranks every document by cosine similarity to the query embedding.
+    ///
+    /// Returns the best `query.max_results` hits. `query.filters` is ignored here.
     pub fn search<C>(&self, client: &C, query: &SearchQuery) -> SearchResult<Vec<DocResult>>
+    where
+        C: EncoderClient<R>,
+        R::Client: DistanceOps<R>
+            + TensorOps<R>
+            + ScalarOps<R>
+            + IndexingOps<R>
+            + ReduceOps<R>
+            + UnaryOps<R>,
+    {
+        let hits = self.search_hits(client, query, &|_| true)?;
+        Ok(hits.into_iter().map(|hit| hit.result).collect())
+    }
+
+    /// Ranks the documents for which `allow` returns true.
+    ///
+    /// Returns the best `query.max_results` of them, with their doc ids.
+    pub(crate) fn search_hits<C>(
+        &self,
+        client: &C,
+        query: &SearchQuery,
+        allow: &impl Fn(u32) -> bool,
+    ) -> SearchResult<Vec<Hit>>
     where
         C: EncoderClient<R>,
         R::Client: DistanceOps<R>
@@ -57,9 +85,10 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
             .into_iter()
             .enumerate()
             .map(|(idx, sim)| (idx as u32, sim))
+            .filter(|(doc_id, _)| allow(*doc_id))
             .collect();
 
-        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| b.1.total_cmp(&a.1));
 
         Ok(results
             .into_iter()
@@ -69,15 +98,18 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
                     .documents
                     .iter()
                     .find(|d| d.id == doc_id)
-                    .map(|doc| DocResult {
-                        title: doc.title.clone(),
-                        path: doc.path.clone(),
-                        snippet: doc.snippet.clone(),
-                        score,
-                        source: SearchSource::Semantic,
-                        breadcrumb: vec![],
-                        anchor: String::new(),
-                        highlight_terms: Vec::new(),
+                    .map(|doc| Hit {
+                        doc_id,
+                        result: DocResult {
+                            title: doc.title.clone(),
+                            path: doc.path.clone(),
+                            snippet: doc.snippet.clone(),
+                            score,
+                            source: SearchSource::Semantic,
+                            breadcrumb: vec![],
+                            anchor: String::new(),
+                            highlight_terms: Vec::new(),
+                        },
                     })
             })
             .collect())
@@ -120,7 +152,9 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
                 ))
             })?;
 
-        let similarities: Vec<f32> = distances.to_vec();
+        // Cosine distance is `1 - similarity`.
+        let distances: Vec<f32> = distances.to_vec();
+        let similarities: Vec<f32> = distances.into_iter().map(|d| 1.0 - d).collect();
 
         Ok(similarities)
     }

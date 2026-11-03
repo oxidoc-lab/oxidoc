@@ -12,7 +12,7 @@ use crate::types::{DocMetadata, LexicalIndex, Posting};
 /// Doc ids follow input order. Each body is tokenised with [`oxidoc_text::tokenize`],
 /// the same pipeline the runtime searcher uses. Postings of a term are sorted by score
 /// descending, then doc id ascending. Tags, boost and field weights do not change the
-/// output.
+/// output. [`build_records`](super::build_records) carries them instead.
 pub fn build_lexical(records: &[Record]) -> LexicalIndex {
     let bodies: Vec<String> = records.iter().map(Record::body).collect();
     let tokenized_docs: Vec<Vec<String>> = bodies

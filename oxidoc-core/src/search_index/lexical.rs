@@ -14,9 +14,10 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
 
 /// Writes the lexical index into `output_dir` as `search-meta.bin` plus chunk files.
 ///
+/// Pages carry no ranking extras, so no `search-records.bin` is written.
 /// The same index produces the same bytes on every run.
 pub fn write_lexical_index(index: &LexicalIndex, output_dir: &Path) -> Result<()> {
-    oxidoc_search::builder::write_lexical(index, output_dir)?;
+    oxidoc_search::builder::write_lexical(index, None, output_dir)?;
     Ok(())
 }
 

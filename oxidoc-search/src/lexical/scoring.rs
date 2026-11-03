@@ -1,12 +1,23 @@
+use std::ops::Range;
+
 use super::matching::{levenshtein, max_edit_distance};
 use crate::types::Posting;
+
+/// A slice of section text with the weight of the field it belongs to.
+pub(super) struct Segment<'a> {
+    /// Text of the slice.
+    pub text: &'a str,
+    /// Multiplier for token matches inside the slice.
+    pub weight: f32,
+}
 
 /// Score a section based on how query tokens match within it.
 /// For each token, find the best matching word. Score = 1.0 - (match_position / word_length).
 /// Earlier match in word = higher score. Exact match = 1.0.
+/// Each token keeps its best weighted match over `segments`.
 /// Multi-token: all tokens matched → 3x bonus.
 pub(super) fn score_section(
-    section_text: &str,
+    segments: &[Segment<'_>],
     heading_title: &str,
     tokens: &[String],
     raw_tokens: &[String],
@@ -40,27 +51,13 @@ pub(super) fn score_section(
         }
         best
     };
-    let lower = section_text.to_lowercase();
-    let heading_lower = heading_title.to_lowercase();
-    let heading_words: Vec<&str> = heading_lower
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .collect();
-    let words: Vec<&str> = lower
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .collect();
-    let mut total = 0.0_f32;
-    let mut matched_count = 0usize;
-
-    for (i, tk) in tokens.iter().enumerate() {
-        let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(tk.as_str());
+    // Best unweighted score of one token over one segment's words.
+    let best_in_words = |words: &[&str], tk: &str, raw: &str| -> f32 {
         let mut best = 0.0_f32;
         let max_dist = max_edit_distance(tk.len());
-        for word in &words {
-            if oxidoc_text::stem(word) == *tk {
-                best = 1.0;
-                break;
+        for word in words {
+            if oxidoc_text::stem(word) == tk {
+                return 1.0;
             }
             let score = word_match_score(word, tk, raw);
             if score > 0.0 {
@@ -83,6 +80,34 @@ pub(super) fn score_section(
                     }
                 }
             }
+        }
+        best
+    };
+    let heading_lower = heading_title.to_lowercase();
+    let heading_words: Vec<&str> = heading_lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let lowers: Vec<String> = segments.iter().map(|s| s.text.to_lowercase()).collect();
+    let segment_words: Vec<(Vec<&str>, f32)> = lowers
+        .iter()
+        .zip(segments)
+        .map(|(lower, segment)| {
+            let words = lower
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|w| !w.is_empty())
+                .collect();
+            (words, segment.weight)
+        })
+        .collect();
+    let mut total = 0.0_f32;
+    let mut matched_count = 0usize;
+
+    for (i, tk) in tokens.iter().enumerate() {
+        let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(tk.as_str());
+        let mut best = 0.0_f32;
+        for (words, weight) in &segment_words {
+            best = best.max(best_in_words(words, tk, raw) * weight);
         }
         if best > 0.0 {
             matched_count += 1;
@@ -194,16 +219,16 @@ pub(super) fn compute_phrase_boost(
     1.0 + ratio * 4.0
 }
 
-/// Get the text for the section containing the given offset (from heading to next heading).
-pub(super) fn get_section_text<'a>(
-    text: &'a str,
+/// Get the byte range of the section containing the given offset (from heading to next heading).
+pub(super) fn section_range(
+    text: &str,
     headings: &[crate::types::HeadingPos],
     offset: usize,
-) -> &'a str {
+) -> Range<usize> {
     // If offset is before the first heading, return intro text only
     if headings.is_empty() || offset < headings[0].offset {
         let end = headings.first().map(|h| h.offset).unwrap_or(text.len());
-        return &text[0..end];
+        return 0..end;
     }
     let mut section_start = 0;
     let mut section_end = text.len();
@@ -218,7 +243,7 @@ pub(super) fn get_section_text<'a>(
             break;
         }
     }
-    &text[section_start..section_end]
+    section_start..section_end
 }
 
 /// Given a match offset, walk backwards through heading positions to build breadcrumb.

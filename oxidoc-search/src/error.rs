@@ -28,6 +28,15 @@ pub enum SearchError {
         /// Encoder error text.
         message: String,
     },
+    /// An index file has a format version this reader does not support.
+    UnsupportedVersion {
+        /// Name of the index file.
+        file: String,
+        /// Version stored in the file.
+        found: u32,
+        /// Version this reader supports.
+        supported: u32,
+    },
     /// Writing the index file at `path` failed.
     Write {
         /// File that failed to write.
@@ -50,6 +59,15 @@ impl std::fmt::Display for SearchError {
             SearchError::Encode { path, message } => {
                 write!(f, "Failed to encode {}: {}", path.display(), message)
             }
+            SearchError::UnsupportedVersion {
+                file,
+                found,
+                supported,
+            } => write!(
+                f,
+                "{file} has format version {found}, but this reader supports version {supported}; \
+                 rebuild the index with a matching oxidoc-search"
+            ),
             SearchError::Write { path, source } => {
                 write!(f, "Failed to write {}: {}", path.display(), source)
             }

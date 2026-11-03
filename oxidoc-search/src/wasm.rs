@@ -12,12 +12,18 @@
 //!    `/search-vectors.json` → `oxidoc_search_load_semantic(model, vectors_json)`
 //! 4. `oxidoc_search_query(text, max)` → lexical JSON results
 //! 5. `oxidoc_search_query_ai(text, max)` → hybrid JSON results (`semantic` feature only)
+//!
+//! Sites with ranked records also fetch `/search-records.bin` and call
+//! `oxidoc_search_load_records(data)`. Then `oxidoc_search_query_filtered`,
+//! `oxidoc_search_query_ai_filtered` and `oxidoc_search_facets` take filters as
+//! JSON, such as `{"kind":["library"],"topic":["nlp","vision"]}`.
 
 #[cfg(feature = "semantic")]
 use crate::engine::SearchEngine;
 #[cfg(feature = "semantic")]
 use crate::index::deserialize_vector_index;
 use crate::lexical::LexicalSearcher;
+use crate::records::{Filter, parse_filters_json};
 #[cfg(feature = "semantic")]
 use crate::semantic::SemanticSearcher;
 use crate::types::{SearchQuery, SearchResult as DocResult};
@@ -121,6 +127,26 @@ pub fn oxidoc_search_needed_chunks(query: &str) -> Result<String, JsValue> {
     })
 }
 
+/// Load `search-records.bin` to enable field weights, boost, filters and facets.
+/// Called after `oxidoc_search_init`.
+#[wasm_bindgen]
+pub fn oxidoc_search_load_records(data: &[u8]) -> Result<(), JsValue> {
+    ENGINE.with(|e| {
+        let mut borrow = e.borrow_mut();
+        let engine = borrow
+            .as_mut()
+            .ok_or_else(|| JsValue::from_str("Search engine not initialized"))?;
+        engine
+            .load_records(data)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    })
+}
+
+/// Parses the filters JSON argument of an export.
+fn filters_arg(filters_json: &str) -> Result<Vec<Filter>, JsValue> {
+    parse_filters_json(filters_json).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 /// Load the GGUF embedding model + pre-computed vectors to enable hybrid search.
 ///
 /// Call with the GGUF model bytes and the vectors JSON string.
@@ -163,6 +189,7 @@ pub fn oxidoc_search_query(query_text: &str, max_results: usize) -> Result<Strin
         let query = SearchQuery {
             text: query_text.to_string(),
             max_results,
+            filters: Vec::new(),
         };
 
         let results = lexical_query(engine, &query);
@@ -170,11 +197,17 @@ pub fn oxidoc_search_query(query_text: &str, max_results: usize) -> Result<Strin
     })
 }
 
-/// Run a hybrid (lexical + semantic) search query via "Ask AI".
-/// Returns JSON results using RRF fusion. Requires semantic model to be loaded.
-#[cfg(feature = "semantic")]
+/// Run a lexical search limited by tag filters and return JSON results.
+///
+/// `filters_json` is an object of string arrays: OR within a key, AND across keys.
+/// Malformed JSON returns an error.
 #[wasm_bindgen]
-pub fn oxidoc_search_query_ai(query_text: &str, max_results: usize) -> Result<String, JsValue> {
+pub fn oxidoc_search_query_filtered(
+    query_text: &str,
+    max_results: usize,
+    filters_json: &str,
+) -> Result<String, JsValue> {
+    let filters = filters_arg(filters_json)?;
     ENGINE.with(|e| {
         let borrow = e.borrow();
         let engine = borrow
@@ -184,7 +217,68 @@ pub fn oxidoc_search_query_ai(query_text: &str, max_results: usize) -> Result<St
         let query = SearchQuery {
             text: query_text.to_string(),
             max_results,
+            filters,
         };
+
+        let results = lexical_query(engine, &query);
+        serde_json::to_string(&results).map_err(|e| JsValue::from_str(&e.to_string()))
+    })
+}
+
+/// Count tag values over the documents that match a query, as JSON.
+///
+/// Returns `[[key, [[value, count], ...]], ...]`. Keys are sorted. Values come by
+/// count, highest first. Malformed filters JSON returns an error.
+#[wasm_bindgen]
+pub fn oxidoc_search_facets(query_text: &str, filters_json: &str) -> Result<String, JsValue> {
+    let filters = filters_arg(filters_json)?;
+    ENGINE.with(|e| {
+        let borrow = e.borrow();
+        let engine = borrow
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Search engine not initialized"))?;
+        let facets = engine.facets(query_text, &filters);
+        serde_json::to_string(&facets).map_err(|e| JsValue::from_str(&e.to_string()))
+    })
+}
+
+/// Run a hybrid (lexical + semantic) search query via "Ask AI".
+/// Returns JSON results using RRF fusion. Requires semantic model to be loaded.
+#[cfg(feature = "semantic")]
+#[wasm_bindgen]
+pub fn oxidoc_search_query_ai(query_text: &str, max_results: usize) -> Result<String, JsValue> {
+    hybrid_query(SearchQuery {
+        text: query_text.to_string(),
+        max_results,
+        filters: Vec::new(),
+    })
+}
+
+/// Run a hybrid search limited by tag filters and return JSON results.
+///
+/// Filters apply to both rankers before fusion. Malformed filters JSON returns an error.
+#[cfg(feature = "semantic")]
+#[wasm_bindgen]
+pub fn oxidoc_search_query_ai_filtered(
+    query_text: &str,
+    max_results: usize,
+    filters_json: &str,
+) -> Result<String, JsValue> {
+    hybrid_query(SearchQuery {
+        text: query_text.to_string(),
+        max_results,
+        filters: filters_arg(filters_json)?,
+    })
+}
+
+/// Runs `query` on the hybrid engine and returns JSON results.
+#[cfg(feature = "semantic")]
+fn hybrid_query(query: SearchQuery) -> Result<String, JsValue> {
+    ENGINE.with(|e| {
+        let borrow = e.borrow();
+        let engine = borrow
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Search engine not initialized"))?;
 
         CLIENT.with(|c| {
             let cborrow = c.borrow();

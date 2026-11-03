@@ -8,6 +8,7 @@ pub mod index;
 pub mod island;
 pub mod lexical;
 pub mod record;
+pub mod records;
 #[cfg(feature = "semantic")]
 pub mod semantic;
 pub mod types;
@@ -21,6 +22,7 @@ pub use error::{SearchError, SearchResult};
 pub use island::SemanticSearch;
 pub use lexical::LexicalSearcher;
 pub use record::{Field, Record};
+pub use records::{DocRecord, Facets, FieldRange, Filter, SearchRecords};
 #[cfg(feature = "semantic")]
 pub use semantic::SemanticSearcher;
 pub use types::{

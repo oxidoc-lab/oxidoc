@@ -15,10 +15,14 @@ pub(super) struct ResolvedQuery<'a> {
 
 /// Resolve query tokens against a postings index: find candidates, collect
 /// matched/fuzzy keys per document, and prepare phrase-boost data.
+///
+/// Only docs for which `allow` returns true become candidates. The AND/OR
+/// choice is made over the allowed docs.
 pub(super) fn resolve_tokens<'a>(
     tokens: &[String],
     raw_tokens: &[String],
     postings: &'a HashMap<String, Vec<Posting>>,
+    allow: &impl Fn(u32) -> bool,
 ) -> ResolvedQuery<'a> {
     let posting_keys: Vec<&String> = postings.keys().collect();
     let mut token_matches: Vec<Vec<(&str, f32, bool)>> = Vec::new();
@@ -45,7 +49,9 @@ pub(super) fn resolve_tokens<'a>(
         for (key, _, _) in matches {
             if let Some(posts) = postings.get(*key) {
                 for posting in posts {
-                    doc_ids.insert(posting.doc_id);
+                    if allow(posting.doc_id) {
+                        doc_ids.insert(posting.doc_id);
+                    }
                 }
             }
         }
@@ -53,12 +59,8 @@ pub(super) fn resolve_tokens<'a>(
     }
 
     // AND logic: intersect all token doc sets
-    let mut candidate_docs: HashSet<u32> = if per_token_doc_ids.is_empty() {
-        HashSet::new()
-    } else {
-        per_token_doc_ids[0].clone()
-    };
-    for doc_ids in &per_token_doc_ids[1..] {
+    let mut candidate_docs: HashSet<u32> = per_token_doc_ids.first().cloned().unwrap_or_default();
+    for doc_ids in per_token_doc_ids.iter().skip(1) {
         candidate_docs = candidate_docs.intersection(doc_ids).copied().collect();
     }
 

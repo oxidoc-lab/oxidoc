@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use super::chunk::SortedChunk;
+use super::records::write_records;
 use crate::error::SearchError;
+use crate::records::SearchRecords;
 use crate::types::{ChunkEntry, ChunkManifest, LexicalIndex, Posting, SearchMetadata};
 
 /// File name of the metadata file.
@@ -20,10 +22,17 @@ pub fn chunk_file_name(id: u32) -> String {
 /// Produces:
 /// - `search-meta.bin`: [`SearchMetadata`] with the documents and the chunk manifest.
 /// - `search-chunk-{id}.bin`: postings of the terms that share one 2-char prefix.
+/// - `search-records.bin`: `records`, only when [`SearchRecords::has_extras`] is true.
+///   Otherwise a `search-records.bin` from an earlier build is removed.
 ///
-/// The same index produces the same bytes on every run. Chunk ids follow sorted
-/// prefix order. Each chunk archives its terms in sorted order. `dir` must exist.
-pub fn write_lexical(index: &LexicalIndex, dir: &Path) -> Result<(), SearchError> {
+/// `records` comes from [`build_records`](super::build_records) over the same input
+/// as `index`. The same input produces the same bytes on every run. Chunk ids follow
+/// sorted prefix order. Each chunk archives its terms in sorted order. `dir` must exist.
+pub fn write_lexical(
+    index: &LexicalIndex,
+    records: Option<&SearchRecords>,
+    dir: &Path,
+) -> Result<(), SearchError> {
     let mut chunks: Vec<ChunkEntry> = Vec::new();
 
     for (chunk_id, (prefix, entries)) in partition_by_prefix(index).into_iter().enumerate() {
@@ -46,7 +55,8 @@ pub fn write_lexical(index: &LexicalIndex, dir: &Path) -> Result<(), SearchError
     let path = dir.join(META_FILE);
     let encoded =
         rkyv::to_bytes::<rkyv::rancor::Error>(&metadata).map_err(|e| encode_error(&path, e))?;
-    write_file(path, &encoded)
+    write_file(path, &encoded)?;
+    write_records(records, index.documents.len(), dir)
 }
 
 /// Groups postings by the first 2 chars of the term, in sorted prefix order.
@@ -70,15 +80,17 @@ fn encode_error(path: &Path, error: rkyv::rancor::Error) -> SearchError {
     }
 }
 
-fn write_file(path: PathBuf, bytes: &[u8]) -> Result<(), SearchError> {
+/// Writes `bytes` to `path`.
+pub(super) fn write_file(path: PathBuf, bytes: &[u8]) -> Result<(), SearchError> {
     std::fs::write(&path, bytes).map_err(|source| SearchError::Write { path, source })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builder::build_lexical;
+    use crate::builder::{build_lexical, build_records};
     use crate::record::{Field, Record};
+    use crate::records::{RECORDS_FILE, decode_records};
     use crate::types::{ChunkPostings, DocMetadata};
     use std::collections::HashMap;
 
@@ -118,7 +130,7 @@ mod tests {
             }],
         };
 
-        write_lexical(&index, tmp.path()).unwrap();
+        write_lexical(&index, None, tmp.path()).unwrap();
 
         let meta_bytes = std::fs::read(tmp.path().join(META_FILE)).unwrap();
         let metadata: SearchMetadata =
@@ -137,7 +149,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let missing = tmp.path().join("missing");
         let index = build_lexical(&[]);
-        match write_lexical(&index, &missing) {
+        match write_lexical(&index, None, &missing) {
             Err(SearchError::Write { path, .. }) => assert_eq!(path, missing.join(META_FILE)),
             other => panic!("expected a write error, got {other:?}"),
         }
@@ -174,8 +186,9 @@ mod tests {
         // Each build uses fresh std HashMaps with new random seeds.
         let first = tempfile::tempdir().unwrap();
         let second = tempfile::tempdir().unwrap();
-        write_lexical(&build_lexical(&records), first.path()).unwrap();
-        write_lexical(&build_lexical(&records), second.path()).unwrap();
+        let extras = build_records(&records);
+        write_lexical(&build_lexical(&records), Some(&extras), first.path()).unwrap();
+        write_lexical(&build_lexical(&records), Some(&extras), second.path()).unwrap();
 
         let first_files = read_dir_bytes(first.path());
         let second_files = read_dir_bytes(second.path());
@@ -190,6 +203,90 @@ mod tests {
                 second_files[name] == *bytes,
                 "{name} differs between two builds of the same records"
             );
+        }
+    }
+
+    /// Builds a two-record input and applies `extra` to the first record.
+    fn records_with(extra: fn(&mut Record)) -> Vec<Record> {
+        let mut records: Vec<Record> = ["alpha text", "beta text"]
+            .iter()
+            .enumerate()
+            .map(|(i, text)| {
+                let mut record = Record::new(format!("r{i}"), format!("/r{i}"), format!("R{i}"));
+                record.fields.push(Field::new("body", *text));
+                record
+            })
+            .collect();
+        extra(&mut records[0]);
+        records
+    }
+
+    /// One case: a label, an edit to the first record, and whether the file is written.
+    type ExtrasCase = (&'static str, fn(&mut Record), bool);
+
+    #[test]
+    fn records_file_written_only_with_extras() {
+        let cases: [ExtrasCase; 5] = [
+            ("page only", |_| {}, false),
+            (
+                "tag",
+                |r| r.tags.push(("kind".to_string(), "library".to_string())),
+                true,
+            ),
+            ("boost", |r| r.boost = 1.2, true),
+            (
+                "two fields",
+                |r| r.fields.push(Field::new("readme", "more")),
+                true,
+            ),
+            ("weight", |r| r.fields[0].weight = 3.0, true),
+        ];
+        for (name, extra, want) in cases {
+            let records = records_with(extra);
+            let tmp = tempfile::tempdir().unwrap();
+            let index = build_lexical(&records);
+            write_lexical(&index, Some(&build_records(&records)), tmp.path()).unwrap();
+            let path = tmp.path().join(RECORDS_FILE);
+            assert_eq!(path.exists(), want, "{name}");
+            if want {
+                let decoded = decode_records(&std::fs::read(&path).unwrap()).unwrap();
+                assert_eq!(decoded, build_records(&records), "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn page_only_build_removes_stale_records_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let tagged = records_with(|r| r.boost = 1.2);
+        write_lexical(
+            &build_lexical(&tagged),
+            Some(&build_records(&tagged)),
+            tmp.path(),
+        )
+        .unwrap();
+        assert!(tmp.path().join(RECORDS_FILE).exists());
+
+        let plain = records_with(|_| {});
+        write_lexical(
+            &build_lexical(&plain),
+            Some(&build_records(&plain)),
+            tmp.path(),
+        )
+        .unwrap();
+        assert!(!tmp.path().join(RECORDS_FILE).exists());
+    }
+
+    #[test]
+    fn records_count_must_match_documents() {
+        let tmp = tempfile::tempdir().unwrap();
+        let records = records_with(|r| r.boost = 1.2);
+        let extras = build_records(&records[..1]);
+        match write_lexical(&build_lexical(&records), Some(&extras), tmp.path()) {
+            Err(SearchError::Encode { path, .. }) => {
+                assert_eq!(path, tmp.path().join(RECORDS_FILE))
+            }
+            other => panic!("expected an encode error, got {other:?}"),
         }
     }
 }

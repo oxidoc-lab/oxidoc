@@ -23,7 +23,8 @@ pub fn generate_search_index(
 
     // Always generate lexical index.
     let lexical = oxidoc_search::builder::build_lexical(&records);
-    oxidoc_search::builder::write_lexical(&lexical, output_dir)?;
+    let extras = oxidoc_search::builder::build_records(&records);
+    oxidoc_search::builder::write_lexical(&lexical, Some(&extras), output_dir)?;
     tracing::info!(
         terms = lexical.postings.len(),
         docs = lexical.documents.len(),
