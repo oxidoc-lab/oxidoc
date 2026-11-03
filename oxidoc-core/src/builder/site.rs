@@ -367,7 +367,7 @@ pub fn build_site_with_model(
                 } else if let Some(parent_slug) = page.slug.strip_suffix("/index") {
                     locale_output_dir.join(format!("{parent_slug}.html"))
                 } else {
-                    locale_output_dir.join(format!("{}.html", &page.slug))
+                    locale_output_dir.join(format!("{}.html", page.slug))
                 };
                 if let Some(parent) = page_output.parent() {
                     std::fs::create_dir_all(parent).map_err(|e| OxidocError::DirCreate {
