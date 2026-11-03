@@ -118,9 +118,9 @@ fluxbench = "0.1"
 wasm-bindgen-test = "0.3"
 
 # Search indexing
-splintr = "0.9"
-boostr = "0.1"
-numr = "0.5"
+splintr = "0.22"
+boostr = "0.10"
+numr = "0.14"
 
 # Internationalization (i18n)
 fluent = "0.16"

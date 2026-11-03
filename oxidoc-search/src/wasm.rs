@@ -30,13 +30,13 @@ use crate::types::{SearchQuery, SearchResult as DocResult};
 #[cfg(feature = "semantic")]
 use boostr::format::Gguf;
 #[cfg(feature = "semantic")]
-use boostr::{CpuClient, CpuDevice, CpuRuntime, EmbeddingPipeline, GgufTokenizer};
+use boostr::{CpuClient, CpuDevice, CpuRuntime, EmbeddingPipeline};
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
 /// The hybrid search engine: lexical always, semantic when model is loaded.
 #[cfg(feature = "semantic")]
-type Engine = SearchEngine<CpuRuntime, GgufTokenizer>;
+type Engine = SearchEngine<CpuRuntime>;
 
 /// The lexical-only search engine used without the `semantic` feature.
 #[cfg(not(feature = "semantic"))]
@@ -162,7 +162,7 @@ pub fn oxidoc_search_load_semantic(model_data: &[u8], vectors_json: &str) -> Res
     let mut gguf = Gguf::from_bytes(model_data.to_vec())
         .map_err(|e| JsValue::from_str(&format!("Failed to parse GGUF model: {}", e)))?;
 
-    let pipeline = EmbeddingPipeline::<CpuRuntime, _>::from_gguf(&mut gguf, device.clone())
+    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device.clone())
         .map_err(|e| JsValue::from_str(&format!("Failed to load embedding pipeline: {}", e)))?;
 
     let semantic_searcher = SemanticSearcher::new(pipeline, vector_index, device);

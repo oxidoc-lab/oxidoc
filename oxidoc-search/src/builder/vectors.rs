@@ -56,13 +56,13 @@ pub fn build_vectors(
         })?,
     };
 
-    let pipeline = EmbeddingPipeline::<CpuRuntime, _>::from_gguf(&mut gguf, device.clone())
+    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device.clone())
         .map_err(|e| SearchError::ModelLoad(format!("Failed to load embedding model: {}", e)))?;
     let dimension = pipeline.config().hidden_size;
 
     let bodies: Vec<String> = records.iter().map(Record::body).collect();
     let texts: Vec<&str> = bodies.iter().map(String::as_str).collect();
-    let vectors = embed_each(&pipeline, &client, &device, &texts)
+    let vectors = embed_each(&pipeline, &client, &texts)
         .map_err(|e| SearchError::Embedding(format!("Failed to compute embeddings: {}", e)))?;
 
     let documents: Vec<DocMetadata> = records
@@ -174,6 +174,39 @@ mod tests {
         assert!(index.dimension > 0);
         for vector in &index.vectors {
             assert_eq!(vector.len(), index.dimension);
+        }
+    }
+
+    fn cosine(a: &[f32], b: &[f32]) -> f32 {
+        let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+        let norm = |v: &[f32]| v.iter().map(|x| x * x).sum::<f32>().sqrt();
+        dot / (norm(a) * norm(b))
+    }
+
+    #[test]
+    #[ignore] // Requires OXIDOC_TEST_MODEL pointing to a GGUF embedding model.
+    fn related_texts_score_above_unrelated() {
+        let model_path = std::env::var("OXIDOC_TEST_MODEL")
+            .expect("Set OXIDOC_TEST_MODEL to a GGUF embedding model path");
+        let records = vec![
+            record("ml", "Rust machine learning framework"),
+            record("dl", "deep learning library for Rust"),
+            record("pie", "a recipe for apple pie"),
+        ];
+
+        let index = build_vectors(&records, EmbeddingModel::File(Path::new(&model_path))).unwrap();
+        let v = &index.vectors;
+        let related = cosine(&v[0], &v[1]);
+        let unrelated = [cosine(&v[0], &v[2]), cosine(&v[1], &v[2])];
+        println!(
+            "ml~dl {related:.4}  ml~pie {:.4}  dl~pie {:.4}",
+            unrelated[0], unrelated[1]
+        );
+        for score in unrelated {
+            assert!(
+                related > score + 0.1,
+                "related pair {related} is not clearly above unrelated pair {score}"
+            );
         }
     }
 }

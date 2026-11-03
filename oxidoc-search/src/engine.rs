@@ -4,9 +4,9 @@ use crate::lexical::rank::Hit;
 use crate::records::{Facets, Filter};
 use crate::semantic::SemanticSearcher;
 use crate::types::{SearchQuery, SearchResult as DocResult};
+use boostr::DequantOps;
 use boostr::model::encoder::EncoderClient;
 use numr::prelude::*;
-use splintr::Tokenize;
 use std::collections::HashMap;
 
 /// Weight of a lexical rank in the fused score.
@@ -15,14 +15,14 @@ const LEXICAL_WEIGHT: f32 = 0.7;
 const SEMANTIC_WEIGHT: f32 = 0.3;
 
 /// Hybrid searcher: lexical always, semantic once a model is attached.
-pub struct SearchEngine<R: Runtime<DType = DType>, T: Tokenize> {
-    semantic: Option<SemanticSearcher<R, T>>,
+pub struct SearchEngine<R: Runtime<DType = DType>> {
+    semantic: Option<SemanticSearcher<R>>,
     lexical: LexicalSearcher,
 }
 
-impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
+impl<R: Runtime<DType = DType>> SearchEngine<R> {
     /// Creates an engine from a lexical searcher and an optional semantic searcher.
-    pub fn new(lexical: LexicalSearcher, semantic: Option<SemanticSearcher<R, T>>) -> Self {
+    pub fn new(lexical: LexicalSearcher, semantic: Option<SemanticSearcher<R>>) -> Self {
         Self { semantic, lexical }
     }
 
@@ -39,7 +39,8 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
             + ScalarOps<R>
             + IndexingOps<R>
             + ReduceOps<R>
-            + UnaryOps<R>,
+            + UnaryOps<R>
+            + DequantOps<R>,
     {
         let text = query.text.trim();
         if text.is_empty() {
@@ -93,7 +94,7 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SearchEngine<R, T> {
     }
 
     /// Attach a semantic searcher (enables hybrid search).
-    pub fn set_semantic(&mut self, semantic: SemanticSearcher<R, T>) {
+    pub fn set_semantic(&mut self, semantic: SemanticSearcher<R>) {
         self.semantic = Some(semantic);
     }
 

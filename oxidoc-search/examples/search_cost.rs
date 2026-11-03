@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use boostr::format::Gguf;
-use boostr::{CpuClient, CpuDevice, CpuRuntime, EmbeddingPipeline, GgufTokenizer};
+use boostr::{CpuClient, CpuDevice, CpuRuntime, EmbeddingPipeline};
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use oxidoc_search::builder::vectors::{MODEL_FILE, VECTORS_FILE};
@@ -40,7 +40,7 @@ use oxidoc_search::{
 };
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
-type Engine = SearchEngine<CpuRuntime, GgufTokenizer>;
+type Engine = SearchEngine<CpuRuntime>;
 
 const USAGE: &str = "usage: search_cost <build|init|query|model-load|query-ai> --out DIR \
                      [--records N] [--model PATH]\n\
@@ -605,7 +605,7 @@ fn load_semantic(engine: &mut Engine, dir: &Path, model_path: &Path) -> Result<u
     let device = CpuDevice::new();
     let mut gguf =
         Gguf::from_bytes(model_data).map_err(|e| format!("Failed to parse GGUF model: {e}"))?;
-    let pipeline = EmbeddingPipeline::<CpuRuntime, _>::from_gguf(&mut gguf, device.clone())
+    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device.clone())
         .map_err(|e| format!("Failed to load embedding pipeline: {e}"))?;
     engine.set_semantic(SemanticSearcher::new(pipeline, vector_index, device));
     Ok(dimension)

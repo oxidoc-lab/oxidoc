@@ -14,7 +14,7 @@ default = ["wasm", "semantic"]
 # Browser bindings: wasm-bindgen exports and the search island.
 wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:oxidoc-island"]
 # Embedding-based search and hybrid RRF fusion.
-semantic = ["dep:boostr", "dep:numr", "dep:splintr"]
+semantic = ["dep:boostr", "dep:numr"]
 # Native lexical index builder: records to BM25 index files.
 builder = []
 # Native vector index builder: embeds records with boostr on the CPU.
@@ -40,9 +40,9 @@ js-sys = { workspace = true, optional = true }
 # ML-Rust ecosystem for semantic search
 boostr = { workspace = true, optional = true }
 numr = { workspace = true, optional = true }
-splintr = { workspace = true, optional = true }
 
 [dev-dependencies]
+splintr.workspace = true
 wasm-bindgen-test.workspace = true
 tempfile = "3"
 flate2 = "1"
