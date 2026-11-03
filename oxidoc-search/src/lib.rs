@@ -1,6 +1,8 @@
 #[cfg(feature = "builder")]
 pub mod builder;
 #[cfg(feature = "semantic")]
+pub mod embed_input;
+#[cfg(feature = "semantic")]
 pub mod engine;
 pub mod error;
 pub mod index;

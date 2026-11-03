@@ -7,6 +7,13 @@ use numr::prelude::*;
 use splintr::Tokenize;
 use std::sync::Arc;
 
+use crate::embed_input::embed_one;
+
+/// True when `vector` is empty or holds only zeros.
+fn is_zero(vector: &[f32]) -> bool {
+    vector.iter().all(|&x| x == 0.0)
+}
+
 /// Embedding searcher over a precomputed vector index.
 pub struct SemanticSearcher<R: Runtime<DType = DType>, T: Tokenize> {
     embedding_pipeline: Arc<EmbeddingPipeline<R, T>>,
@@ -68,14 +75,12 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
             return Ok(Vec::new());
         }
 
-        let query_embedding = self
-            .embedding_pipeline
-            .embed_text(client, text)
+        let query_embedding = embed_one(&*self.embedding_pipeline, client, &self.device, text)
             .map_err(|e| {
                 crate::error::SearchError::Embedding(format!("Failed to embed query: {}", e))
             })?;
 
-        if query_embedding.is_empty() {
+        if is_zero(&query_embedding) {
             return Ok(Vec::new());
         }
 
@@ -85,7 +90,7 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
             .into_iter()
             .enumerate()
             .map(|(idx, sim)| (idx as u32, sim))
-            .filter(|(doc_id, _)| allow(*doc_id))
+            .filter(|(doc_id, _)| allow(*doc_id) && self.has_vector(*doc_id))
             .collect();
 
         results.sort_by(|a, b| b.1.total_cmp(&a.1));
@@ -113,6 +118,17 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
                     })
             })
             .collect())
+    }
+
+    /// True when `doc_id` holds a non-zero vector.
+    ///
+    /// A document with no tokens is stored as zeros. Cosine distance to a zero
+    /// vector is 0, so without this check it would rank first.
+    fn has_vector(&self, doc_id: u32) -> bool {
+        self.vector_index
+            .vectors
+            .get(doc_id as usize)
+            .is_some_and(|vector| !is_zero(vector))
     }
 
     fn compute_similarities<C>(&self, client: &C, query_embedding: &[f32]) -> SearchResult<Vec<f32>>
@@ -162,9 +178,18 @@ impl<R: Runtime<DType = DType>, T: Tokenize> SemanticSearcher<R, T> {
 
 #[cfg(test)]
 mod tests {
+    use super::is_zero;
+
     #[test]
     fn test_empty_query() {
         let text = "";
         assert!(text.trim().is_empty());
+    }
+
+    #[test]
+    fn zero_and_empty_vectors_are_zero() {
+        assert!(is_zero(&[]));
+        assert!(is_zero(&[0.0, 0.0]));
+        assert!(!is_zero(&[0.0, 1e-9]));
     }
 }

@@ -10,6 +10,7 @@ use boostr::model::encoder::EmbeddingPipeline;
 use numr::runtime::cpu::{CpuClient, CpuDevice, CpuRuntime};
 
 use super::document::doc_metadata;
+use crate::embed_input::embed_each;
 use crate::error::SearchError;
 use crate::record::Record;
 use crate::types::{DocMetadata, VectorIndex};
@@ -32,6 +33,8 @@ pub enum EmbeddingModel<'a> {
 
 /// Embeds each record body and returns the vector index.
 ///
+/// Each body is embedded alone, cut to the model's maximum sequence length.
+/// A body with no tokens gets a zero vector, and semantic search never returns it.
 /// Doc ids follow input order. Documents carry the same metadata as the lexical index.
 pub fn build_vectors(
     records: &[Record],
@@ -53,19 +56,14 @@ pub fn build_vectors(
         })?,
     };
 
-    let pipeline = EmbeddingPipeline::<CpuRuntime, _>::from_gguf(&mut gguf, device)
+    let pipeline = EmbeddingPipeline::<CpuRuntime, _>::from_gguf(&mut gguf, device.clone())
         .map_err(|e| SearchError::ModelLoad(format!("Failed to load embedding model: {}", e)))?;
     let dimension = pipeline.config().hidden_size;
 
     let bodies: Vec<String> = records.iter().map(Record::body).collect();
-    let vectors = if bodies.is_empty() {
-        Vec::new()
-    } else {
-        let texts: Vec<&str> = bodies.iter().map(String::as_str).collect();
-        pipeline
-            .embed_texts(&client, &texts)
-            .map_err(|e| SearchError::Embedding(format!("Failed to compute embeddings: {}", e)))?
-    };
+    let texts: Vec<&str> = bodies.iter().map(String::as_str).collect();
+    let vectors = embed_each(&pipeline, &client, &device, &texts)
+        .map_err(|e| SearchError::Embedding(format!("Failed to compute embeddings: {}", e)))?;
 
     let documents: Vec<DocMetadata> = records
         .iter()
