@@ -128,17 +128,6 @@ pub struct Posting {
     pub positions: Vec<u32>,
 }
 
-/// Semantic (vector) index for embedding-based search.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VectorIndex {
-    /// Documents in doc id order.
-    pub documents: Vec<DocMetadata>,
-    /// One embedding per document, in doc id order.
-    pub vectors: Vec<Vec<f32>>,
-    /// Length of every embedding.
-    pub dimension: usize,
-}
-
 /// Entry in the chunk manifest describing which term prefixes a chunk covers.
 #[derive(
     Debug, Clone, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
@@ -256,22 +245,5 @@ mod tests {
         assert_eq!(deserialized.documents.len(), 1);
         assert_eq!(deserialized.postings.len(), 1);
         assert!((deserialized.postings["hello"][0].score - 0.95).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_vector_index_serialization() {
-        let index = VectorIndex {
-            documents: vec![doc(0, "Doc1", "/doc1", "snippet1")],
-            vectors: vec![vec![0.1, 0.2, 0.3]],
-            dimension: 3,
-        };
-
-        let json = serde_json::to_string(&index).unwrap();
-        let deserialized: VectorIndex = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(deserialized.documents.len(), 1);
-        assert_eq!(deserialized.vectors.len(), 1);
-        assert_eq!(deserialized.dimension, 3);
-        assert!((deserialized.vectors[0][0] - 0.1).abs() < 0.001);
     }
 }

@@ -2,16 +2,18 @@
 //!
 //! Supports two modes:
 //! - **Lexical-only** (default): JS fetches `search-meta.bin` + chunks → fast keyword search
-//! - **Hybrid** (if model available): JS also fetches `search-model.gguf` + `search-vectors.json`
+//! - **Hybrid** (if model available): JS also fetches `search-model.gguf` + `search-vectors.bin`
 //!   → lexical + semantic search fused via RRF
 //!
 //! Flow:
 //! 1. JS fetches `/search-meta.bin` → calls `oxidoc_search_init(data)`
 //! 2. Per keystroke: `oxidoc_search_needed_chunks(query)` → fetch chunks → `oxidoc_search_load_chunk(data)`
 //! 3. Optionally, with the `semantic` feature: fetch `/search-model.gguf` and
-//!    `/search-vectors.json` → `oxidoc_search_load_semantic(model, vectors_json)`
+//!    `/search-vectors.bin` → `oxidoc_search_load_semantic(model, vectors_bin)`.
 //! 4. `oxidoc_search_query(text, max)` → lexical JSON results
 //! 5. `oxidoc_search_query_ai(text, max)` → hybrid JSON results (`semantic` feature only)
+//!
+//! Semantic hits take title, path and snippet from `search-meta.bin` by doc id.
 //!
 //! Sites with ranked records also fetch `/search-records.bin` and call
 //! `oxidoc_search_load_records(data)`. Then `oxidoc_search_query_filtered`,
@@ -20,13 +22,13 @@
 
 #[cfg(feature = "semantic")]
 use crate::engine::SearchEngine;
-#[cfg(feature = "semantic")]
-use crate::index::deserialize_vector_index;
 use crate::lexical::LexicalSearcher;
 use crate::records::{Filter, parse_filters_json};
 #[cfg(feature = "semantic")]
 use crate::semantic::SemanticSearcher;
 use crate::types::{SearchQuery, SearchResult as DocResult};
+#[cfg(feature = "semantic")]
+use crate::vectors::decode_vectors;
 #[cfg(feature = "semantic")]
 use boostr::format::Gguf;
 #[cfg(feature = "semantic")]
@@ -147,25 +149,20 @@ fn filters_arg(filters_json: &str) -> Result<Vec<Filter>, JsValue> {
     parse_filters_json(filters_json).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
-/// Load the GGUF embedding model + pre-computed vectors to enable hybrid search.
+/// Load the GGUF embedding model + the int8 `search-vectors.bin` bytes.
 ///
-/// Call with the GGUF model bytes and the vectors JSON string.
 /// After this, `oxidoc_search_query_ai` will use RRF fusion of lexical + semantic.
 #[cfg(feature = "semantic")]
 #[wasm_bindgen]
-pub fn oxidoc_search_load_semantic(model_data: &[u8], vectors_json: &str) -> Result<(), JsValue> {
-    let vector_index = deserialize_vector_index(vectors_json.as_bytes())
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-    let device = CpuDevice::new();
-
+pub fn oxidoc_search_load_semantic(model_data: &[u8], vectors_bin: &[u8]) -> Result<(), JsValue> {
+    let vectors = decode_vectors(vectors_bin).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let mut gguf = Gguf::from_bytes(model_data.to_vec())
         .map_err(|e| JsValue::from_str(&format!("Failed to parse GGUF model: {}", e)))?;
 
-    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device.clone())
+    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, CpuDevice::new())
         .map_err(|e| JsValue::from_str(&format!("Failed to load embedding pipeline: {}", e)))?;
 
-    let semantic_searcher = SemanticSearcher::new(pipeline, vector_index, device);
+    let semantic_searcher = SemanticSearcher::new(pipeline, vectors);
 
     ENGINE.with(|e| {
         let mut borrow = e.borrow_mut();

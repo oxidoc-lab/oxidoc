@@ -1,15 +1,13 @@
 //! Semantic (vector) index for site pages, built by `oxidoc_search::builder`.
 //!
 //! This module picks the model from the search config. `oxidoc_search` embeds the
-//! pages, writes `search-vectors.json`, and copies the model for the browser.
+//! pages, writes `search-vectors.bin`, and copies the model for the browser.
 
 use crate::config::SearchConfig;
 use crate::error::{OxidocError, Result};
-use oxidoc_search::Record;
 use oxidoc_search::builder::{self, EmbeddingModel};
+use oxidoc_search::{QuantVectors, Record};
 use std::path::Path;
-
-use super::types::VectorIndex;
 
 /// Returns the configured model: `config.model_path` first, then the bundled bytes.
 fn select_model<'a>(
@@ -34,7 +32,7 @@ pub fn build_vector_index(
     records: &[Record],
     config: &SearchConfig,
     bundled_model: Option<&[u8]>,
-) -> Result<Option<VectorIndex>> {
+) -> Result<Option<QuantVectors>> {
     if !config.semantic {
         return Ok(None);
     }
@@ -54,7 +52,7 @@ pub fn build_vector_index(
 
     tracing::info!(docs = records.len(), "Computing document embeddings");
     let index = builder::build_vectors(records, model)?;
-    tracing::info!(docs = index.vectors.len(), "Document embeddings computed");
+    tracing::info!(docs = index.len(), "Document embeddings computed");
 
     Ok(Some(index))
 }

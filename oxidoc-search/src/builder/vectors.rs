@@ -1,7 +1,9 @@
 //! Semantic vector index built from records with a GGUF embedding model.
 //!
-//! The builder embeds every record body on the CPU. The browser loads the same
-//! model, embeds only the query, and ranks the stored vectors by cosine similarity.
+//! The builder embeds every record body on the CPU and stores each vector as
+//! int8 in `search-vectors.bin`. The format is in [`crate::vectors::codec`]. The
+//! browser loads the same model, embeds only the query, and ranks the stored
+//! vectors by cosine similarity.
 
 use std::path::{Path, PathBuf};
 
@@ -9,14 +11,12 @@ use boostr::format::gguf::Gguf;
 use boostr::model::encoder::EmbeddingPipeline;
 use numr::runtime::cpu::{CpuClient, CpuDevice, CpuRuntime};
 
-use super::document::doc_metadata;
 use crate::embed_input::embed_each;
 use crate::error::SearchError;
 use crate::record::Record;
-use crate::types::{DocMetadata, VectorIndex};
+use crate::vectors::{QuantVectors, encode_vectors};
 
-/// File name of the vector index.
-pub const VECTORS_FILE: &str = "search-vectors.json";
+pub use crate::vectors::VECTORS_FILE;
 /// File name of the model copy the browser fetches.
 pub const MODEL_FILE: &str = "search-model.gguf";
 
@@ -31,15 +31,16 @@ pub enum EmbeddingModel<'a> {
     Bytes(&'a [u8]),
 }
 
-/// Embeds each record body and returns the vector index.
+/// Embeds each record body and returns the int8 vector index.
 ///
 /// Each body is embedded alone, cut to the model's maximum sequence length.
 /// A body with no tokens gets a zero vector, and semantic search never returns it.
-/// Doc ids follow input order. Documents carry the same metadata as the lexical index.
+/// Doc ids follow input order, as in the lexical index. Fails when an embedding
+/// holds NaN or infinity.
 pub fn build_vectors(
     records: &[Record],
     model: EmbeddingModel<'_>,
-) -> Result<VectorIndex, SearchError> {
+) -> Result<QuantVectors, SearchError> {
     let device = CpuDevice::new();
     let client = CpuClient::new(device.clone());
 
@@ -56,37 +57,37 @@ pub fn build_vectors(
         })?,
     };
 
-    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device.clone())
+    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device)
         .map_err(|e| SearchError::ModelLoad(format!("Failed to load embedding model: {}", e)))?;
     let dimension = pipeline.config().hidden_size;
 
     let bodies: Vec<String> = records.iter().map(Record::body).collect();
     let texts: Vec<&str> = bodies.iter().map(String::as_str).collect();
-    let vectors = embed_each(&pipeline, &client, &texts)
+    let embeddings = embed_each(&pipeline, &client, &texts)
         .map_err(|e| SearchError::Embedding(format!("Failed to compute embeddings: {}", e)))?;
 
-    let documents: Vec<DocMetadata> = records
-        .iter()
-        .zip(bodies)
-        .enumerate()
-        .map(|(idx, (record, body))| doc_metadata(idx as u32, record, body))
-        .collect();
-
-    Ok(VectorIndex {
-        documents,
-        vectors,
-        dimension,
-    })
+    let mut vectors = QuantVectors::with_capacity(dimension, embeddings.len());
+    for (index, (embedding, record)) in embeddings.iter().zip(records).enumerate() {
+        let doc_id = u32::try_from(index)
+            .map_err(|_| SearchError::Embedding(format!("more than {} records", u32::MAX)))?;
+        vectors.push(doc_id, embedding).map_err(|e| {
+            SearchError::Embedding(format!(
+                "embedding of record {index} ('{}'): {e}",
+                record.id
+            ))
+        })?;
+    }
+    Ok(vectors)
 }
 
-/// Writes `index` to `search-vectors.json` in `dir`. `dir` must exist.
-pub fn write_vectors(index: &VectorIndex, dir: &Path) -> Result<(), SearchError> {
+/// Writes `vectors` to `search-vectors.bin` in `dir`. `dir` must exist.
+pub fn write_vectors(vectors: &QuantVectors, dir: &Path) -> Result<(), SearchError> {
     let path = dir.join(VECTORS_FILE);
-    let json = serde_json::to_string(index).map_err(|e| SearchError::Encode {
+    let bytes = encode_vectors(vectors).map_err(|e| SearchError::Encode {
         path: path.clone(),
         message: e.to_string(),
     })?;
-    std::fs::write(&path, json).map_err(|source| SearchError::Write { path, source })
+    std::fs::write(&path, bytes).map_err(|source| SearchError::Write { path, source })
 }
 
 /// Writes the model to `search-model.gguf` in `dir`, so the browser can fetch it.
@@ -133,16 +134,13 @@ mod tests {
     #[test]
     fn write_vectors_round_trips() {
         let tmp = tempfile::tempdir().unwrap();
-        let index = VectorIndex {
-            documents: Vec::new(),
-            vectors: vec![vec![0.5, 0.25]],
-            dimension: 2,
-        };
-        write_vectors(&index, tmp.path()).unwrap();
+        let mut vectors = QuantVectors::new(2);
+        vectors.push(0, &[0.5, 0.25]).unwrap();
+        write_vectors(&vectors, tmp.path()).unwrap();
         let bytes = std::fs::read(tmp.path().join(VECTORS_FILE)).unwrap();
-        let back: VectorIndex = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(back.dimension, 2);
-        assert_eq!(back.vectors, vec![vec![0.5, 0.25]]);
+        assert!(bytes.starts_with(b"OXVEC"));
+        let back = crate::vectors::decode_vectors(&bytes).unwrap();
+        assert_eq!(back, vectors);
     }
 
     #[test]
@@ -168,19 +166,13 @@ mod tests {
             ),
         ];
 
-        let index = build_vectors(&records, EmbeddingModel::Bytes(&model_bytes)).unwrap();
-        assert_eq!(index.documents.len(), 2);
-        assert_eq!(index.vectors.len(), 2);
-        assert!(index.dimension > 0);
-        for vector in &index.vectors {
-            assert_eq!(vector.len(), index.dimension);
+        let vectors = build_vectors(&records, EmbeddingModel::Bytes(&model_bytes)).unwrap();
+        assert_eq!(vectors.len(), 2);
+        assert_eq!(vectors.doc_ids(), &[0, 1]);
+        assert!(vectors.dimension() > 0);
+        for index in 0..vectors.len() {
+            assert_eq!(vectors.values(index).unwrap().len(), vectors.dimension());
         }
-    }
-
-    fn cosine(a: &[f32], b: &[f32]) -> f32 {
-        let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
-        let norm = |v: &[f32]| v.iter().map(|x| x * x).sum::<f32>().sqrt();
-        dot / (norm(a) * norm(b))
     }
 
     #[test]
@@ -194,10 +186,20 @@ mod tests {
             record("pie", "a recipe for apple pie"),
         ];
 
-        let index = build_vectors(&records, EmbeddingModel::File(Path::new(&model_path))).unwrap();
-        let v = &index.vectors;
-        let related = cosine(&v[0], &v[1]);
-        let unrelated = [cosine(&v[0], &v[2]), cosine(&v[1], &v[2])];
+        let built = build_vectors(&records, EmbeddingModel::File(Path::new(&model_path))).unwrap();
+        // Score through the stored file: encode, decode, then int8 cosine.
+        let vectors = crate::vectors::decode_vectors(&encode_vectors(&built).unwrap()).unwrap();
+        let cosine = |a: usize, b: usize| {
+            let query = vectors.dequantize(a).unwrap();
+            let scores = vectors.cosine_scores(&query).unwrap();
+            scores
+                .iter()
+                .find(|(doc_id, _)| *doc_id as usize == b)
+                .map(|(_, score)| *score)
+                .unwrap()
+        };
+        let related = cosine(0, 1);
+        let unrelated = [cosine(0, 2), cosine(1, 2)];
         println!(
             "ml~dl {related:.4}  ml~pie {:.4}  dl~pie {:.4}",
             unrelated[0], unrelated[1]

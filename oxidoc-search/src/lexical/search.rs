@@ -171,6 +171,13 @@ impl LexicalSearcher {
         Some((pos, self.documents.get(pos)?))
     }
 
+    /// Returns the metadata of `doc_id`, or `None` when no document has that id.
+    ///
+    /// Maps the doc id of a `SemanticHit` to its title, path and snippet.
+    pub fn document(&self, doc_id: u32) -> Option<&DocMetadata> {
+        self.doc_at(doc_id).map(|(_, doc)| doc)
+    }
+
     /// Returns the match index, building it on first use.
     pub(super) fn match_index(&self) -> &MatchIndex {
         self.matches

@@ -13,7 +13,7 @@
   var indexLoaded = false;
   var semanticReady = false;
   var semanticLoading = false;
-  var semanticEnabled = false; // set true when search-vectors.json exists (semantic=true in config)
+  var semanticEnabled = false; // set true when search-vectors.bin exists (semantic=true in config)
   var activeIdx = -1;
   var debounceTimer = null;
   var lastResultKey = "";
@@ -121,22 +121,23 @@
     semanticLoading = true;
 
     var vectorsReq = new XMLHttpRequest();
-    vectorsReq.open("GET", "/search-vectors.json", true);
+    vectorsReq.open("GET", "/search-vectors.bin", true);
+    vectorsReq.responseType = "arraybuffer";
 
     var modelReq = new XMLHttpRequest();
     modelReq.open("GET", "/search-model.gguf", true);
     modelReq.responseType = "arraybuffer";
 
-    var vectorsText = null;
+    var vectorsData = null;
     var modelData = null;
     var done = 0;
 
     function tryInit() {
       done++;
       if (done < 2) return;
-      if (!vectorsText || !modelData) { cb(); return; }
+      if (!vectorsData || !modelData) { cb(); return; }
       try {
-        wasmModule.oxidoc_search_load_semantic(new Uint8Array(modelData), vectorsText);
+        wasmModule.oxidoc_search_load_semantic(new Uint8Array(modelData), new Uint8Array(vectorsData));
         semanticReady = true;
         console.log("[oxidoc-search] Semantic search enabled");
       } catch (e) {
@@ -146,7 +147,7 @@
     }
 
     vectorsReq.onload = function () {
-      if (vectorsReq.status === 200) vectorsText = vectorsReq.responseText;
+      if (vectorsReq.status === 200) vectorsData = vectorsReq.response;
       tryInit();
     };
     vectorsReq.onerror = function () { done++; tryInit(); };

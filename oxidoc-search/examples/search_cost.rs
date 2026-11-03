@@ -38,8 +38,8 @@ use oxidoc_search::builder::{
     EmbeddingModel, build_lexical, build_records, build_vectors, write_lexical, write_model,
     write_vectors,
 };
-use oxidoc_search::index::deserialize_vector_index;
 use oxidoc_search::records::RECORDS_FILE;
+use oxidoc_search::vectors::decode_vectors;
 use oxidoc_search::{
     Field, LexicalIndex, LexicalSearcher, Record, SearchEngine, SearchQuery, SemanticSearcher,
 };
@@ -605,22 +605,17 @@ fn init(dir: &Path) -> Result<(Engine, CpuClient, u32)> {
     Ok((engine, client, chunks))
 }
 
-/// Mirrors `oxidoc_search_load_semantic`. The browser passes the vectors as a JSON string.
+/// Mirrors `oxidoc_search_load_semantic`. The browser passes the vectors as bytes.
 fn load_semantic(engine: &mut Engine, dir: &Path, model_path: &Path) -> Result<usize> {
     let model_data =
         fs::read(model_path).map_err(|e| format!("cannot read {}: {e}", model_path.display()))?;
-    let vectors_path = dir.join(VECTORS_FILE);
-    let vectors_json = fs::read_to_string(&vectors_path)
-        .map_err(|e| format!("cannot read {}: {e}", vectors_path.display()))?;
-
-    let vector_index = deserialize_vector_index(vectors_json.as_bytes())?;
-    let dimension = vector_index.dimension;
-    let device = CpuDevice::new();
+    let vectors = decode_vectors(&read_file(dir, VECTORS_FILE)?)?;
+    let dimension = vectors.dimension();
     let mut gguf =
         Gguf::from_bytes(model_data).map_err(|e| format!("Failed to parse GGUF model: {e}"))?;
-    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, device.clone())
+    let pipeline = EmbeddingPipeline::<CpuRuntime>::from_gguf(&mut gguf, CpuDevice::new())
         .map_err(|e| format!("Failed to load embedding pipeline: {e}"))?;
-    engine.set_semantic(SemanticSearcher::new(pipeline, vector_index, device));
+    engine.set_semantic(SemanticSearcher::new(pipeline, vectors));
     Ok(dimension)
 }
 

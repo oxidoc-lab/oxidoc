@@ -14,6 +14,8 @@ pub mod records;
 #[cfg(feature = "semantic")]
 pub mod semantic;
 pub mod types;
+#[cfg(feature = "semantic")]
+pub mod vectors;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
@@ -26,8 +28,10 @@ pub use lexical::LexicalSearcher;
 pub use record::{Field, Record};
 pub use records::{DocRecord, Facets, FieldRange, Filter, SearchRecords};
 #[cfg(feature = "semantic")]
-pub use semantic::SemanticSearcher;
+pub use semantic::{SemanticHit, SemanticSearcher};
 pub use types::{
     ChunkEntry, ChunkManifest, ChunkPostings, DocMetadata, HeadingPos, LexicalIndex, Posting,
-    SearchMetadata, SearchQuery, SearchResult as SearchDoc, SearchSource, VectorIndex,
+    SearchMetadata, SearchQuery, SearchResult as SearchDoc, SearchSource,
 };
+#[cfg(feature = "semantic")]
+pub use vectors::QuantVectors;

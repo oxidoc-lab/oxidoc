@@ -37,8 +37,8 @@ pub fn generate_search_index(
             Ok(Some(vectors)) => {
                 oxidoc_search::builder::write_vectors(&vectors, output_dir)?;
                 tracing::info!(
-                    docs = vectors.documents.len(),
-                    dim = vectors.dimension,
+                    docs = vectors.len(),
+                    dim = vectors.dimension(),
                     "Vector index generated"
                 );
                 // Write model to output dir so the browser can fetch it for query embedding.
@@ -118,7 +118,6 @@ mod tests {
         assert!(!metadata.manifest.chunks.is_empty());
 
         // Vector index should not be created (no model).
-        let vector_path = output.join("search-vectors.json");
-        assert!(!vector_path.exists());
+        assert!(!output.join(oxidoc_search::vectors::VECTORS_FILE).exists());
     }
 }

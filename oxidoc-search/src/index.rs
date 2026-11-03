@@ -1,4 +1,4 @@
-use crate::types::{ChunkPostings, LexicalIndex, SearchMetadata, VectorIndex};
+use crate::types::{ChunkPostings, LexicalIndex, SearchMetadata};
 
 pub fn deserialize_lexical_index(data: &[u8]) -> crate::error::SearchResult<LexicalIndex> {
     rkyv::from_bytes::<LexicalIndex, rkyv::rancor::Error>(data).map_err(|e| {
@@ -21,12 +21,6 @@ pub fn deserialize_chunk(data: &[u8]) -> crate::error::SearchResult<ChunkPosting
     })
 }
 
-pub fn deserialize_vector_index(data: &[u8]) -> crate::error::SearchResult<VectorIndex> {
-    serde_json::from_slice(data).map_err(|e| {
-        crate::error::SearchError::IndexLoad(format!("Failed to deserialize vector index: {}", e))
-    })
-}
-
 pub fn serialize_lexical_index(index: &LexicalIndex) -> crate::error::SearchResult<Vec<u8>> {
     rkyv::to_bytes::<rkyv::rancor::Error>(index)
         .map(|v| v.to_vec())
@@ -36,12 +30,6 @@ pub fn serialize_lexical_index(index: &LexicalIndex) -> crate::error::SearchResu
                 e
             ))
         })
-}
-
-pub fn serialize_vector_index(index: &VectorIndex) -> crate::error::SearchResult<Vec<u8>> {
-    serde_json::to_vec(index).map_err(|e| {
-        crate::error::SearchError::Serialization(format!("Failed to serialize vector index: {}", e))
-    })
 }
 
 #[cfg(test)]
@@ -80,28 +68,5 @@ mod tests {
         assert_eq!(index.documents.len(), deserialized.documents.len());
         assert_eq!(index.postings.len(), deserialized.postings.len());
         assert_eq!(deserialized.postings["hello"][0].positions, vec![0, 3]);
-    }
-
-    #[test]
-    fn test_vector_index_roundtrip() {
-        let index = VectorIndex {
-            documents: vec![DocMetadata {
-                id: 0,
-                title: "Test".to_string(),
-                path: "/test".to_string(),
-                snippet: "Hello world".to_string(),
-                text: String::new(),
-                headings: vec![],
-            }],
-            vectors: vec![vec![0.1, 0.2, 0.3]],
-            dimension: 3,
-        };
-
-        let serialized = serialize_vector_index(&index).unwrap();
-        let deserialized = deserialize_vector_index(&serialized).unwrap();
-
-        assert_eq!(index.documents.len(), deserialized.documents.len());
-        assert_eq!(index.dimension, deserialized.dimension);
-        assert_eq!(index.vectors.len(), deserialized.vectors.len());
     }
 }

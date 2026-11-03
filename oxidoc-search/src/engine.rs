@@ -2,8 +2,8 @@ use crate::error::SearchResult;
 use crate::lexical::LexicalSearcher;
 use crate::lexical::rank::Hit;
 use crate::records::{Facets, Filter};
-use crate::semantic::SemanticSearcher;
-use crate::types::{SearchQuery, SearchResult as DocResult};
+use crate::semantic::{SemanticHit, SemanticSearcher};
+use crate::types::{DocMetadata, SearchQuery, SearchResult as DocResult, SearchSource};
 use boostr::DequantOps;
 use boostr::model::encoder::EncoderClient;
 use numr::prelude::*;
@@ -34,13 +34,7 @@ impl<R: Runtime<DType = DType>> SearchEngine<R> {
     pub fn search<C>(&self, client: &C, query: &SearchQuery) -> SearchResult<Vec<DocResult>>
     where
         C: EncoderClient<R>,
-        R::Client: DistanceOps<R>
-            + TensorOps<R>
-            + ScalarOps<R>
-            + IndexingOps<R>
-            + ReduceOps<R>
-            + UnaryOps<R>
-            + DequantOps<R>,
+        R::Client: TensorOps<R> + ScalarOps<R> + IndexingOps<R> + DequantOps<R>,
     {
         let text = query.text.trim();
         if text.is_empty() {
@@ -61,10 +55,15 @@ impl<R: Runtime<DType = DType>> SearchEngine<R> {
         // Semantic results (if available)
         if let Some(ref semantic) = self.semantic {
             let allow = |doc_id: u32| self.lexical.passes_filters(doc_id, &query.filters);
-            add(
-                semantic.search_hits(client, query, &allow)?,
-                SEMANTIC_WEIGHT,
-            );
+            let hits = semantic
+                .search_allowed(client, query, &allow)?
+                .into_iter()
+                .filter_map(|hit| {
+                    let doc = self.lexical.document(hit.doc_id)?;
+                    Some(semantic_hit(doc, hit))
+                })
+                .collect();
+            add(hits, SEMANTIC_WEIGHT);
         }
 
         // Lexical results (always, higher weight)
@@ -131,6 +130,23 @@ impl<R: Runtime<DType = DType>> SearchEngine<R> {
     /// Get chunk IDs needed for a query.
     pub fn needed_chunk_ids(&self, query: &str) -> Vec<u32> {
         self.lexical.needed_chunk_ids(query)
+    }
+}
+
+/// Builds the result of a semantic hit from the lexical metadata of its document.
+fn semantic_hit(doc: &DocMetadata, hit: SemanticHit) -> Hit {
+    Hit {
+        doc_id: hit.doc_id,
+        result: DocResult {
+            title: doc.title.clone(),
+            path: doc.path.clone(),
+            snippet: doc.snippet.clone(),
+            score: hit.score,
+            source: SearchSource::Semantic,
+            breadcrumb: vec![],
+            anchor: String::new(),
+            highlight_terms: Vec::new(),
+        },
     }
 }
 
