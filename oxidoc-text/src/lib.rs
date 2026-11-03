@@ -1,5 +1,10 @@
+use std::sync::LazyLock;
+
 use rust_stemmers::{Algorithm, Stemmer};
 use unicode_normalization::UnicodeNormalization;
+
+/// Snowball English stemmer shared by every call. It holds no state between calls.
+static STEMMER: LazyLock<Stemmer> = LazyLock::new(|| Stemmer::create(Algorithm::English));
 
 /// Common English stop words to filter out of search indices.
 const STOP_WORDS: &[&str] = &[
@@ -24,8 +29,7 @@ pub fn normalize_unicode(s: &str) -> String {
 
 /// Stem a word using the Snowball English stemmer.
 pub fn stem(word: &str) -> String {
-    let stemmer = Stemmer::create(Algorithm::English);
-    stemmer.stem(word).into_owned()
+    STEMMER.stem(word).into_owned()
 }
 
 /// Split a camelCase or PascalCase string into its component words.
@@ -64,12 +68,10 @@ pub fn split_camel_case(s: &str) -> Vec<&str> {
 /// 8. Stem via Snowball English stemmer
 /// 9. Return Vec<String>
 pub fn tokenize(text: &str) -> Vec<String> {
-    let mut result = Vec::new();
-
-    for (stem, _raw) in tokenize_with_raw(text) {
-        result.push(stem);
-    }
-    result
+    tokenize_with_raw(text)
+        .into_iter()
+        .map(|(stem, _raw)| stem)
+        .collect()
 }
 
 /// Like [`tokenize`] but returns `(stemmed, raw_lowercased)` pairs.
@@ -96,7 +98,7 @@ pub fn tokenize_query(text: &str) -> Vec<(String, String)> {
 }
 
 fn tokenize_with_raw_inner(text: &str, filter_stop_words: bool) -> Vec<(String, String)> {
-    let stemmer = Stemmer::create(Algorithm::English);
+    let stemmer: &Stemmer = &STEMMER;
     let mut result = Vec::new();
 
     for word in text.split_whitespace() {
