@@ -8,8 +8,8 @@ pub(super) struct ResolvedQuery<'a> {
     pub candidate_docs: HashSet<u32>,
     pub use_and: bool,
     pub per_token_doc_ids: Vec<HashSet<u32>>,
-    pub doc_fuzzy_keys: HashMap<u32, Vec<String>>,
-    pub doc_matched_keys: HashMap<u32, Vec<String>>,
+    pub doc_fuzzy_keys: HashMap<u32, Vec<&'a str>>,
+    pub doc_matched_keys: HashMap<u32, Vec<&'a str>>,
     pub token_postings_for_phrase: Vec<Vec<(&'a str, &'a [Posting])>>,
 }
 
@@ -25,7 +25,7 @@ pub(super) fn resolve_tokens<'a>(
     allow: &impl Fn(u32) -> bool,
 ) -> ResolvedQuery<'a> {
     let posting_keys: Vec<&String> = postings.keys().collect();
-    let mut token_matches: Vec<Vec<(&str, f32, bool)>> = Vec::new();
+    let mut token_matches: Vec<Vec<(&'a str, f32, bool)>> = Vec::new();
     for (i, token) in tokens.iter().enumerate() {
         let mut matches = find_matching_postings(token, &posting_keys);
         // Also try the raw (unstemmed) form — partial queries like "analy"
@@ -73,22 +73,19 @@ pub(super) fn resolve_tokens<'a>(
     }
 
     // Collect fuzzy keys per doc (for highlight_terms)
-    let mut doc_fuzzy_keys: HashMap<u32, Vec<String>> = HashMap::new();
+    let mut doc_fuzzy_keys: HashMap<u32, Vec<&'a str>> = HashMap::new();
     for matches in &token_matches {
         for (key, _, is_fuzzy) in matches {
             if *is_fuzzy && let Some(posts) = postings.get(*key) {
                 for posting in posts {
-                    doc_fuzzy_keys
-                        .entry(posting.doc_id)
-                        .or_default()
-                        .push(key.to_string());
+                    doc_fuzzy_keys.entry(posting.doc_id).or_default().push(*key);
                 }
             }
         }
     }
 
     // Collect all matched posting keys per doc (for text offset finding)
-    let mut doc_matched_keys: HashMap<u32, Vec<String>> = HashMap::new();
+    let mut doc_matched_keys: HashMap<u32, Vec<&'a str>> = HashMap::new();
     for matches in &token_matches {
         for (key, _, _) in matches {
             if let Some(posts) = postings.get(*key) {
@@ -96,7 +93,7 @@ pub(super) fn resolve_tokens<'a>(
                     doc_matched_keys
                         .entry(posting.doc_id)
                         .or_default()
-                        .push(key.to_string());
+                        .push(*key);
                 }
             }
         }

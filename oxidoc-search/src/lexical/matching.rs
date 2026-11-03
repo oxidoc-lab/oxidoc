@@ -1,3 +1,5 @@
+use super::levenshtein::Levenshtein;
+
 /// Find matching posting keys for a query token.
 /// Returns (key, discount, is_fuzzy) tuples. is_fuzzy=true for Levenshtein matches.
 pub(super) fn find_matching_postings<'a>(
@@ -7,21 +9,23 @@ pub(super) fn find_matching_postings<'a>(
     let mut matches: Vec<(&'a str, f32, bool)> = Vec::new();
 
     let max_dist = max_edit_distance(token.len());
+    let mut lev = Levenshtein::default();
 
     for key in keys {
         if key.as_str() == token {
             matches.push((key.as_str(), 1.0, false));
         } else if key.starts_with(token) {
             matches.push((key.as_str(), 0.9, false));
-        } else if key.contains(token) {
+        } else if find_bytes(key, token).is_some() {
             let coverage = token.len() as f32 / key.len() as f32;
             let discount = 0.1 + coverage * 0.3;
             matches.push((key.as_str(), discount, false));
         } else if max_dist > 0 {
-            let len_diff = (key.len() as isize - token.len() as isize).unsigned_abs();
+            let len_diff = key.len().abs_diff(token.len());
             if len_diff <= max_dist {
-                let dist = levenshtein(token, key);
-                if dist > 0 && dist <= max_dist {
+                if let Some(dist) = lev.within(token, key, max_dist)
+                    && dist > 0
+                {
                     let discount = match dist {
                         1 => 0.7,
                         2 => 0.4,
@@ -30,9 +34,10 @@ pub(super) fn find_matching_postings<'a>(
                     matches.push((key.as_str(), discount, true));
                 }
             } else if key.len() > token.len() {
-                let prefix = &key[..token.len()];
-                let dist = levenshtein(token, prefix);
-                if dist > 0 && dist <= max_dist {
+                let prefix = &key[..floor_char_boundary(key, token.len())];
+                if let Some(dist) = lev.within(token, prefix, max_dist)
+                    && dist > 0
+                {
                     let discount = match dist {
                         1 => 0.6,
                         2 => 0.3,
@@ -47,36 +52,49 @@ pub(super) fn find_matching_postings<'a>(
     matches
 }
 
-/// Find ALL character offsets where any matched term appears in the text.
-pub(super) fn find_all_match_offsets(text: &str, matched_terms: &[String]) -> Vec<usize> {
-    let lower = text.to_lowercase();
-    let mut offsets = Vec::new();
-    for term in matched_terms {
-        let mut start = 0;
-        while let Some(idx) = lower[start..].find(term.as_str()) {
-            offsets.push(start + idx);
-            start += idx + term.len();
+/// Returns the byte offset of the first `needle` in `haystack`, as [`str::find`] does.
+///
+/// A byte match of valid UTF-8 always starts on a char boundary, so byte search gives
+/// the same offset without building a searcher per call.
+pub(super) fn find_bytes(haystack: &str, needle: &str) -> Option<usize> {
+    find_bytes_from(haystack.as_bytes(), needle.as_bytes(), 0)
+}
+
+/// Returns the offset of the first `pat` in `hay` that starts at or after `from`.
+///
+/// An empty `pat` matches at `from` when `from` is inside `hay` or at its end.
+pub(super) fn find_bytes_from(hay: &[u8], pat: &[u8], from: usize) -> Option<usize> {
+    let Some((&first, rest)) = pat.split_first() else {
+        return (from <= hay.len()).then_some(from);
+    };
+    let last_start = hay.len().checked_sub(pat.len())?;
+    let mut from = from;
+    while from <= last_start {
+        let at = from + hay[from..=last_start].iter().position(|&b| b == first)?;
+        if rest.iter().zip(&hay[at + 1..]).all(|(p, h)| p == h) {
+            return Some(at);
         }
+        from = at + 1;
     }
-    offsets.sort();
-    offsets.dedup();
-    offsets
+    None
 }
 
 /// Build a context snippet around a known offset.
+///
+/// `lower` is `text` lowercased. `offset` is a byte offset into `lower`.
 pub(super) fn context_snippet_at(
     text: &str,
+    lower: &str,
     offset: usize,
-    matched_terms: &[String],
+    matched_terms: &[&str],
     max_len: usize,
 ) -> String {
     // Find the matched term length at this offset
-    let lower = text.to_lowercase();
+    let at = lower.get(offset..).unwrap_or("");
     let match_len = matched_terms
         .iter()
-        .find(|t| lower[offset..].starts_with(t.as_str()))
-        .map(|t| t.len())
-        .unwrap_or(0);
+        .find(|t| at.starts_with(*t))
+        .map_or(0, |t| t.len());
 
     let before = max_len / 3;
     let start = floor_char_boundary(text, offset.saturating_sub(before));
@@ -145,92 +163,53 @@ pub(super) fn max_edit_distance(len: usize) -> usize {
     }
 }
 
-/// Compute Levenshtein edit distance between two strings.
-pub(super) fn levenshtein(a: &str, b: &str) -> usize {
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let m = a_chars.len();
-    let n = b_chars.len();
-
-    if m == 0 {
-        return n;
-    }
-    if n == 0 {
-        return m;
-    }
-
-    // Use two rows instead of full matrix for space efficiency
-    let mut prev = vec![0usize; n + 1];
-    let mut curr = vec![0usize; n + 1];
-
-    for (j, slot) in prev.iter_mut().enumerate().take(n + 1) {
-        *slot = j;
-    }
-
-    for i in 1..=m {
-        curr[0] = i;
-        for j in 1..=n {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] {
-                0
-            } else {
-                1
-            };
-            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
-        }
-        std::mem::swap(&mut prev, &mut curr);
-    }
-
-    prev[n]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_tokenize() {
-        let tokens = oxidoc_text::tokenize("Hello World Rust!");
-        assert_eq!(tokens, vec!["hello", "world", "rust"]);
-    }
-
-    #[test]
-    fn test_tokenize_with_symbols() {
-        let tokens = oxidoc_text::tokenize("rust-lang_2024");
-        assert_eq!(tokens, vec!["rust-lang_2024"]);
-    }
-
-    #[test]
-    fn test_tokenize_stemming() {
-        let tokens = oxidoc_text::tokenize("running jumps");
-        assert!(tokens.contains(&"run".to_string()));
-        assert!(tokens.contains(&"jump".to_string()));
-    }
 
     #[test]
     fn test_context_snippet_multibyte_char_boundary() {
         // Regression: slicing at a byte index inside a multi-byte UTF-8 char
         // (here, an em dash) must not panic.
         let text = "API Reference — OpenAPI Integration Guide with extra trailing context words here so the window actually slides across the em dash boundary and triggers the failure case";
-        let terms = vec!["api".to_string()];
-        let s = context_snippet_at(text, 0, &terms, 40);
+        let terms = ["api"];
+        let s = context_snippet_at(text, &text.to_lowercase(), 0, &terms, 40);
         assert!(!s.is_empty());
     }
 
     #[test]
-    fn test_levenshtein_identical() {
-        assert_eq!(levenshtein("hello", "hello"), 0);
-    }
-
-    #[test]
-    fn test_levenshtein_one_edit() {
-        assert_eq!(levenshtein("glock", "block"), 1);
-        assert_eq!(levenshtein("blck", "block"), 1);
-        assert_eq!(levenshtein("blocx", "block"), 1);
-    }
-
-    #[test]
-    fn test_levenshtein_two_edits() {
-        assert_eq!(levenshtein("glok", "block"), 2);
+    fn find_bytes_matches_str_find() {
+        let hays = [
+            "tensor",
+            "attention",
+            "über-tensor",
+            "",
+            "aaab",
+            "café",
+            "a long haystack of more than sixteen bytes with tensor near its end",
+        ];
+        let needles = [
+            "", "t", "ten", "tion", "sor", "ab", "é", "fé", "tensors", "x",
+        ];
+        for hay in hays {
+            for needle in needles {
+                assert_eq!(
+                    find_bytes(hay, needle),
+                    hay.find(needle),
+                    "{hay} / {needle}"
+                );
+                for from in 0..=hay.len() {
+                    let want = hay
+                        .get(from..)
+                        .and_then(|tail| tail.find(needle))
+                        .map(|at| from + at);
+                    if hay.is_char_boundary(from) {
+                        let got = find_bytes_from(hay.as_bytes(), needle.as_bytes(), from);
+                        assert_eq!(got, want, "{hay} / {needle} / {from}");
+                    }
+                }
+            }
+        }
     }
 
     #[test]

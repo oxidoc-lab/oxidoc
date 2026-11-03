@@ -9,7 +9,9 @@ use crate::types::{
     DocMetadata, LexicalIndex, Posting, SearchMetadata, SearchQuery, SearchResult as DocResult,
 };
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
+use super::match_index::MatchIndex;
 use super::rank::sort_hits;
 
 /// Keyword searcher over a lexical index, with optional per-document records.
@@ -21,6 +23,10 @@ pub struct LexicalSearcher {
     metadata: Option<SearchMetadata>,
     /// Ranking data per doc id, from `search-records.bin`.
     pub(super) records: Option<Vec<DocRecord>>,
+    /// Position in `documents` of each doc id. A repeated id maps to its last position.
+    doc_index: HashMap<u32, usize>,
+    /// Words and lowercased text of every document, built on the first query.
+    matches: OnceLock<MatchIndex>,
 }
 
 impl LexicalSearcher {
@@ -40,21 +46,32 @@ impl LexicalSearcher {
     pub fn from_metadata(data: &[u8]) -> SearchResult<Self> {
         let metadata = deserialize_search_metadata(data)?;
         let documents = metadata.documents.clone();
-        Ok(Self {
-            documents,
-            postings: HashMap::new(),
-            metadata: Some(metadata),
-            records: None,
-        })
+        Ok(Self::from_parts(documents, HashMap::new(), Some(metadata)))
     }
 
     /// Creates a searcher over a full in-memory index.
     pub fn new(index: LexicalIndex) -> Self {
+        Self::from_parts(index.documents, index.postings, None)
+    }
+
+    /// Creates a searcher without records and with empty match caches.
+    fn from_parts(
+        documents: Vec<DocMetadata>,
+        postings: HashMap<String, Vec<Posting>>,
+        metadata: Option<SearchMetadata>,
+    ) -> Self {
+        let doc_index = documents
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (d.id, i))
+            .collect();
         Self {
-            documents: index.documents,
-            postings: index.postings,
-            metadata: None,
+            documents,
+            postings,
+            metadata,
             records: None,
+            doc_index,
+            matches: OnceLock::new(),
         }
     }
 
@@ -78,6 +95,8 @@ impl LexicalSearcher {
     pub fn set_records(&mut self, records: SearchRecords) -> SearchResult<()> {
         check_records(&records, &self.documents)?;
         self.records = Some(records.docs);
+        // Section words follow the record fields, so a built match index is stale.
+        self.matches = OnceLock::new();
         Ok(())
     }
 
@@ -146,6 +165,18 @@ impl LexicalSearcher {
         hits.into_iter().map(|hit| hit.result).collect()
     }
 
+    /// Returns the position in `documents` and the document of `doc_id`.
+    pub(super) fn doc_at(&self, doc_id: u32) -> Option<(usize, &DocMetadata)> {
+        let pos = *self.doc_index.get(&doc_id)?;
+        Some((pos, self.documents.get(pos)?))
+    }
+
+    /// Returns the match index, building it on first use.
+    pub(super) fn match_index(&self) -> &MatchIndex {
+        self.matches
+            .get_or_init(|| MatchIndex::new(&self.documents, self.records.as_deref()))
+    }
+
     /// Returns the record of `doc_id`, when records are loaded.
     pub(super) fn record(&self, doc_id: u32) -> Option<&DocRecord> {
         self.records.as_ref()?.get(doc_id as usize)
@@ -175,7 +206,6 @@ impl LexicalSearcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
     fn create_test_index() -> LexicalIndex {
         let mut postings = HashMap::new();

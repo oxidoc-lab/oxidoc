@@ -1,16 +1,13 @@
 //! Section ranking of candidate documents.
 
-use std::collections::HashMap;
-use std::ops::Range;
-
-use super::matching::{context_snippet_at, find_all_match_offsets};
+use super::matching::context_snippet_at;
+use super::query_scorer::QueryScorer;
 use super::resolve::resolve_tokens;
-use super::scoring::{
-    Segment, compute_phrase_boost, resolve_heading_breadcrumb, score_section, section_range,
-};
+use super::scoring::{PhraseIndex, compute_phrase_boost, heading_breadcrumb, score_section};
 use super::search::LexicalSearcher;
+use super::section_hits::first_match_per_section;
 use crate::records::{DocRecord, Filter};
-use crate::types::{DocMetadata, SearchResult as DocResult, SearchSource};
+use crate::types::{SearchResult as DocResult, SearchSource};
 
 /// Title boost of the intro section when the page title covers the query.
 const PAGE_TITLE_BOOST: f32 = 2.0;
@@ -35,63 +32,11 @@ pub(crate) fn sort_hits(hits: &mut [Hit]) {
 /// A doc whose title covers all query tokens is likely the canonical page for the
 /// query. A token covers a title word if it's stem-equal OR a prefix of the title
 /// word (so "ve" still matches a title containing "Versioning").
-fn title_covers_tokens(title: &str, tokens: &[String], raw_tokens: &[String]) -> bool {
-    let title_words: Vec<(String, String)> = title
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .map(|w| {
-            let lower = w.to_lowercase();
-            let stem = oxidoc_text::stem(&lower);
-            (lower, stem)
-        })
-        .collect();
+fn title_covers_tokens(title_words: &[usize], scorer: &QueryScorer<'_>) -> bool {
     if title_words.is_empty() {
         return false;
     }
-    tokens.iter().enumerate().all(|(i, t)| {
-        let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(t.as_str());
-        title_words.iter().any(|(lower, stem)| {
-            stem == t || lower.starts_with(t.as_str()) || lower.starts_with(raw)
-        })
-    })
-}
-
-/// Splits the section `range` of `text` into weighted field segments.
-///
-/// Without a record, or when no field overlaps the section, the whole section
-/// is one segment of weight 1.0.
-fn section_segments<'a>(
-    text: &'a str,
-    range: Range<usize>,
-    record: Option<&DocRecord>,
-) -> Vec<Segment<'a>> {
-    let fields: Vec<Segment<'a>> = record
-        .map(|r| {
-            r.fields
-                .iter()
-                .filter_map(|f| {
-                    let start = f.start.max(range.start);
-                    let end = f.end.min(range.end);
-                    if start >= end {
-                        return None;
-                    }
-                    let text = text.get(start..end)?;
-                    Some(Segment {
-                        text,
-                        weight: f.weight,
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    if fields.is_empty() {
-        vec![Segment {
-            text: text.get(range).unwrap_or(""),
-            weight: 1.0,
-        }]
-    } else {
-        fields
-    }
+    (0..scorer.token_count()).all(|t| scorer.covers(t, title_words))
 }
 
 /// Returns the title boost of one section.
@@ -119,27 +64,26 @@ impl LexicalSearcher {
             return Vec::new();
         }
 
-        let pairs = oxidoc_text::tokenize_query(text);
-        if pairs.is_empty() {
+        let (tokens, raw_tokens): (Vec<String>, Vec<String>) =
+            oxidoc_text::tokenize_query(text).into_iter().unzip();
+        if tokens.is_empty() {
             return Vec::new();
         }
-        let tokens: Vec<String> = pairs.iter().map(|(s, _)| s.clone()).collect();
-        let raw_tokens: Vec<String> = pairs.iter().map(|(_, r)| r.clone()).collect();
 
         let allow = |doc_id: u32| self.passes_filters(doc_id, filters);
         let resolved = resolve_tokens(&tokens, &raw_tokens, &self.postings, &allow);
         let num_tokens = tokens.len();
         let mut hits: Vec<Hit> = Vec::new();
 
-        let doc_map: HashMap<u32, &DocMetadata> =
-            self.documents.iter().map(|d| (d.id, d)).collect();
+        let phrase = PhraseIndex::new(&resolved.token_postings_for_phrase);
+        let matches = self.match_index();
+        let mut scorer = QueryScorer::new(&matches.vocab, &tokens, &raw_tokens);
         let mut candidates: Vec<u32> = resolved.candidate_docs.iter().copied().collect();
         candidates.sort_unstable();
 
         for doc_id in candidates {
-            let doc = match doc_map.get(&doc_id) {
-                Some(d) => d,
-                None => continue,
+            let Some((pos, doc)) = self.doc_at(doc_id) else {
+                continue;
             };
             let record = self.record(doc_id);
 
@@ -172,8 +116,9 @@ impl LexicalSearcher {
             };
 
             // Compute phrase boost
-            let phrase_boost =
-                compute_phrase_boost(&tokens, &resolved.token_postings_for_phrase, doc_id);
+            let phrase_boost = compute_phrase_boost(&tokens, &phrase, doc_id);
+            let highlight_terms: Vec<String> =
+                highlight_terms.into_iter().map(str::to_string).collect();
 
             if doc.text.is_empty() {
                 hits.push(Hit {
@@ -193,43 +138,45 @@ impl LexicalSearcher {
             }
 
             // Find all match offsets, group by section
-            let offsets = find_all_match_offsets(&doc.text, &terms);
-            if offsets.is_empty() {
+            let Some(words) = matches.doc(pos) else {
+                continue;
+            };
+            let lower_text = words.lower_text(doc);
+            // First match of each section that holds a match, in text order.
+            let firsts = first_match_per_section(lower_text, &terms, &doc.headings);
+            if firsts.is_empty() {
                 continue;
             }
 
-            let title_match = title_covers_tokens(&doc.title, &tokens, &raw_tokens);
-            let mut seen_anchors: Vec<String> = Vec::new();
-            for offset in &offsets {
-                let (breadcrumb, anchor) =
-                    resolve_heading_breadcrumb(&doc.title, &doc.headings, Some(*offset));
+            let title_match = title_covers_tokens(&words.title, &scorer);
+            let mut seen_anchors: Vec<&str> = Vec::new();
+            for &(offset, heading) in &firsts {
+                let anchor = heading
+                    .and_then(|i| doc.headings.get(i))
+                    .map_or("", |h| h.anchor.as_str());
                 if seen_anchors.contains(&anchor) {
                     continue;
                 }
-                seen_anchors.push(anchor.clone());
+                seen_anchors.push(anchor);
 
                 // Score this section directly, with heading boost
-                let range = section_range(&doc.text, &doc.headings, *offset);
-                let segments = section_segments(&doc.text, range, record);
-                let heading_title = if breadcrumb.len() > 1 {
-                    breadcrumb.last().map(|s| s.as_str()).unwrap_or("")
-                } else {
-                    &doc.title
+                let Some(section) = words.section(heading) else {
+                    continue;
                 };
+                let breadcrumb = heading_breadcrumb(&doc.title, &doc.headings, heading);
                 // Page-title match: boost the intro section (no subheading) strongly
                 // so the dedicated page wins over subsections that share the term.
                 let section_title_boost = title_boost(title_match, breadcrumb.is_empty(), record);
-                let score =
-                    score_section(&segments, heading_title, &tokens, &raw_tokens, num_tokens)
-                        * and_penalty
-                        * phrase_boost
-                        * section_title_boost;
+                let score = score_section(section, &mut scorer, num_tokens)
+                    * and_penalty
+                    * phrase_boost
+                    * section_title_boost;
 
                 if score <= 0.0 {
                     continue;
                 }
 
-                let snippet = context_snippet_at(&doc.text, *offset, &terms, 160);
+                let snippet = context_snippet_at(&doc.text, lower_text, offset, &terms, 160);
                 let path = if anchor.is_empty() {
                     doc.path.clone()
                 } else {
@@ -245,7 +192,7 @@ impl LexicalSearcher {
                         score,
                         source: SearchSource::Lexical,
                         breadcrumb,
-                        anchor,
+                        anchor: anchor.to_string(),
                         highlight_terms: highlight_terms.clone(),
                     },
                 });
@@ -260,7 +207,9 @@ impl LexicalSearcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lexical::match_index::MatchIndex;
     use crate::records::FieldRange;
+    use crate::types::DocMetadata;
 
     fn record(fields: &[(&str, usize, usize, f32)]) -> DocRecord {
         DocRecord {
@@ -275,32 +224,6 @@ mod tests {
                     weight,
                 })
                 .collect(),
-        }
-    }
-
-    /// One case: a section range, the record, and the expected weighted slices.
-    type SegmentCase<'a> = (Range<usize>, Option<&'a DocRecord>, Vec<(&'a str, f32)>);
-
-    #[test]
-    fn section_segments_table() {
-        let text = "alpha\nbeta gamma\ndelta";
-        let two = record(&[("name", 0, 5, 3.0), ("readme", 6, 22, 1.0)]);
-        let cases: [SegmentCase<'_>; 4] = [
-            (0..22, None, vec![(text, 1.0)]),
-            (
-                0..22,
-                Some(&two),
-                vec![("alpha", 3.0), ("beta gamma\ndelta", 1.0)],
-            ),
-            (11..22, Some(&two), vec![("gamma\ndelta", 1.0)]),
-            (5..6, Some(&two), vec![("\n", 1.0)]),
-        ];
-        for (range, rec, want) in cases {
-            let got: Vec<(&str, f32)> = section_segments(text, range.clone(), rec)
-                .iter()
-                .map(|s| (s.text, s.weight))
-                .collect();
-            assert_eq!(got, want, "range {range:?}");
         }
     }
 
@@ -334,8 +257,19 @@ mod tests {
         ];
         for (title, query, want) in cases {
             let (stems, raws) = tokens(query);
+            let doc = DocMetadata {
+                id: 0,
+                title: title.to_string(),
+                path: String::new(),
+                snippet: String::new(),
+                text: String::new(),
+                headings: vec![],
+            };
+            let index = MatchIndex::new(std::slice::from_ref(&doc), None);
+            let title_words = index.doc(0).map_or(&[][..], |d| d.title.as_slice());
+            let scorer = QueryScorer::new(&index.vocab, &stems, &raws);
             assert_eq!(
-                title_covers_tokens(title, &stems, &raws),
+                title_covers_tokens(title_words, &scorer),
                 want,
                 "{title} / {query}"
             );

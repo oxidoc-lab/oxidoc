@@ -1,113 +1,27 @@
+use std::collections::HashMap;
 use std::ops::Range;
 
-use super::matching::{levenshtein, max_edit_distance};
-use crate::types::Posting;
+use super::match_index::SectionWords;
+use super::query_scorer::QueryScorer;
+use crate::types::{HeadingPos, Posting};
 
-/// A slice of section text with the weight of the field it belongs to.
-pub(super) struct Segment<'a> {
-    /// Text of the slice.
-    pub text: &'a str,
-    /// Multiplier for token matches inside the slice.
-    pub weight: f32,
-}
-
-/// Score a section based on how query tokens match within it.
-/// For each token, find the best matching word. Score = 1.0 - (match_position / word_length).
-/// Earlier match in word = higher score. Exact match = 1.0.
-/// Each token keeps its best weighted match over `segments`.
-/// Multi-token: all tokens matched → 3x bonus.
+/// Scores a section by how its words match the query tokens.
+///
+/// Each token keeps its best weighted word score over the section segments.
+/// Multi-token: all tokens matched → 3x bonus, else scaled by the matched share.
+/// Heading matches then multiply the total.
 pub(super) fn score_section(
-    segments: &[Segment<'_>],
-    heading_title: &str,
-    tokens: &[String],
-    raw_tokens: &[String],
+    section: &SectionWords,
+    scorer: &mut QueryScorer<'_>,
     num_tokens: usize,
 ) -> f32 {
-    // Score a single word against (stem, raw) forms of a token.
-    //
-    // A token that's a prefix of the word (pos=0) scores 0.9 regardless of
-    // word length — a typed prefix like "ve" should match "versioning" as
-    // strongly as it matches "vercel", so the ranking is decided by other
-    // signals (title match, heading boost) rather than whichever word happens
-    // to be shorter. Non-prefix substring matches fall back to the original
-    // position×coverage formula to keep mid-word matches weaker.
-    let word_match_score = |word: &str, tk: &str, raw: &str| -> f32 {
-        let mut best = 0.0_f32;
-        for form in [tk, raw] {
-            if let Some(pos) = word.find(form) {
-                let score = if pos == 0 {
-                    0.9
-                } else {
-                    let wlen = word.len().max(1) as f32;
-                    let ps = 1.0 - (pos as f32 / wlen);
-                    let cs = form.len() as f32 / wlen;
-                    ps * cs
-                };
-                best = best.max(score);
-            }
-            if tk == raw {
-                break;
-            }
-        }
-        best
-    };
-    // Best unweighted score of one token over one segment's words.
-    let best_in_words = |words: &[&str], tk: &str, raw: &str| -> f32 {
-        let mut best = 0.0_f32;
-        let max_dist = max_edit_distance(tk.len());
-        for word in words {
-            if oxidoc_text::stem(word) == tk {
-                return 1.0;
-            }
-            let score = word_match_score(word, tk, raw);
-            if score > 0.0 {
-                best = best.max(score);
-                if score >= 1.0 {
-                    break;
-                }
-            } else if max_dist > 0 {
-                // Fuzzy match — Levenshtein against full word
-                let len_diff = (word.len() as isize - tk.len() as isize).unsigned_abs();
-                if len_diff <= max_dist {
-                    let dist = levenshtein(tk, word);
-                    if dist > 0 && dist <= max_dist {
-                        let score = match dist {
-                            1 => 0.5,
-                            2 => 0.25,
-                            _ => 0.1,
-                        };
-                        best = best.max(score);
-                    }
-                }
-            }
-        }
-        best
-    };
-    let heading_lower = heading_title.to_lowercase();
-    let heading_words: Vec<&str> = heading_lower
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .collect();
-    let lowers: Vec<String> = segments.iter().map(|s| s.text.to_lowercase()).collect();
-    let segment_words: Vec<(Vec<&str>, f32)> = lowers
-        .iter()
-        .zip(segments)
-        .map(|(lower, segment)| {
-            let words = lower
-                .split(|c: char| !c.is_alphanumeric())
-                .filter(|w| !w.is_empty())
-                .collect();
-            (words, segment.weight)
-        })
-        .collect();
     let mut total = 0.0_f32;
     let mut matched_count = 0usize;
 
-    for (i, tk) in tokens.iter().enumerate() {
-        let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(tk.as_str());
+    for t in 0..scorer.token_count() {
         let mut best = 0.0_f32;
-        for (words, weight) in &segment_words {
-            best = best.max(best_in_words(words, tk, raw) * weight);
+        for (words, weight) in &section.segments {
+            best = best.max(scorer.best_body(t, words) * weight);
         }
         if best > 0.0 {
             matched_count += 1;
@@ -121,36 +35,13 @@ pub(super) fn score_section(
         total *= matched_count as f32 / num_tokens as f32;
     }
 
-    // Heading boost: score tokens against heading words using same position+coverage logic
-    // Also split camelCase/hyphenated heading words (e.g. "CodeBlock" → ["code","block"])
-    if !heading_words.is_empty() {
-        let mut expanded_heading: Vec<String> = Vec::new();
-        for hw in &heading_words {
-            expanded_heading.push(hw.to_string());
-            let parts = oxidoc_text::split_camel_case(hw);
-            if parts.len() > 1 {
-                for p in parts {
-                    let lower = p.to_lowercase();
-                    if lower.len() > 1 {
-                        expanded_heading.push(lower);
-                    }
-                }
-            }
-        }
-
+    // Heading boost: score tokens against heading words using same position+coverage logic.
+    // The heading words include camelCase parts (e.g. "CodeBlock" → ["code","block"]).
+    if !section.heading.is_empty() {
         let mut heading_score = 0.0_f32;
         let mut heading_hits = 0usize;
-        for (i, tk) in tokens.iter().enumerate() {
-            let raw = raw_tokens.get(i).map(|s| s.as_str()).unwrap_or(tk.as_str());
-            let mut best = 0.0_f32;
-            for hw in &expanded_heading {
-                if oxidoc_text::stem(hw) == *tk {
-                    best = 1.0;
-                    break;
-                }
-                let score = word_match_score(hw, tk, raw);
-                best = best.max(score);
-            }
+        for t in 0..scorer.token_count() {
+            let best = scorer.best_heading(t, &section.heading);
             if best > 0.0 {
                 heading_hits += 1;
                 heading_score += best;
@@ -165,6 +56,57 @@ pub(super) fn score_section(
     total
 }
 
+/// Token positions of matched postings, per query token, grouped by document.
+pub(super) struct PhraseIndex<'a> {
+    /// For each query token: doc id → position lists of every matched key.
+    per_token: Vec<HashMap<u32, Vec<&'a [u32]>>>,
+}
+
+impl<'a> PhraseIndex<'a> {
+    /// Groups `token_postings` by document. Builds nothing for fewer than two tokens.
+    pub(super) fn new(token_postings: &[Vec<(&'a str, &'a [Posting])>]) -> Self {
+        if token_postings.len() < 2 {
+            return Self {
+                per_token: Vec::new(),
+            };
+        }
+        let per_token = token_postings
+            .iter()
+            .map(|keys| {
+                let mut by_doc: HashMap<u32, Vec<&'a [u32]>> = HashMap::new();
+                for (_key, posts) in keys {
+                    for post in posts.iter() {
+                        by_doc
+                            .entry(post.doc_id)
+                            .or_default()
+                            .push(post.positions.as_slice());
+                    }
+                }
+                by_doc
+            })
+            .collect();
+        Self { per_token }
+    }
+
+    /// Returns true when token `pair` and token `pair + 1` sit at adjacent positions in `doc_id`.
+    fn sequential(&self, pair: usize, doc_id: u32) -> bool {
+        let lists = |i: usize| {
+            self.per_token
+                .get(i)
+                .and_then(|m| m.get(&doc_id))
+                .map_or(&[][..], Vec::as_slice)
+        };
+        let (lists_a, lists_b) = (lists(pair), lists(pair + 1));
+        lists_a.iter().any(|positions_a| {
+            positions_a.iter().any(|&pos_a| {
+                lists_b
+                    .iter()
+                    .any(|positions_b| positions_b.iter().any(|&b| pos_a.checked_add(1) == Some(b)))
+            })
+        })
+    }
+}
+
 /// Compute phrase boost based on positional data.
 ///
 /// For consecutive query token pairs, checks if any matched postings have
@@ -173,7 +115,7 @@ pub(super) fn score_section(
 /// - Partial → proportional boost
 pub(super) fn compute_phrase_boost(
     query_tokens: &[String],
-    token_postings: &[Vec<(&str, &[Posting])>],
+    phrase: &PhraseIndex<'_>,
     doc_id: u32,
 ) -> f32 {
     if query_tokens.len() < 2 {
@@ -181,34 +123,9 @@ pub(super) fn compute_phrase_boost(
     }
 
     let num_pairs = query_tokens.len() - 1;
-    let mut sequential_pairs = 0;
-
-    for pair_idx in 0..num_pairs {
-        let postings_a = &token_postings[pair_idx];
-        let postings_b = &token_postings[pair_idx + 1];
-
-        let mut found_sequential = false;
-        'outer: for (_key_a, posts_a) in postings_a {
-            for post_a in posts_a.iter().filter(|p| p.doc_id == doc_id) {
-                for (_key_b, posts_b) in postings_b {
-                    for post_b in posts_b.iter().filter(|p| p.doc_id == doc_id) {
-                        for &pos_a in &post_a.positions {
-                            for &pos_b in &post_b.positions {
-                                if pos_b == pos_a + 1 {
-                                    found_sequential = true;
-                                    break 'outer;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if found_sequential {
-            sequential_pairs += 1;
-        }
-    }
+    let sequential_pairs = (0..num_pairs)
+        .filter(|&pair| phrase.sequential(pair, doc_id))
+        .count();
 
     if sequential_pairs == 0 {
         return 1.0;
@@ -219,83 +136,52 @@ pub(super) fn compute_phrase_boost(
     1.0 + ratio * 4.0
 }
 
-/// Get the byte range of the section containing the given offset (from heading to next heading).
-pub(super) fn section_range(
-    text: &str,
-    headings: &[crate::types::HeadingPos],
-    offset: usize,
+/// Returns the byte range of the section of `heading`, from the heading to the next one.
+///
+/// `None` is the intro: the text before the first heading.
+pub(super) fn section_range_at(
+    text_len: usize,
+    headings: &[HeadingPos],
+    heading: Option<usize>,
 ) -> Range<usize> {
-    // If offset is before the first heading, return intro text only
-    if headings.is_empty() || offset < headings[0].offset {
-        let end = headings.first().map(|h| h.offset).unwrap_or(text.len());
-        return 0..end;
-    }
-    let mut section_start = 0;
-    let mut section_end = text.len();
-    for (i, h) in headings.iter().enumerate() {
-        if h.offset <= offset {
-            section_start = h.offset;
-            section_end = headings
-                .get(i + 1)
-                .map(|next| next.offset)
-                .unwrap_or(text.len());
-        } else {
-            break;
+    match heading.and_then(|i| headings.get(i).map(|h| (i, h))) {
+        None => 0..headings.first().map_or(text_len, |h| h.offset),
+        Some((i, h)) => {
+            let end = headings.get(i + 1).map_or(text_len, |next| next.offset);
+            h.offset..end
         }
     }
-    section_start..section_end
 }
 
-/// Given a match offset, walk backwards through heading positions to build breadcrumb.
-/// Returns (breadcrumb, anchor) where breadcrumb is e.g. ["Page Title", "h2"]
-/// and anchor is the closest heading's anchor.
-pub(super) fn resolve_heading_breadcrumb(
+/// Builds the breadcrumb of the section of `heading`.
+///
+/// The breadcrumb is the page title, the ancestor headings (lower depth), then the
+/// heading itself, e.g. ["Page Title", "h2"]. The intro (`None`) has no breadcrumb.
+pub(super) fn heading_breadcrumb(
     page_title: &str,
-    headings: &[crate::types::HeadingPos],
-    match_offset: Option<usize>,
-) -> (Vec<String>, String) {
-    let offset = match match_offset {
-        Some(o) => o,
-        None => return (vec![], String::new()),
+    headings: &[HeadingPos],
+    heading: Option<usize>,
+) -> Vec<String> {
+    let Some((closest_idx, closest)) = heading.and_then(|i| headings.get(i).map(|h| (i, h))) else {
+        return vec![];
     };
 
-    // Find the last heading whose offset <= match offset
-    let mut closest_idx: Option<usize> = None;
-    for (i, h) in headings.iter().enumerate() {
-        if h.offset <= offset {
-            closest_idx = Some(i);
-        } else {
-            break;
-        }
-    }
-
-    let closest_idx = match closest_idx {
-        Some(i) => i,
-        None => return (vec![], String::new()), // Match is before any heading
-    };
-
-    let closest = &headings[closest_idx];
-    let anchor = closest.anchor.clone();
-
-    // Build breadcrumb: page title, then ancestor headings (lower depth), then closest
     let mut crumbs = vec![page_title.to_string()];
-    let closest_depth = closest.depth;
 
     // Walk backwards to find ancestor headings
-    let mut need_depth = closest_depth - 1;
+    let mut need_depth = closest.depth.saturating_sub(1);
     let mut ancestors = Vec::new();
-    for i in (0..closest_idx).rev() {
-        if headings[i].depth <= need_depth {
-            ancestors.push(headings[i].title.clone());
-            if headings[i].depth <= 2 {
+    for h in headings[..closest_idx].iter().rev() {
+        if h.depth <= need_depth {
+            ancestors.push(h.title.clone());
+            if h.depth <= 2 {
                 break;
             }
-            need_depth = headings[i].depth - 1;
+            need_depth = h.depth - 1;
         }
     }
     ancestors.reverse();
     crumbs.extend(ancestors);
     crumbs.push(closest.title.clone());
-
-    (crumbs, anchor)
+    crumbs
 }
