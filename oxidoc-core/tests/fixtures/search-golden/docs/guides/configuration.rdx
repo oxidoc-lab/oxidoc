@@ -1,0 +1,15 @@
+# Configuration
+
+The project reads its settings from a single config file.
+
+## Project Name
+
+Set the project name. The name appears in the page title and the search dialog.
+
+## Search Settings
+
+Search is on by default. Semantic search needs an embedding model.
+
+### Chunked Index
+
+Postings split into chunks by the first two characters of each term.

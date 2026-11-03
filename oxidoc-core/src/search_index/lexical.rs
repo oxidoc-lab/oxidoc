@@ -1,7 +1,8 @@
 use crate::error::Result;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
+use super::chunk::SortedChunk;
 use super::types::{
     self, ChunkEntry, ChunkManifest, DocMetadata, LexicalIndex, PageContent, Posting,
     SearchMetadata,
@@ -85,12 +86,12 @@ pub fn build_lexical_index(pages: &[PageContent]) -> LexicalIndex {
         }
     }
 
-    // Sort postings by score (descending) for faster retrieval.
+    // Sort postings by score descending, then doc id ascending, so the order is total.
     for postings_list in postings.values_mut() {
         postings_list.sort_by(|a, b| {
             b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .total_cmp(&a.score)
+                .then_with(|| a.doc_id.cmp(&b.doc_id))
         });
     }
 
@@ -117,9 +118,12 @@ fn compute_bm25(idf: f32, tf: f32, doc_length: f32, avg_doc_length: f32) -> f32 
 /// Produces:
 /// - `search-meta.bin`: SearchMetadata (documents + chunk manifest)
 /// - `search-chunk-{id}.bin`: postings for each chunk (partitioned by 2-char prefix)
+///
+/// The same index produces the same bytes on every run. Chunk ids follow sorted
+/// prefix order. Each chunk archives its terms in sorted order.
 pub fn write_lexical_index(index: &LexicalIndex, output_dir: &Path) -> Result<()> {
-    // Partition postings by first 2 chars of key.
-    let mut prefix_groups: HashMap<String, HashMap<String, Vec<Posting>>> = HashMap::new();
+    // Partition postings by the first 2 chars of the term, in sorted prefix order.
+    let mut prefix_groups: BTreeMap<String, Vec<(&String, &Vec<Posting>)>> = BTreeMap::new();
     for (key, postings) in &index.postings {
         let prefix = if key.len() >= 2 && key.is_char_boundary(2) {
             key[..2].to_string()
@@ -129,16 +133,14 @@ pub fn write_lexical_index(index: &LexicalIndex, output_dir: &Path) -> Result<()
         prefix_groups
             .entry(prefix)
             .or_default()
-            .insert(key.clone(), postings.clone());
+            .push((key, postings));
     }
 
     // Assign chunk IDs and write chunk files.
     let mut chunks: Vec<ChunkEntry> = Vec::new();
-    let mut sorted_prefixes: Vec<String> = prefix_groups.keys().cloned().collect();
-    sorted_prefixes.sort();
 
-    for (chunk_id, prefix) in sorted_prefixes.iter().enumerate() {
-        let chunk_postings = prefix_groups.remove(prefix).unwrap_or_default();
+    for (chunk_id, (prefix, entries)) in prefix_groups.into_iter().enumerate() {
+        let chunk_postings = SortedChunk::new(entries);
         let chunk_path = output_dir.join(format!("search-chunk-{}.bin", chunk_id));
         let encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&chunk_postings).map_err(|e| {
             crate::error::OxidocError::FileWrite {
@@ -153,7 +155,7 @@ pub fn write_lexical_index(index: &LexicalIndex, output_dir: &Path) -> Result<()
 
         chunks.push(ChunkEntry {
             id: chunk_id as u32,
-            prefixes: vec![prefix.clone()],
+            prefixes: vec![prefix],
         });
     }
 
@@ -326,5 +328,84 @@ mod tests {
             rkyv::from_bytes::<_, rkyv::rancor::Error>(&chunk_bytes)
                 .expect("ChunkPostings deserialization failed");
         assert!(chunk.contains_key("test"));
+    }
+
+    /// Reads every file in `dir` into a map from file name to bytes.
+    fn read_dir_bytes(dir: &Path) -> BTreeMap<String, Vec<u8>> {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let name = entry.file_name().to_string_lossy().into_owned();
+                (name, std::fs::read(entry.path()).unwrap())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_write_lexical_index_is_deterministic() {
+        // Many terms share a 2-char prefix, so each chunk holds several entries.
+        let words: Vec<&str> = "configure compile compute contract convert collect combine \
+            command commit compare search segment select server session setting render \
+            request resolve return"
+            .split_whitespace()
+            .collect();
+        let pages: Vec<PageContent> = (0..6)
+            .map(|i| {
+                let text = words
+                    .iter()
+                    .cycle()
+                    .skip(i * 3)
+                    .take(words.len() + i)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                PageContent {
+                    title: format!("Page {i}"),
+                    slug: format!("page-{i}"),
+                    text,
+                    headings: vec![],
+                }
+            })
+            .collect();
+
+        // Each build uses fresh std HashMaps with new random seeds.
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        write_lexical_index(&build_lexical_index(&pages), first.path()).unwrap();
+        write_lexical_index(&build_lexical_index(&pages), second.path()).unwrap();
+
+        let first_files = read_dir_bytes(first.path());
+        let second_files = read_dir_bytes(second.path());
+        assert!(first_files.contains_key("search-meta.bin"));
+        assert!(first_files.len() > 2, "expected several chunk files");
+        assert_eq!(
+            first_files.keys().collect::<Vec<_>>(),
+            second_files.keys().collect::<Vec<_>>()
+        );
+        for (name, bytes) in &first_files {
+            assert!(
+                second_files[name] == *bytes,
+                "{name} differs between two builds of the same pages"
+            );
+        }
+    }
+
+    #[test]
+    fn test_postings_sorted_by_score_then_doc_id() {
+        // Identical pages give equal scores, so doc id breaks every tie.
+        let pages: Vec<PageContent> = (0..4)
+            .map(|i| PageContent {
+                title: format!("Doc{i}"),
+                slug: format!("doc{i}"),
+                text: "shared words here".to_string(),
+                headings: vec![],
+            })
+            .collect();
+
+        let index = build_lexical_index(&pages);
+        let term = oxidoc_text::tokenize("shared").remove(0);
+        let ids: Vec<u32> = index.postings[&term].iter().map(|p| p.doc_id).collect();
+        assert_eq!(ids, vec![0, 1, 2, 3]);
     }
 }

@@ -1,0 +1,11 @@
+# Search
+
+Readers search the docs with keywords. Results link to the closest heading.
+
+## Ranking
+
+Each term gets a BM25 score. Phrase matches rank higher than scattered terms.
+
+## Highlighting
+
+Matched terms appear highlighted in the result snippet.

@@ -1,0 +1,11 @@
+# Installation
+
+Install the command line tool with one command.
+
+## Requirements
+
+You need a recent Rust toolchain and a terminal.
+
+## Verify the Install
+
+Run the version command. It prints the installed version and exits.
