@@ -7,7 +7,7 @@ use super::scoring::{PhraseIndex, compute_phrase_boost, heading_breadcrumb, scor
 use super::search::LexicalSearcher;
 use super::section_hits::first_match_per_section;
 use crate::records::{DocRecord, Filter};
-use crate::types::{SearchResult as DocResult, SearchSource};
+use crate::types::{HeadingPos, SearchResult as DocResult, SearchSource};
 
 /// Title boost of the intro section when the page title covers the query.
 const PAGE_TITLE_BOOST: f32 = 2.0;
@@ -144,10 +144,7 @@ impl LexicalSearcher {
             };
             let lower_text = words.lower_text(doc);
             // First match of each section that holds a match, in text order.
-            let firsts = first_match_per_section(lower_text, &terms, &doc.headings);
-            if firsts.is_empty() {
-                continue;
-            }
+            let firsts = match_offsets(lower_text, &terms, &raw_tokens, &doc.headings);
 
             let title_match = title_covers_tokens(&words.title, &scorer);
             let mut seen_anchors: Vec<&str> = Vec::new();
@@ -204,6 +201,37 @@ impl LexicalSearcher {
         sort_hits(&mut hits);
         hits
     }
+}
+
+/// Returns the first match of each section to score, in text order.
+///
+/// `terms` are index keys, and a stem can be absent from the text: "numpy" stems to "numpi".
+/// The posting proves the word is there, so a document with no key in its text still counts. It
+/// looks for what the reader typed, then for every section. Scoring drops a section without the
+/// word.
+fn match_offsets(
+    lower_text: &str,
+    terms: &[&str],
+    raw_tokens: &[String],
+    headings: &[HeadingPos],
+) -> Vec<(usize, Option<usize>)> {
+    let firsts = first_match_per_section(lower_text, terms, headings);
+    if !firsts.is_empty() {
+        return firsts;
+    }
+    let typed: Vec<&str> = raw_tokens.iter().map(String::as_str).collect();
+    let firsts = first_match_per_section(lower_text, &typed, headings);
+    if !firsts.is_empty() {
+        return firsts;
+    }
+    std::iter::once((0, None))
+        .chain(
+            headings
+                .iter()
+                .enumerate()
+                .map(|(index, heading)| (heading.offset, Some(index))),
+        )
+        .collect()
 }
 
 #[cfg(test)]

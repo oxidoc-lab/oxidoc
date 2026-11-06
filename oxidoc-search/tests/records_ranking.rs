@@ -408,3 +408,50 @@ fn page_only_results_serialize_without_a_tags_key() {
         r#"{"title":"Search","path":"/docs/search","snippet":"Search runs in the browser.","score":6.0,"source":"Lexical","breadcrumb":[],"anchor":"","highlight_terms":[]}"#
     );
 }
+
+#[test]
+fn a_camel_case_word_in_a_description_is_found_by_its_lowercase_form() {
+    let records = [
+        project(
+            "numr",
+            ["", "in the role NumPy has in Python", ""],
+            &[],
+            1.0,
+        ),
+        project("other", ["", "a plain library", ""], &[], 1.0),
+    ];
+    let (_dir, searcher) = site(&records);
+    assert_eq!(paths(&searcher, "numpy", vec![]), ["/p/numr"]);
+    assert_eq!(paths(&searcher, "NumPy", vec![]), ["/p/numr"]);
+    assert_eq!(paths(&searcher, "num", vec![]), ["/p/numr"]);
+}
+
+#[test]
+fn a_word_whose_stem_is_not_in_the_text_is_still_found() {
+    let records = [
+        project("one", ["", "a sparse matrix library", ""], &[], 1.0),
+        project("two", ["", "many sparse libraries", ""], &[], 1.0),
+        project("three", ["", "a plain crate", ""], &[], 1.0),
+    ];
+    let (_dir, searcher) = site(&records);
+    for query in ["library", "libraries"] {
+        let mut found = paths(&searcher, query, vec![]);
+        found.sort();
+        assert_eq!(found, ["/p/one", "/p/two"], "{query}");
+    }
+}
+
+#[test]
+fn a_stem_missing_from_the_text_finds_the_section_that_holds_the_word() {
+    let text = "Intro about nothing.\nSection about entropy here.";
+    let offset = text.find("Section").unwrap();
+    let headings = vec![HeadingPos {
+        offset,
+        title: "Section".to_string(),
+        anchor: "section".to_string(),
+        depth: 2,
+    }];
+    let (_dir, searcher) = site(&[page("Doc", "doc", text, headings)]);
+    assert_eq!(paths(&searcher, "entropy", vec![]), ["/doc#section"]);
+    assert_eq!(paths(&searcher, "entropies", vec![]), ["/doc#section"]);
+}
